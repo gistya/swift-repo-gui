@@ -1,0 +1,30 @@
+import AppKit
+import SwiftUI
+import SwiftData
+import SwiftXStateSwiftUI
+
+struct LiveLogView: View {
+    let build: MachineStore<BuildOperationsMachine>
+    @Query(sort: \BuildOperationRecord.createdAt, order: .reverse) private var operations: [BuildOperationRecord]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if build.matches(.running), let job = build.context.activeJob {
+                LogFileView(operationID: job.operationID, fallback: job.displayCommand)
+                    .padding()
+            } else if let latest = operations.first {
+                LogFileView(operationID: latest.id, fallback: latest.commandLine)
+                    .padding()
+            } else {
+                ContentUnavailableView("No Logs Yet", systemImage: "doc.text", description: Text("Run a build to capture output here."))
+            }
+        }
+        .navigationTitle("Logs")
+        .toolbar {
+            ToolbarItemGroup {
+                Button("Open Logs Folder") { NSWorkspace.shared.open(AppPaths.logsDirectory) }
+                Button("Open Exports Folder") { NSWorkspace.shared.open(AppPaths.exportsDirectory) }
+            }
+        }
+    }
+}

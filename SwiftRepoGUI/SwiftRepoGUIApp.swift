@@ -1,5 +1,4 @@
-//
-
+import AppKit
 import SwiftUI
 import SwiftData
 
@@ -7,7 +6,8 @@ import SwiftData
 struct SwiftRepoGUIApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            BuildOperationRecord.self,
+            SavedBuildProfile.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -23,5 +23,15 @@ struct SwiftRepoGUIApp: App {
             ContentView()
         }
         .modelContainer(sharedModelContainer)
+        .commands {
+            CommandGroup(after: .newItem) {
+                Button("Open Logs Folder") {
+                    NSWorkspace.shared.open(AppPaths.logsDirectory)
+                }
+                Button("Open Exports Folder") {
+                    NSWorkspace.shared.open(AppPaths.exportsDirectory)
+                }
+            }
+        }
     }
 }

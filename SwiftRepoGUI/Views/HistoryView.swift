@@ -1,0 +1,225 @@
+import AppKit
+import SwiftUI
+import SwiftData
+import SwiftXStateSwiftUI
+import UniformTypeIdentifiers
+
+struct HistoryView: View {
+    let session: AppSession
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \BuildOperationRecord.createdAt, order: .reverse) private var operations: [BuildOperationRecord]
+
+    @State private var selectedOperationID: UUID?
+    @State private var importError: String?
+
+    var body: some View {
+        NavigationSplitView {
+            List(operations, selection: $selectedOperationID) { operation in
+                HistoryRow(operation: operation)
+                    .tag(operation.id)
+            }
+            .navigationSplitViewColumnWidth(min: 260, ideal: 300)
+            .toolbar {
+                ToolbarItemGroup {
+                    Button("Import…") { importOperationFromDisk() }
+                    Button("Open Logs") { NSWorkspace.shared.open(AppPaths.logsDirectory) }
+                    Button("Open Exports") { NSWorkspace.shared.open(AppPaths.exportsDirectory) }
+                }
+            }
+        } detail: {
+            if let operation = selectedOperation {
+                OperationDetailView(operation: operation, session: session)
+            } else {
+                ContentUnavailableView(
+                    "Select an Operation",
+                    systemImage: "clock.arrow.circlepath",
+                    description: Text("Pick a past build to inspect logs, replay, or export.")
+                )
+            }
+        }
+        .navigationTitle("History")
+        .alert("Import Error", isPresented: Binding(
+            get: { importError != nil },
+            set: { if !$0 { importError = nil } }
+        )) {
+            Button("OK") { importError = nil }
+        } message: {
+            Text(importError ?? "")
+        }
+    }
+
+    private var selectedOperation: BuildOperationRecord? {
+        guard let selectedOperationID else { return operations.first }
+        return operations.first { $0.id == selectedOperationID }
+    }
+
+    private func importOperationFromDisk() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [OperationImportExport.operationUTType, .json]
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let data = try Data(contentsOf: url)
+            let imported = try OperationImportExport.importOperation(from: data)
+            session.settings.send(.restore(imported.options, imported.targetRepository))
+            session.setProjectPath(imported.projectPath)
+            session.setBuildSubdir(imported.buildSubdir)
+            session.refreshProject()
+            let record = BuildOperationRecord(
+                kind: imported.kind,
+                projectPath: imported.projectPath,
+                buildSubdir: imported.buildSubdir,
+                targetRepository: imported.targetRepository,
+                commandLine: imported.commandLine,
+                logFileName: "",
+                options: imported.options,
+                notes: "Imported: \(imported.notes)",
+                savedProfileName: imported.savedProfileName
+            )
+            modelContext.insert(record)
+            selectedOperationID = record.id
+        } catch {
+            importError = error.localizedDescription
+        }
+    }
+}
+
+struct HistoryRow: View {
+    let operation: BuildOperationRecord
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Image(systemName: operation.kind.symbolName)
+                Text(operation.kind.title)
+                    .font(.headline)
+                Spacer()
+                statusBadge
+            }
+            Text(operation.createdAt, style: .date)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            if !operation.targetRepository.isEmpty {
+                Text(operation.targetRepository)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    @ViewBuilder
+    private var statusBadge: some View {
+        let color: Color = switch operation.status {
+        case .succeeded: .green
+        case .failed: .red
+        case .running: .blue
+        case .cancelled: .orange
+        case .pending: .secondary
+        }
+        Text(operation.status.title)
+            .font(.caption2.weight(.semibold))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(color.opacity(0.15), in: Capsule())
+            .foregroundStyle(color)
+    }
+}
+
+struct OperationDetailView: View {
+    let operation: BuildOperationRecord
+    let session: AppSession
+
+    @State private var copied = false
+    @State private var exportMessage: String?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                header
+                commandSection
+                LogFileView(operationID: operation.id, fallback: operation.commandLine)
+                actionButtons
+            }
+            .padding()
+        }
+        .navigationTitle(operation.kind.title)
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            LabeledContent("Status", value: operation.status.title)
+            LabeledContent("Started", value: operation.createdAt.formatted())
+            if let finished = operation.finishedAt {
+                LabeledContent("Finished", value: finished.formatted())
+            }
+            if let duration = operation.duration {
+                LabeledContent("Duration", value: formatDuration(duration))
+            }
+            if let code = operation.exitCode {
+                LabeledContent("Exit Code", value: String(code))
+            }
+            LabeledContent("Project", value: operation.projectPath)
+            LabeledContent("Build Dir", value: operation.buildSubdir)
+        }
+        .font(.callout)
+    }
+
+    private var commandSection: some View {
+        GroupBox("Command") {
+            Text(operation.commandLine)
+                .font(.system(.body, design: .monospaced))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var actionButtons: some View {
+        HStack {
+            Button("Replay") {
+                Task { await session.replay(operation) }
+            }
+            .disabled(session.build.matches(.running))
+
+            Button(copied ? "Copied!" : "Copy Command") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(shellWrappedCommand, forType: .string)
+                copied = true
+            }
+
+            Button("Export…") { exportOperation() }
+            Spacer()
+            if let exportMessage {
+                Text(exportMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var shellWrappedCommand: String {
+        if operation.commandLine.contains("cd ") {
+            return operation.commandLine
+        }
+        return "cd \(BuildCommandBuilder.shellQuote(operation.projectPath)) && \(operation.commandLine)"
+    }
+
+    private func exportOperation() {
+        do {
+            let exported = ExportedBuildOperation(from: operation)
+            let url = try OperationImportExport.writeExportFile(exported)
+            exportMessage = "Exported to \(url.lastPathComponent)"
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        } catch {
+            exportMessage = error.localizedDescription
+        }
+    }
+
+    private func formatDuration(_ interval: TimeInterval) -> String {
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.hour, .minute, .second]
+        formatter.zeroFormattingBehavior = .pad
+        return formatter.string(from: interval) ?? "\(Int(interval))s"
+    }
+}

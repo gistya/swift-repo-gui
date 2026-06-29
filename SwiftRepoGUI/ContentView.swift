@@ -1,54 +1,45 @@
-//
-
 import SwiftUI
 import SwiftData
 
 struct ContentView: View {
+    @State private var session = AppSession()
     @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
 
     var body: some View {
         NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
-                }
-                .onDelete(perform: deleteItems)
+            List(AppSectionID.allCases, selection: Binding(
+                get: { session.selectedSection },
+                set: { if let section = $0 { session.selectSection(section) } }
+            )) { section in
+                Label(section.title, systemImage: section.symbolName)
+                    .tag(section)
             }
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-            .toolbar {
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
-            }
+            .navigationSplitViewColumnWidth(min: 160, ideal: 180)
         } detail: {
-            Text("Select an item")
-        }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+            switch session.selectedSection {
+            case .build:
+                DashboardView(
+                    session: session,
+                    project: session.project,
+                    settings: session.settings,
+                    build: session.build
+                )
+            case .settings:
+                BuildSettingsView(settings: session.settings)
+            case .history:
+                HistoryView(session: session)
+            case .logs:
+                LiveLogView(build: session.build)
             }
+        }
+        .frame(minWidth: 900, minHeight: 640)
+        .onAppear {
+            session.attach(modelContext: modelContext)
         }
     }
 }
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+        .modelContainer(for: [BuildOperationRecord.self, SavedBuildProfile.self], inMemory: true)
 }
