@@ -36,9 +36,8 @@ final class TrackerSoundtrackController: ObservableObject {
     }
 
     func start() {
-        guard !startupPlayed else { return }
+        guard !startupPlayed, !isMuted else { return }
         startupPlayed = true
-        guard !isMuted else { return }
         playRandomTrack(for: .startup)
     }
 
@@ -50,11 +49,12 @@ final class TrackerSoundtrackController: ObservableObject {
         } else {
             audioAvailable = true
             lastError = nil
-            if startupPlayed {
+            if lastContext.isRunning {
                 currentStage = .off
                 update(for: lastContext, forceStageRefresh: true)
             } else {
-                start()
+                startupPlayed = true
+                playRandomTrack(for: .startup)
             }
         }
     }
@@ -205,13 +205,16 @@ nonisolated struct TrackerModuleTrack: Hashable, Sendable {
 }
 
 nonisolated enum TrackerModuleLibrary {
-    static let supportedExtensions = ["mod", "xm", "it", "s3m", "mptm"]
+    static var supportedExtensions: [String] {
+        SwiftBuilderStyle.current.sound.trackerModuleExtensions.map { $0.lowercased() }
+    }
 
     static func discover(in bundle: Bundle = .main) -> [TrackerModuleTrack] {
         var urls = Set<URL>()
+        let moduleDirectory = SwiftBuilderStyle.current.sound.trackerModuleDirectory
         let subdirectories: [String?] = [
-            "TrackerModules",
-            "Resources/TrackerModules",
+            moduleDirectory,
+            "Resources/\(moduleDirectory)",
             nil
         ]
 
@@ -267,7 +270,7 @@ nonisolated enum TrackerModuleLibrary {
     }
 }
 
-private struct TrackerRenderRequest: Sendable {
+private nonisolated struct TrackerRenderRequest: Sendable {
     let track: TrackerModuleTrack
     let purpose: SoundtrackPurpose
     let sampleRate: Double
@@ -275,12 +278,12 @@ private struct TrackerRenderRequest: Sendable {
     let soundStyle: SoundPalette
 }
 
-private struct RenderedTrackerBuffer {
+private nonisolated struct RenderedTrackerBuffer {
     let track: TrackerModuleTrack
     let buffer: AVAudioPCMBuffer?
 }
 
-private enum SoundtrackPurpose: Sendable, Equatable {
+private nonisolated enum SoundtrackPurpose: Sendable, Equatable {
     case startup
     case stage(BuildStage)
     case success
@@ -288,7 +291,7 @@ private enum SoundtrackPurpose: Sendable, Equatable {
     case test
 }
 
-private struct TrackerRenderer {
+private nonisolated struct TrackerRenderer {
     let request: TrackerRenderRequest
 
     private var format: AVAudioFormat {
@@ -565,7 +568,7 @@ private struct TrackerRenderer {
     }
 }
 
-private struct TrackerPattern {
+private nonisolated struct TrackerPattern {
     let bpm: Double
     let melody: [Int?]
     let bass: [Int?]
@@ -633,28 +636,28 @@ private struct TrackerPattern {
     }
 }
 
-private func pluckEnvelope(at time: Double, attack: Double, decay: Double) -> Double {
+private nonisolated func pluckEnvelope(at time: Double, attack: Double, decay: Double) -> Double {
     min(1, time / attack) * exp(-time / decay)
 }
 
-private func midiFrequency(_ note: Double) -> Double {
+private nonisolated func midiFrequency(_ note: Double) -> Double {
     440 * pow(2, (note - 69) / 12)
 }
 
-private func sine(_ frequency: Double, _ time: Double) -> Double {
+private nonisolated func sine(_ frequency: Double, _ time: Double) -> Double {
     sin(2 * .pi * frequency * time)
 }
 
-private func triangle(frequency: Double, time: Double) -> Double {
+private nonisolated func triangle(frequency: Double, time: Double) -> Double {
     let phase = (frequency * time).truncatingRemainder(dividingBy: 1)
     return 4 * abs(phase - 0.5) - 1
 }
 
-private func roundedPulse(frequency: Double, time: Double) -> Double {
+private nonisolated func roundedPulse(frequency: Double, time: Double) -> Double {
     tanh(sine(frequency, time) * 2.4) / tanh(2.4)
 }
 
-private func whiteNoise(_ frame: Int) -> Double {
+private nonisolated func whiteNoise(_ frame: Int) -> Double {
     var value = UInt64(truncatingIfNeeded: frame) &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
     value ^= value >> 33
     value &*= 0xff51afd7ed558ccd
@@ -662,6 +665,6 @@ private func whiteNoise(_ frame: Int) -> Double {
     return (Double(value & 0xffff) / 32_768) - 1
 }
 
-private func softClip(_ value: Double) -> Double {
+private nonisolated func softClip(_ value: Double) -> Double {
     tanh(value * 1.18)
 }

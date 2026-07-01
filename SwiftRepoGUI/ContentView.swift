@@ -51,6 +51,7 @@ struct ContentView: View {
         .onAppear {
             session.attach(modelContext: modelContext)
             soundtrack.setMuted(soundtrackMuted)
+            soundtrack.start()
             soundtrack.update(for: session.build.context)
             keyboardFocus = true
         }
