@@ -9,8 +9,14 @@ struct BuildProgressPanel: View {
         GroupBox("Active Build") {
             if build.matches(.running) {
                 VStack(alignment: .leading, spacing: 10) {
-                    ProgressView(value: build.context.progress.fraction) {
-                        Text("Building… \(Int(build.context.progress.fraction * 100))%")
+                    if hasActiveNinjaProgress {
+                        ProgressView(value: build.context.progress.fraction) {
+                            Text("Building... \(Int(build.context.progress.fraction * 100))%")
+                        }
+                    } else {
+                        ProgressView {
+                            Text(runningTitle)
+                        }
                     }
                     if let eta = build.context.progress.etaSeconds, eta > 0 {
                         Text("ETA: \(formatDuration(eta))")
@@ -22,6 +28,12 @@ struct BuildProgressPanel: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                    if let message = build.context.progress.message, !message.isEmpty {
+                        Text(message)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(3)
+                    }
                     if let job = build.context.activeJob {
                         Text(job.displayCommand)
                             .font(.system(.caption2, design: .monospaced))
@@ -31,7 +43,7 @@ struct BuildProgressPanel: View {
                     HStack {
                         Button("Cancel", role: .destructive) { build.send(.cancel) }
                         Spacer()
-                        Button("Open Logs Folder") { NSWorkspace.shared.open(AppPaths.logsDirectory) }
+                        Button("Open Logs Folder") { AppFolderActions.openLogsFolder() }
                     }
                 }
             } else if let message = build.context.statusMessage {
@@ -47,6 +59,16 @@ struct BuildProgressPanel: View {
                 .frame(maxHeight: 120)
             }
         }
+    }
+
+    private var runningTitle: String {
+        guard let job = build.context.activeJob else { return "Running..." }
+        return "Running \(job.kind.title)..."
+    }
+
+    private var hasActiveNinjaProgress: Bool {
+        let progress = build.context.progress
+        return progress.totalSteps > 0 && progress.completedSteps < progress.totalSteps
     }
 
     private func formatDuration(_ seconds: Double) -> String {

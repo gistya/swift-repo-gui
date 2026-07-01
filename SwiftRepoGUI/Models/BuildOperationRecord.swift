@@ -32,11 +32,19 @@ final class BuildOperationRecord {
 
     var options: BuildOptions {
         get {
-            (try? JSONDecoder().decode(BuildOptions.self, from: optionsJSON)) ?? .default
+            (try? BuildOptionsCoding.decode(optionsJSON)) ?? .default
         }
         set {
-            optionsJSON = (try? JSONEncoder().encode(newValue)) ?? Data()
+            optionsJSON = (try? BuildOptionsCoding.encode(newValue)) ?? Data()
         }
+    }
+
+    func decodedOptions() throws -> BuildOptions {
+        try BuildOptionsCoding.decode(optionsJSON)
+    }
+
+    func updateOptions(_ options: BuildOptions) throws {
+        optionsJSON = try BuildOptionsCoding.encode(options)
     }
 
     var duration: TimeInterval? {
@@ -67,7 +75,7 @@ final class BuildOperationRecord {
         self.targetRepository = targetRepository
         self.commandLine = commandLine
         self.logFileName = logFileName
-        self.optionsJSON = (try? JSONEncoder().encode(options)) ?? Data()
+        self.optionsJSON = (try? BuildOptionsCoding.encode(options)) ?? Data()
         self.progress = 0
         self.notes = notes
         self.savedProfileName = savedProfileName
@@ -91,12 +99,17 @@ final class SavedBuildProfile {
 
     var options: BuildOptions {
         get {
-            (try? JSONDecoder().decode(BuildOptions.self, from: optionsJSON)) ?? .default
+            (try? BuildOptionsCoding.decode(optionsJSON)) ?? .default
         }
         set {
-            optionsJSON = (try? JSONEncoder().encode(newValue)) ?? Data()
+            optionsJSON = (try? BuildOptionsCoding.encode(newValue)) ?? Data()
             updatedAt = .now
         }
+    }
+
+    func updateOptions(_ options: BuildOptions) throws {
+        optionsJSON = try BuildOptionsCoding.encode(options)
+        updatedAt = .now
     }
 
     init(
@@ -110,13 +123,13 @@ final class SavedBuildProfile {
         self.name = name
         self.createdAt = .now
         self.updatedAt = .now
-        self.optionsJSON = (try? JSONEncoder().encode(options)) ?? Data()
+        self.optionsJSON = (try? BuildOptionsCoding.encode(options)) ?? Data()
         self.defaultKindRaw = defaultKind.rawValue
         self.notes = notes
     }
 }
 
-struct ExportedBuildOperation: Codable, Sendable {
+nonisolated struct ExportedBuildOperation: Codable, Sendable {
     var id: UUID
     var createdAt: Date
     var kind: BuildOperationKind

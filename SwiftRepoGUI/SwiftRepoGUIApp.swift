@@ -26,10 +26,10 @@ struct SwiftRepoGUIApp: App {
         .commands {
             CommandGroup(after: .newItem) {
                 Button("Open Logs Folder") {
-                    NSWorkspace.shared.open(AppPaths.logsDirectory)
+                    AppFolderActions.openLogsFolder()
                 }
                 Button("Open Exports Folder") {
-                    NSWorkspace.shared.open(AppPaths.exportsDirectory)
+                    AppFolderActions.openExportsFolder()
                 }
             }
         }

@@ -4,11 +4,31 @@ import SwiftData
 import SwiftXState
 import SwiftXStateSwiftUI
 
+nonisolated enum SessionWaitError: Error, LocalizedError, Sendable {
+    case projectLoadTimedOut(seconds: Int)
+    case buildTimedOut(seconds: Int)
+    case projectInvalid(message: String)
+
+    var errorDescription: String? {
+        switch self {
+        case let .projectLoadTimedOut(seconds):
+            "Project discovery timed out after \(seconds) seconds."
+        case let .buildTimedOut(seconds):
+            "Build timed out after \(seconds) seconds."
+        case let .projectInvalid(message):
+            message
+        }
+    }
+}
+
 /// The app's view model: a `MainStore` collating typed machines on the main actor.
 /// Persistence (SwiftData) and panel/file dialogs live here; machines stay pure interpreters.
 @MainActor
 @Observable
 final class AppSession {
+    static let projectLoadTimeout: Duration = .seconds(120)
+    static let buildTimeout: Duration = .seconds(86_400)
+
     let store = MainStore()
 
     let navigation: MachineStore<AppNavigationMachine>
@@ -18,6 +38,7 @@ final class AppSession {
 
     @ObservationIgnored private weak var modelContext: ModelContext?
     @ObservationIgnored private var trackedRecords: [UUID: BuildOperationRecord] = [:]
+    @ObservationIgnored private(set) var lastErrorMessage: String?
 
     var selectedSection: AppSectionID { navigation.context.section }
 
@@ -33,6 +54,18 @@ final class AppSession {
 
     func attach(modelContext: ModelContext) {
         self.modelContext = modelContext
+    }
+
+    func clearLastError() {
+        lastErrorMessage = nil
+    }
+
+    func openLogsFolder() {
+        AppFolderActions.openLogsFolder()
+    }
+
+    func openExportsFolder() {
+        AppFolderActions.openExportsFolder()
     }
 
     // MARK: - Navigation
@@ -59,92 +92,95 @@ final class AppSession {
         project.send(.setCheckoutSchemeOverride(scheme))
     }
 
-    // MARK: - Build orchestration
-
-    func startBuild(kind: BuildOperationKind, notes: String = "") async {
-        guard let job = makeJob(kind: kind, notes: notes) else { return }
-        let record = insertRecord(for: job, notes: notes)
-        trackedRecords[job.operationID] = record
-        build.send(.start(job))
-        await waitForBuildIdle()
-        finalizeRecord(job.operationID)
-        if kind == .updateDependencies {
-            project.send(.refresh)
-            await waitForProjectReady()
+    func applyImportedProject(
+        path: String,
+        buildSubdir: String,
+        options: BuildOptions,
+        targetRepository: String
+    ) async throws {
+        settings.send(.restore(options, targetRepository))
+        setBuildSubdir(buildSubdir)
+        setProjectPath(path)
+        try await waitForProjectReady()
+        guard project.context.isValid else {
+            let message = project.context.validationMessage ?? "Imported project path is invalid."
+            throw SessionWaitError.projectInvalid(message: message)
         }
     }
 
-    func startFreshDependency(notes: String = "Fresh ninja clean rebuild") async {
-        guard let projectInfo = project.context.projectInfo else { return }
-        let buildSubdir = effectiveBuildSubdir
-        let repo = settings.context.selectedRepository
-        let built = BuildCommandBuilder.freshNinjaClean(
-            project: projectInfo,
-            buildSubdir: buildSubdir,
-            repoName: repo == "swift" ? "swift" : repo
-        )
-        let operationID = UUID()
-        let job = BuildJob(
-            operationID: operationID,
-            kind: .dependencyBuild,
-            executable: built.executable,
-            arguments: built.arguments,
-            workingDirectory: built.workingDirectory.path,
-            displayCommand: built.display,
-            logFilePath: AppPaths.logFileURL(for: operationID).path,
-            projectPath: projectInfo.root.path,
-            buildSubdir: buildSubdir,
-            targetRepository: repo
-        )
-        let record = insertRecord(for: job, notes: notes)
-        trackedRecords[operationID] = record
-        build.send(.start(job))
-        await waitForBuildIdle()
-        finalizeRecord(operationID)
+    // MARK: - Build orchestration
+
+    func startBuild(kind: BuildOperationKind, notes: String = "") async throws {
+        do {
+            guard let request = try makeRequest(kind: kind) else { return }
+            let job = BuildJobPlanner.job(for: request)
+            let record = insertRecord(for: job, options: request.options, notes: notes)
+            trackedRecords[request.operationID] = record
+            build.send(.startRequest(request))
+            try await waitForBuildIdle()
+            finalizeRecord(request.operationID)
+            if kind == .updateDependencies {
+                project.send(.refresh)
+                try await waitForProjectReady()
+            }
+        } catch {
+            report(error)
+            throw error
+        }
+    }
+
+    func startFreshDependency(notes: String = "Fresh ninja clean rebuild") async throws {
+        do {
+            guard let request = try makeRequest(
+                kind: .dependencyBuild,
+                mode: .freshNinjaClean
+            ) else { return }
+            let job = BuildJobPlanner.job(for: request)
+            let record = insertRecord(for: job, options: request.options, notes: notes)
+            trackedRecords[request.operationID] = record
+            build.send(.startRequest(request))
+            try await waitForBuildIdle()
+            finalizeRecord(request.operationID)
+        } catch {
+            report(error)
+            throw error
+        }
     }
 
     func runUpdateThenRebuild() async {
-        project.send(.captureRevisions)
-        await waitForProjectReady()
-        await startBuild(kind: .updateDependencies, notes: "Match swift commit timestamps")
-        guard let info = project.context.projectInfo else { return }
-        let changed = ProjectService.changedRepositories(
-            in: info,
-            since: project.context.revisionsBeforeUpdate
-        )
-        guard !changed.isEmpty else {
-            build.send(.setStatusMessage("All dependencies already matched the swift commit."))
-            return
+        do {
+            guard project.context.projectInfo != nil else {
+                throw SessionWaitError.projectInvalid(message: ProjectInspectFailure.projectNotLoaded.errorDescription ?? "Project is not loaded.")
+            }
+            project.send(.captureRevisions)
+            try await waitForProjectReady()
+            try await startBuild(kind: .updateDependencies, notes: "Match swift commit timestamps")
+            guard let info = project.context.projectInfo else { return }
+            let changed = await ProjectService.changedRepositories(
+                in: info,
+                since: project.context.revisionsBeforeUpdate
+            )
+            guard !changed.isEmpty else {
+                build.send(.setStatusMessage("All dependencies already matched the swift commit."))
+                return
+            }
+            guard let request = try makeRequest(
+                kind: .updateAndRebuild,
+                mode: .command(changedRepositories: changed)
+            ) else { return }
+            let job = BuildJobPlanner.job(for: request)
+            let record = insertRecord(
+                for: job,
+                options: request.options,
+                notes: "Rebuild changed: \(changed.map(\.name).joined(separator: ", "))"
+            )
+            trackedRecords[request.operationID] = record
+            build.send(.startRequest(request))
+            try await waitForBuildIdle()
+            finalizeRecord(request.operationID)
+        } catch {
+            report(error)
         }
-        let rebuild = BuildCommandBuilder.command(
-            kind: .updateAndRebuild,
-            project: info,
-            buildSubdir: effectiveBuildSubdir,
-            options: settings.context.options,
-            changedRepositories: changed
-        )
-
-        let operationID = UUID()
-        let job = BuildJob(
-            operationID: operationID,
-            kind: .updateAndRebuild,
-            executable: rebuild.executable,
-            arguments: rebuild.arguments,
-            workingDirectory: rebuild.workingDirectory.path,
-            displayCommand: rebuild.display,
-            logFilePath: AppPaths.logFileURL(for: operationID).path,
-            projectPath: info.root.path,
-            buildSubdir: effectiveBuildSubdir,
-            targetRepository: changed.map(\.name).joined(separator: ", ")
-        )
-        let record = insertRecord(
-            for: job,
-            notes: "Rebuild changed: \(changed.map(\.name).joined(separator: ", "))"
-        )
-        trackedRecords[operationID] = record
-        build.send(.start(job))
-        await waitForBuildIdle()
-        finalizeRecord(operationID)
     }
 
     func cancelBuild() {
@@ -152,22 +188,29 @@ final class AppSession {
     }
 
     func replay(_ record: BuildOperationRecord) async {
-        settings.send(.restore(record.options, record.targetRepository))
-        project.send(.setPath(record.projectPath))
-        project.send(.setBuildSubdir(record.buildSubdir))
-        project.send(.refresh)
-        await waitForProjectReady()
-        guard let job = makeJob(
-            kind: record.kind,
-            notes: "Replay of \(record.id.uuidString)",
-            options: record.options,
-            targetRepository: record.targetRepository
-        ) else { return }
-        let replay = insertRecord(for: job, notes: "Replay of \(record.id.uuidString)")
-        trackedRecords[job.operationID] = replay
-        build.send(.start(job))
-        await waitForBuildIdle()
-        finalizeRecord(job.operationID)
+        do {
+            settings.send(.restore(record.options, record.targetRepository))
+            setBuildSubdir(record.buildSubdir)
+            setProjectPath(record.projectPath)
+            try await waitForProjectReady()
+            guard let request = try makeRequest(
+                kind: record.kind,
+                options: record.options,
+                targetRepository: record.targetRepository
+            ) else { return }
+            let job = BuildJobPlanner.job(for: request)
+            let replay = insertRecord(
+                for: job,
+                options: request.options,
+                notes: "Replay of \(record.id.uuidString)"
+            )
+            trackedRecords[request.operationID] = replay
+            build.send(.startRequest(request))
+            try await waitForBuildIdle()
+            finalizeRecord(request.operationID)
+        } catch {
+            report(error)
+        }
     }
 
     // MARK: - Internals
@@ -178,41 +221,31 @@ final class AppSession {
         return project.context.projectInfo?.detectedBuildSubdirs.first ?? ""
     }
 
-    private func makeJob(
+    private func makeRequest(
         kind: BuildOperationKind,
-        notes: String,
         options: BuildOptions? = nil,
-        targetRepository: String? = nil
-    ) -> BuildJob? {
+        targetRepository: String? = nil,
+        mode: BuildPlanningMode = .command()
+    ) throws -> BuildRunRequest? {
         guard let info = project.context.projectInfo else {
             build.send(.setStatusMessage(project.context.validationMessage ?? "Project path is invalid."))
             return nil
         }
-        let buildSubdir = effectiveBuildSubdir
-        let built = BuildCommandBuilder.command(
-            kind: kind,
-            project: info,
-            buildSubdir: buildSubdir,
-            options: options ?? settings.context.options,
-            targetRepository: targetRepository ?? settings.context.selectedRepository
-        )
         let operationID = UUID()
-        return BuildJob(
+        return BuildRunRequest(
             operationID: operationID,
             kind: kind,
-            executable: built.executable,
-            arguments: built.arguments,
-            workingDirectory: built.workingDirectory.path,
-            displayCommand: built.display,
-            logFilePath: AppPaths.logFileURL(for: operationID).path,
-            projectPath: info.root.path,
-            buildSubdir: buildSubdir,
-            targetRepository: targetRepository ?? settings.context.selectedRepository
+            project: info,
+            buildSubdir: effectiveBuildSubdir,
+            options: options ?? settings.context.options,
+            targetRepository: targetRepository ?? settings.context.selectedRepository,
+            mode: mode,
+            logFilePath: try AppPaths.logFileURL(for: operationID).path
         )
     }
 
     @discardableResult
-    private func insertRecord(for job: BuildJob, notes: String) -> BuildOperationRecord {
+    private func insertRecord(for job: BuildJob, options: BuildOptions, notes: String) -> BuildOperationRecord {
         let record = BuildOperationRecord(
             id: job.operationID,
             kind: job.kind,
@@ -221,7 +254,7 @@ final class AppSession {
             targetRepository: job.targetRepository,
             commandLine: job.displayCommand,
             logFileName: "\(job.operationID.uuidString).log",
-            options: settings.context.options,
+            options: options,
             notes: notes
         )
         record.status = .running
@@ -235,7 +268,7 @@ final class AppSession {
         record.exitCode = Int(build.context.lastExitCode ?? -1)
         record.progress = build.context.progress.fraction
         record.etaSeconds = build.context.progress.etaSeconds
-        if record.exitCode == 0 {
+        if record.exitCode == 0, build.context.statusMessage == nil {
             record.status = .succeeded
         } else if build.context.statusMessage == "Build cancelled." {
             record.status = .cancelled
@@ -245,19 +278,37 @@ final class AppSession {
         trackedRecords[operationID] = nil
     }
 
-    private func waitForBuildIdle() async {
+    private func waitForBuildIdle(timeout: Duration = AppSession.buildTimeout) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now + timeout
         while build.matches(.running) {
+            if clock.now >= deadline {
+                throw SessionWaitError.buildTimedOut(seconds: Int(timeout.components.seconds))
+            }
             if let record = trackedRecords[build.context.lastOperationID ?? UUID()] {
                 record.progress = build.context.progress.fraction
                 record.etaSeconds = build.context.progress.etaSeconds
             }
-            try? await Task.sleep(for: .milliseconds(200))
+            try await Task.sleep(for: .milliseconds(200))
         }
     }
 
-    private func waitForProjectReady() async {
-        while project.matches(.loading) {
-            try? await Task.sleep(for: .milliseconds(50))
+    func waitForProjectReady(timeout: Duration = AppSession.projectLoadTimeout) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now + timeout
+        while project.matches(.loading) || project.context.reloadPending {
+            if clock.now >= deadline {
+                throw SessionWaitError.projectLoadTimedOut(seconds: Int(timeout.components.seconds))
+            }
+            try await Task.sleep(for: .milliseconds(50))
         }
+        if let message = project.context.validationMessage, !project.context.isValid {
+            throw SessionWaitError.projectInvalid(message: message)
+        }
+    }
+
+    private func report(_ error: any Error) {
+        lastErrorMessage = localizedErrorMessage(for: error)
+        build.send(.setStatusMessage(lastErrorMessage ?? "An unknown error occurred."))
     }
 }

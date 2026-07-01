@@ -10,6 +10,7 @@ nonisolated enum BuildOpsState: String, StateIdentifying {
 
 nonisolated enum BuildOpsEvent: EventIdentifying {
     case start(BuildJob)
+    case startRequest(BuildRunRequest)
     case cancel
     case progressUpdated(BuildProgressSnapshot)
     case setStatusMessage(String)
@@ -36,16 +37,13 @@ struct BuildOperationsMachine: StateMachine {
 
     var machine: some XStateMachine {
         XState(.idle) {
+            XTransition(on: BuildOpsEvent.startRequest, to: .running).action { args, _ in
+                guard case let .startRequest(request)? = args.event else { return args.context }
+                return Self.start(job: BuildJobPlanner.job(for: request), context: args.context)
+            }
             XTransition(on: BuildOpsEvent.start, to: .running).action { args, _ in
-                var ctx = args.context
-                guard case let .start(job)? = args.event else { return ctx }
-                ctx.activeJob = job
-                ctx.progress = .zero
-                ctx.startedAt = .now
-                ctx.lastOperationID = job.operationID
-                ctx.statusMessage = nil
-                ctx.lastExitCode = nil
-                return ctx
+                guard case let .start(job)? = args.event else { return args.context }
+                return Self.start(job: job, context: args.context)
             }
             XTransition(on: BuildOpsEvent.setStatusMessage, to: .idle).action { args, _ in
                 var ctx = args.context
@@ -57,17 +55,21 @@ struct BuildOperationsMachine: StateMachine {
 
         XState(.running) {
             Invoke(id: "build-process", run: { scope in
-                guard let input = scope.input?.get(BuildJob.self) else {
-                    throw BuildProcessFailure.missingJob
-                }
-                let sourceRoot = (input.projectPath as NSString).expandingTildeInPath
-                let buildRoot = (sourceRoot as NSString).appendingPathComponent("build")
-                return try await BuildProcessRunner.run(
-                    job: input,
-                    swiftSourceRoot: sourceRoot,
-                    swiftBuildRoot: buildRoot
-                ) { snapshot in
-                    scope.sendToParent(TypedEvent(BuildOpsEvent.progressUpdated(snapshot)))
+                do {
+                    guard let input = scope.input?.get(BuildJob.self) else {
+                        throw BuildProcessFailure.missingJob
+                    }
+                    let sourceRoot = (input.projectPath as NSString).expandingTildeInPath
+                    let buildRoot = (sourceRoot as NSString).appendingPathComponent("build")
+                    return try await BuildProcessRunner.run(
+                        job: input,
+                        swiftSourceRoot: sourceRoot,
+                        swiftBuildRoot: buildRoot
+                    ) { snapshot in
+                        scope.sendToParent(TypedEvent(BuildOpsEvent.progressUpdated(snapshot)))
+                    }
+                } catch {
+                    throw PresentableError(error)
                 }
             })
             .input { ctx in SendableValue(ctx.activeJob) }
@@ -75,15 +77,17 @@ struct BuildOperationsMachine: StateMachine {
                 var next = ctx
                 next.lastExitCode = result.exitCode
                 next.activeJob = nil
-                if result.exitCode == 0 {
+                if result.succeeded {
                     next.progress = BuildProgressSnapshot(
                         completedSteps: max(next.progress.totalSteps, 1),
                         totalSteps: max(next.progress.totalSteps, 1),
                         fraction: 1,
-                        etaSeconds: 0
+                        etaSeconds: 0,
+                        message: "Finished."
                     )
+                    next.statusMessage = nil
                 } else {
-                    next.statusMessage = result.errorMessage
+                    next.statusMessage = result.errorMessage ?? "Build failed."
                 }
                 return next
             }
@@ -91,7 +95,7 @@ struct BuildOperationsMachine: StateMachine {
                 var next = ctx
                 next.activeJob = nil
                 next.lastExitCode = -1
-                next.statusMessage = String(describing: error)
+                next.statusMessage = error
                 return next
             }
 
@@ -110,6 +114,23 @@ struct BuildOperationsMachine: StateMachine {
                 return ctx
             }
         }
+    }
+
+    private static func start(job: BuildJob, context: BuildOperationsContext) -> BuildOperationsContext {
+        var ctx = context
+        ctx.activeJob = job
+        ctx.progress = BuildProgressSnapshot(
+            completedSteps: 0,
+            totalSteps: 0,
+            fraction: 0,
+            etaSeconds: nil,
+            message: "Starting: \(job.displayCommand)"
+        )
+        ctx.startedAt = .now
+        ctx.lastOperationID = job.operationID
+        ctx.statusMessage = nil
+        ctx.lastExitCode = nil
+        return ctx
     }
 }
 

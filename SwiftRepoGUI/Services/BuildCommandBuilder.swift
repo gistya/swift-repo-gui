@@ -1,6 +1,6 @@
 import Foundation
 
-enum BuildCommandBuilder {
+nonisolated enum BuildCommandBuilder {
     static func command(
         kind: BuildOperationKind,
         project: SwiftProjectInfo,
@@ -83,9 +83,9 @@ enum BuildCommandBuilder {
         var args = ["-C", ninjaBuildRoot.path]
         if let target { args.append(target) }
 
-        let ninjaPath = findNinja(in: project) ?? "ninja"
-        let display = ([ninjaPath] + args).joined(separator: " ")
-        return (ninjaPath, args, display, project.root)
+        let ninja = resolveNinja(in: project)
+        let display = ([ninja.displayName] + args).map(shellQuote).joined(separator: " ")
+        return (ninja.executable, ninja.argumentPrefix + args, display, project.root)
     }
 
     private static func chainedCommands(
@@ -98,10 +98,11 @@ enum BuildCommandBuilder {
         let lines = repositories.map { repo -> String in
             let dirName = ProjectService.repoNinjaDirectoryName(repo.name, platform: platform, arch: arch)
             let path = project.buildRoot.appendingPathComponent(buildSubdir).appendingPathComponent(dirName).path
+            let ninja = resolveNinja(in: project).shellToken
             if repo.name == "swift" {
-                return "ninja -C '\(path)' bin/swift-frontend"
+                return "\(ninja) -C \(shellQuote(path)) bin/swift-frontend"
             }
-            return "ninja -C '\(path)'"
+            return "\(ninja) -C \(shellQuote(path))"
         }
         let script = lines.joined(separator: " && ")
         return ("/bin/zsh", ["-lc", script], script, project.root)
@@ -114,7 +115,9 @@ enum BuildCommandBuilder {
     ) -> (executable: String, arguments: [String], display: String, workingDirectory: URL) {
         var args: [String] = []
 
-        if !options.preset.isEmpty {
+        if options.useCustomBuildScriptArguments {
+            args.append(contentsOf: buildScriptArguments(from: options.customBuildScriptArguments))
+        } else if !options.preset.isEmpty {
             args.append("--preset=\(options.preset)")
         } else {
             if clean || options.clean { args.append("-c") }
@@ -145,16 +148,53 @@ enum BuildCommandBuilder {
             if options.dryRun { args.append("-n") }
             if options.buildNinja { args.append("--build-ninja") }
             if options.useMake { args.append("-m") }
+            if options.installablePackage { args.append("--installable-package") }
             if options.swiftPM { args.append("-p") }
             if options.llbuild { args.append("-b") }
             if options.lldb { args.append("-l") }
+            if options.foundation { args.append("--foundation") }
+            if options.libDispatch { args.append("--libdispatch") }
+            if options.xctest { args.append("--xctest") }
             if options.swiftDriver { args.append("--swift-driver") }
             if options.swiftTesting { args.append("--swift-testing") }
+            if options.swiftTestingMacros { args.append("--swift-testing-macros") }
+            if options.swiftSyntax { args.append("--swiftsyntax") }
+            if options.sourceKitLSP { args.append("--sourcekit-lsp") }
+            if options.indexStoreDB { args.append("--indexstore-db") }
+            if options.installAll { args.append("--install-all") }
             if options.installSwift { args.append("--install-swift") }
             if options.installLLVM { args.append("--install-llvm") }
             if options.installSwiftPM { args.append("--install-swiftpm") }
+            if options.installLLDB { args.append("--install-lldb") }
+            if options.installSwiftDriver { args.append("--install-swift-driver") }
+            if options.installSwiftTesting { args.append("--install-swift-testing") }
+            if options.installSwiftTestingMacros { args.append("--install-swift-testing-macros") }
+            if options.installSwiftSyntax { args.append("--install-swiftsyntax") }
+            if options.installSourceKitLSP { args.append("--install-sourcekit-lsp") }
             if options.swiftDisableDeadStripping { args.append("--swift-disable-dead-stripping") }
+            if options.buildSwiftDynamicStdlib { args.append("--build-swift-dynamic-stdlib=1") }
+            if options.buildSwiftDynamicSDKOverlay { args.append("--build-swift-dynamic-sdk-overlay=1") }
+            if options.buildSwiftStaticStdlib { args.append("--build-swift-static-stdlib=1") }
+            if options.buildSwiftStaticSDKOverlay { args.append("--build-swift-static-sdk-overlay=1") }
             if !options.buildSubdir.isEmpty { args.append("--build-subdir=\(options.buildSubdir)") }
+            appendValueArgument("--host-target", options.hostTarget, to: &args)
+            appendValueArgument("--stdlib-deployment-targets", options.stdlibDeploymentTargets, to: &args)
+            appendValueArgument("--build-stdlib-deployment-targets", options.buildStdlibDeploymentTargets, to: &args)
+            appendValueArgument("--install-prefix", options.installPrefix, to: &args)
+            appendValueArgument("--install-destdir", options.installDestdir, to: &args)
+            appendValueArgument("--install-symroot", options.installSymroot, to: &args)
+            appendValueArgument("--darwin-xcrun-toolchain", options.darwinXCRunToolchain, to: &args)
+            appendValueArgument("--cmake", options.cmake, to: &args)
+            appendValueArgument("--host-cc", options.hostCC, to: &args)
+            appendValueArgument("--host-cxx", options.hostCXX, to: &args)
+            appendValueArgument("--llvm-targets-to-build", options.llvmTargetsToBuild, to: &args)
+            appendValueArgument("--build-args", options.buildArgs, to: &args)
+            appendValueArgument("--lit-args", options.litArgs, to: &args)
+            appendValueArgument("--extra-cmake-options", options.extraCMakeOptions, to: &args)
+            appendValueArgument("--extra-swift-cmake-options", options.extraSwiftCMakeOptions, to: &args)
+            appendValueArgument("--llvm-cmake-options", options.llvmCMakeOptions, to: &args)
+            appendValueArgument("--extra-llvm-cmake-options", options.extraLLVMCMakeOptions, to: &args)
+            appendValueArgument("--extra-swift-args", options.extraSwiftArgs, to: &args)
             if options.jobs > 0 { args.append("-j\(options.jobs)") }
             if options.litJobs > 0 { args.append("--lit-jobs=\(options.litJobs)") }
 
@@ -163,11 +203,10 @@ enum BuildCommandBuilder {
             args.append("--swift-darwin-supported-archs")
             args.append(archs)
             #endif
+        }
 
-            for line in options.extraArguments.split(whereSeparator: \.isNewline) {
-                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty { args.append(trimmed) }
-            }
+        if !options.useCustomBuildScriptArguments {
+            args.append(contentsOf: buildScriptArguments(from: options.extraArguments))
         }
 
         let script = project.buildScript.path
@@ -201,10 +240,9 @@ enum BuildCommandBuilder {
             dirName = "swift-\(platform)-\(arch)"
         }
         let path = project.buildRoot.appendingPathComponent(buildSubdir).appendingPathComponent(dirName).path
-        let ninjaPath = findNinja(in: project) ?? "ninja"
-        let args = ["-C", path, "-t", "clean"]
-        let display = "\(ninjaPath) -C '\(path)' -t clean && \(ninjaPath) -C '\(path)'"
-        let script = "\(shellQuote(ninjaPath)) -C \(shellQuote(path)) -t clean && \(shellQuote(ninjaPath)) -C \(shellQuote(path))"
+        let ninja = resolveNinja(in: project)
+        let display = "\(ninja.displayName) -C \(shellQuote(path)) -t clean && \(ninja.displayName) -C \(shellQuote(path))"
+        let script = "\(ninja.shellToken) -C \(shellQuote(path)) -t clean && \(ninja.shellToken) -C \(shellQuote(path))"
         return ("/bin/zsh", ["-lc", script], display, project.root)
     }
 
@@ -213,17 +251,153 @@ enum BuildCommandBuilder {
             project.root.appendingPathComponent("ninja/ninja"),
             project.buildRoot.appendingPathComponent("ninja-macosx-arm64/bin/ninja"),
             project.buildRoot.appendingPathComponent("ninja-macosx-x86_64/bin/ninja"),
-        ]
+        ] + pathCandidates(named: "ninja")
         for candidate in candidates where FileManager.default.isExecutableFile(atPath: candidate.path) {
             return candidate.path
         }
         return nil
     }
 
+    private static func resolveNinja(in project: SwiftProjectInfo) -> NinjaExecutable {
+        if let path = findNinja(in: project) {
+            return NinjaExecutable(
+                executable: path,
+                argumentPrefix: [],
+                displayName: path,
+                shellToken: shellQuote(path)
+            )
+        }
+
+        return NinjaExecutable(
+            executable: "/usr/bin/env",
+            argumentPrefix: ["ninja"],
+            displayName: "ninja",
+            shellToken: "ninja"
+        )
+    }
+
+    private static func pathCandidates(named executableName: String) -> [URL] {
+        let pathDirectories = ProcessInfo.processInfo.environment["PATH"]?
+            .split(separator: ":")
+            .map(String.init) ?? []
+        let commonDirectories = [
+            "/opt/homebrew/bin",
+            "/usr/local/bin",
+            "/usr/bin",
+            "/bin",
+            "/usr/sbin",
+            "/sbin",
+        ]
+
+        var seen: Set<String> = []
+        return (pathDirectories + commonDirectories).compactMap { directory in
+            guard !directory.isEmpty, seen.insert(directory).inserted else { return nil }
+            return URL(fileURLWithPath: directory, isDirectory: true)
+                .appendingPathComponent(executableName)
+        }
+    }
+
     static func shellQuote(_ value: String) -> String {
+        if value.isEmpty {
+            return "''"
+        }
         if value.contains(" ") || value.contains("'") {
             return "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
         }
         return value
     }
+
+    private static func appendValueArgument(_ flag: String, _ value: String, to args: inout [String]) {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        args.append("\(flag)=\(trimmed)")
+    }
+
+    static func buildScriptArguments(from text: String) -> [String] {
+        let tokens = shellSplit(text)
+        guard let scriptIndex = tokens.lastIndex(where: isBuildScriptToken) else {
+            return tokens.filter { !shellCommandSeparators.contains($0) }
+        }
+        return tokens[tokens.index(after: scriptIndex)...]
+            .filter { !shellCommandSeparators.contains($0) }
+    }
+
+    private static let shellCommandSeparators: Set<String> = ["&&", ";"]
+
+    private static func isBuildScriptToken(_ token: String) -> Bool {
+        let normalized = token.replacingOccurrences(of: "\\", with: "/")
+        return normalized == "build-script"
+            || normalized.hasSuffix("/build-script")
+            || normalized.hasSuffix("/swift/utils/build-script")
+            || normalized.hasSuffix("/utils/build-script")
+    }
+
+    private static func shellSplit(_ text: String) -> [String] {
+        var tokens: [String] = []
+        var current = ""
+        var iterator = Array(text).makeIterator()
+        var quote: Character?
+
+        while let character = iterator.next() {
+            if let activeQuote = quote {
+                if character == activeQuote {
+                    quote = nil
+                    continue
+                }
+                if activeQuote == "\"", character == "\\", let next = iterator.next() {
+                    if next.isNewline {
+                        continue
+                    }
+                    current.append(next)
+                    continue
+                }
+                current.append(character)
+                continue
+            }
+
+            if character == "'" || character == "\"" {
+                quote = character
+                continue
+            }
+
+            if character == "\\" {
+                guard let next = iterator.next() else {
+                    current.append(character)
+                    continue
+                }
+                if next.isNewline {
+                    continue
+                }
+                current.append(next)
+                continue
+            }
+
+            if character.isWhitespace {
+                if !current.isEmpty {
+                    tokens.append(current)
+                    current = ""
+                }
+                continue
+            }
+
+            if character == "#", current.isEmpty {
+                while let next = iterator.next(), !next.isNewline {}
+                continue
+            }
+
+            current.append(character)
+        }
+
+        if !current.isEmpty {
+            tokens.append(current)
+        }
+        return tokens
+    }
+}
+
+private struct NinjaExecutable {
+    let executable: String
+    let argumentPrefix: [String]
+    let displayName: String
+    let shellToken: String
 }

@@ -9,7 +9,7 @@ nonisolated struct SwiftRepository: Identifiable, Hashable, Sendable, Equatable 
     var id: String { name }
 }
 
-nonisolated struct SwiftProjectInfo: Sendable, Equatable {
+nonisolated struct SwiftProjectInfo: Sendable, Equatable, Hashable {
     let root: URL
     let swiftDirectory: URL
     let buildScript: URL
@@ -41,12 +41,14 @@ nonisolated struct SwiftProjectInfo: Sendable, Equatable {
     }
 }
 
-enum SwiftProjectError: LocalizedError {
+nonisolated enum SwiftProjectError: LocalizedError, Sendable {
     case invalidRoot
     case missingSwiftDirectory
     case missingBuildScript
     case missingUpdateCheckout
     case noBuildSubdirectory
+    case directoryListingFailed(path: String, underlying: String)
+    case resourceLookupFailed(path: String, underlying: String)
 
     var errorDescription: String? {
         switch self {
@@ -55,11 +57,15 @@ enum SwiftProjectError: LocalizedError {
         case .missingBuildScript: "Could not find swift/utils/build-script."
         case .missingUpdateCheckout: "Could not find swift/utils/update-checkout."
         case .noBuildSubdirectory: "No Ninja build directory found under build/."
+        case let .directoryListingFailed(path, underlying):
+            "Could not list contents of \(path): \(underlying)"
+        case let .resourceLookupFailed(path, underlying):
+            "Could not read file properties for \(path): \(underlying)"
         }
     }
 }
 
-enum ProjectService {
+nonisolated enum ProjectService {
     static func inspect(projectPath: String, checkoutSchemeOverride: String = "") throws -> SwiftProjectInfo {
         let snapshot = try validateProject(
             projectPath: projectPath,
@@ -101,11 +107,11 @@ enum ProjectService {
         }
 
         let buildRoot = root.appendingPathComponent("build", isDirectory: true)
-        let detectedBuildSubdirs = detectBuildSubdirs(in: buildRoot)
+        let detectedBuildSubdirs = try detectBuildSubdirs(in: buildRoot)
         let platform = platformName
         let arch = machineArch
         let swiftBuildDirectoryName = "swift-\(platform)-\(arch)"
-        let candidates = listRepositoryCandidates(in: root)
+        let candidates = try listRepositoryCandidates(in: root)
         let schemeResolution = CheckoutSchemeResolver.resolve(
             swiftDirectory: swiftDirectory,
             overrideScheme: checkoutSchemeOverride.isEmpty ? nil : checkoutSchemeOverride
@@ -159,23 +165,71 @@ enum ProjectService {
     static func changedRepositories(
         in project: SwiftProjectInfo,
         since revisions: [String: String]
-    ) -> [SwiftRepository] {
-        project.repositories.filter { repo in
-            guard let before = revisions[repo.name] else { return true }
-            let after = currentRevision(at: repo.path) ?? ""
-            return before != after
+    ) async -> [SwiftRepository] {
+        await withTaskGroup(of: SwiftRepository.self) { group in
+            for repo in project.repositories {
+                group.addTask {
+                    SwiftRepository(
+                        name: repo.name,
+                        path: repo.path,
+                        currentRevision: currentRevision(at: repo.path)
+                    )
+                }
+            }
+
+            var refreshed: [SwiftRepository] = []
+            for await repo in group {
+                refreshed.append(repo)
+            }
+
+            return refreshed.filter { repo in
+                guard let before = revisions[repo.name] else { return true }
+                let after = repo.currentRevision ?? ""
+                return before != after
+            }
         }
     }
 
-    static func listRepositoryCandidates(in root: URL) -> [RepositoryCandidate] {
-        guard let children = try? FileManager.default.contentsOfDirectory(
-            at: root,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]
-        ) else { return [] }
+    static func fetchRevisions(for candidates: [RepositoryCandidate]) async -> [SwiftRepository] {
+        await withTaskGroup(of: SwiftRepository.self) { group in
+            for candidate in candidates {
+                group.addTask {
+                    SwiftRepository(
+                        name: candidate.name,
+                        path: candidate.path,
+                        currentRevision: currentRevision(at: candidate.path)
+                    )
+                }
+            }
 
-        return children.compactMap { url -> RepositoryCandidate? in
-            guard (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else { return nil }
+            var repositories: [SwiftRepository] = []
+            for await repository in group {
+                repositories.append(repository)
+            }
+            return sortRepositories(repositories)
+        }
+    }
+
+    static func listRepositoryCandidates(in root: URL) throws -> [RepositoryCandidate] {
+        let children: [URL]
+        do {
+            children = try FileManager.default.contentsOfDirectory(
+                at: root,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            )
+        } catch {
+            throw SwiftProjectError.directoryListingFailed(path: root.path, underlying: error.localizedDescription)
+        }
+
+        return try children.compactMap { url -> RepositoryCandidate? in
+            let isDirectory: Bool
+            do {
+                isDirectory = try url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true
+            } catch {
+                throw SwiftProjectError.resourceLookupFailed(path: url.path, underlying: error.localizedDescription)
+            }
+            guard isDirectory else { return nil }
             let gitDir = url.appendingPathComponent(".git")
             guard FileManager.default.fileExists(atPath: gitDir.path) else { return nil }
             return RepositoryCandidate(name: url.lastPathComponent, path: url)
@@ -195,8 +249,8 @@ enum ProjectService {
         }
     }
 
-    static func discoverRepositories(in root: URL) -> [SwiftRepository] {
-        listRepositoryCandidates(in: root).map { candidate in
+    static func discoverRepositories(in root: URL) throws -> [SwiftRepository] {
+        try listRepositoryCandidates(in: root).map { candidate in
             SwiftRepository(
                 name: candidate.name,
                 path: candidate.path,
@@ -223,17 +277,30 @@ enum ProjectService {
         }
     }
 
-    static func detectBuildSubdirs(in buildRoot: URL) -> [String] {
-        guard let children = try? FileManager.default.contentsOfDirectory(
-            at: buildRoot,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]
-        ) else { return [] }
+    static func detectBuildSubdirs(in buildRoot: URL) throws -> [String] {
+        guard FileManager.default.fileExists(atPath: buildRoot.path) else { return [] }
+
+        let children: [URL]
+        do {
+            children = try FileManager.default.contentsOfDirectory(
+                at: buildRoot,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            )
+        } catch {
+            throw SwiftProjectError.directoryListingFailed(path: buildRoot.path, underlying: error.localizedDescription)
+        }
 
         let swiftDirName = "swift-\(platformName)-\(machineArch)"
 
-        return children.compactMap { url -> String? in
-            guard (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else { return nil }
+        return try children.compactMap { url -> String? in
+            let isDirectory: Bool
+            do {
+                isDirectory = try url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true
+            } catch {
+                throw SwiftProjectError.resourceLookupFailed(path: url.path, underlying: error.localizedDescription)
+            }
+            guard isDirectory else { return nil }
             let swiftBuild = url.appendingPathComponent(swiftDirName, isDirectory: true)
             guard FileManager.default.fileExists(atPath: swiftBuild.path) else { return nil }
             return url.lastPathComponent

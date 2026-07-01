@@ -59,6 +59,8 @@ struct BuildSettingsView: View {
             boolRow("debug")
             boolRow("clean")
             boolRow("reconfigure")
+            boolRow("buildNinja")
+            boolRow("useMake")
             boolRow("assertions")
             boolRow("noAssertions")
         case .swiftComponents:
@@ -90,28 +92,73 @@ struct BuildSettingsView: View {
         case .testing:
             boolRow("test")
             boolRow("validationTests")
-        case .installation:
+            Stepper(value: settings.bind(\.options.litJobs, send: { BuildSettingsEvent.setIntOption(key: "litJobs", value: $0) }), in: 0...128) {
+                HStack {
+                    labeledRow("litJobs")
+                    Spacer()
+                    Text("\(settings.context.options.litJobs)")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        case .products:
+            boolRow("installablePackage")
+            boolRow("foundation")
+            boolRow("libDispatch")
+            boolRow("xctest")
             boolRow("swiftPM")
             boolRow("llbuild")
             boolRow("lldb")
             boolRow("swiftDriver")
+            boolRow("swiftTesting")
+            boolRow("swiftTestingMacros")
+            boolRow("swiftSyntax")
+            boolRow("sourceKitLSP")
+            boolRow("indexStoreDB")
+        case .installation:
             boolRow("installSwift")
             boolRow("installLLVM")
+            boolRow("installSwiftPM")
+            boolRow("installLLDB")
+            boolRow("installSwiftDriver")
+            boolRow("installSwiftTesting")
+            boolRow("installSwiftTestingMacros")
+            boolRow("installSwiftSyntax")
+            boolRow("installSourceKitLSP")
+            boolRow("installAll")
+        case .deployment:
+            textRow("swiftDarwinSupportedArchs", prompt: ProjectService.machineArch)
+            textRow("hostTarget", prompt: "\(ProjectService.platformName)-\(ProjectService.machineArch)")
+            textRow("stdlibDeploymentTargets", prompt: "\(ProjectService.platformName)-\(ProjectService.machineArch)")
+            textRow("buildStdlibDeploymentTargets", prompt: "\(ProjectService.platformName)-\(ProjectService.machineArch)")
+            boolRow("buildSwiftDynamicStdlib")
+            boolRow("buildSwiftDynamicSDKOverlay")
+            boolRow("buildSwiftStaticStdlib")
+            boolRow("buildSwiftStaticSDKOverlay")
+        case .paths:
+            textRow("installPrefix", prompt: "/usr")
+            textRow("installDestdir")
+            textRow("installSymroot")
+            textRow("darwinXCRunToolchain")
+            textRow("cmake")
+            textRow("hostCC")
+            textRow("hostCXX")
+            textRow("llvmTargetsToBuild", prompt: "AArch64;X86")
+            textRow("buildArgs")
+            textRow("litArgs")
+            textRow("extraCMakeOptions", multiline: true)
+            textRow("extraSwiftCMakeOptions", multiline: true)
+            textRow("llvmCMakeOptions", multiline: true)
+            textRow("extraLLVMCMakeOptions", multiline: true)
+            textRow("extraSwiftArgs", multiline: true)
         case .advanced:
+            boolRow("useCustomBuildScriptArguments")
+            textRow("customBuildScriptArguments", multiline: true)
             boolRow("swiftDisableDeadStripping")
             boolRow("verboseBuild")
             boolRow("dryRun")
             presetPicker
-            TextField(
-                "Build subdirectory",
-                text: settings.bind(\.options.buildSubdir, send: { BuildSettingsEvent.setStringOption(key: "buildSubdir", value: $0) })
-            )
-            TextField(
-                "Extra arguments (one per line)",
-                text: settings.bind(\.options.extraArguments, send: { BuildSettingsEvent.setStringOption(key: "extraArguments", value: $0) }),
-                axis: .vertical
-            )
-            .lineLimit(3...8)
+            textRow("buildSubdir", prompt: "macos-arm64")
+            textRow("extraArguments", multiline: true)
         }
     }
 
@@ -182,7 +229,87 @@ struct BuildSettingsView: View {
         case "swiftDisableDeadStripping": return options.swiftDisableDeadStripping
         case "verboseBuild": return options.verboseBuild
         case "dryRun": return options.dryRun
+        case "buildNinja": return options.buildNinja
+        case "useMake": return options.useMake
+        case "swiftTesting": return options.swiftTesting
+        case "swiftTestingMacros": return options.swiftTestingMacros
+        case "swiftSyntax": return options.swiftSyntax
+        case "sourceKitLSP": return options.sourceKitLSP
+        case "indexStoreDB": return options.indexStoreDB
+        case "foundation": return options.foundation
+        case "libDispatch": return options.libDispatch
+        case "xctest": return options.xctest
+        case "installablePackage": return options.installablePackage
+        case "installAll": return options.installAll
+        case "installSwiftPM": return options.installSwiftPM
+        case "installLLDB": return options.installLLDB
+        case "installSwiftDriver": return options.installSwiftDriver
+        case "installSwiftTesting": return options.installSwiftTesting
+        case "installSwiftTestingMacros": return options.installSwiftTestingMacros
+        case "installSwiftSyntax": return options.installSwiftSyntax
+        case "installSourceKitLSP": return options.installSourceKitLSP
+        case "buildSwiftDynamicStdlib": return options.buildSwiftDynamicStdlib
+        case "buildSwiftDynamicSDKOverlay": return options.buildSwiftDynamicSDKOverlay
+        case "buildSwiftStaticStdlib": return options.buildSwiftStaticStdlib
+        case "buildSwiftStaticSDKOverlay": return options.buildSwiftStaticSDKOverlay
+        case "useCustomBuildScriptArguments": return options.useCustomBuildScriptArguments
         default: return false
+        }
+    }
+
+    @ViewBuilder
+    private func textRow(_ id: String, prompt: String = "", multiline: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            labeledRow(id)
+            if multiline {
+                TextField(
+                    prompt,
+                    text: stringBinding(for: id),
+                    axis: .vertical
+                )
+                .lineLimit(2...8)
+            } else {
+                TextField(
+                    prompt,
+                    text: stringBinding(for: id)
+                )
+            }
+        }
+    }
+
+    private func stringBinding(for id: String) -> Binding<String> {
+        Binding(
+            get: { settings.context.options[keyPath: stringKeyPath(for: id)] },
+            set: { settings.send(.setStringOption(key: id, value: $0)) }
+        )
+    }
+
+    private func stringKeyPath(for id: String) -> WritableKeyPath<BuildOptions, String> {
+        switch id {
+        case "preset": return \.preset
+        case "buildSubdir": return \.buildSubdir
+        case "extraArguments": return \.extraArguments
+        case "customBuildScriptArguments": return \.customBuildScriptArguments
+        case "swiftDarwinSupportedArchs": return \.swiftDarwinSupportedArchs
+        case "hostTarget": return \.hostTarget
+        case "stdlibDeploymentTargets": return \.stdlibDeploymentTargets
+        case "buildStdlibDeploymentTargets": return \.buildStdlibDeploymentTargets
+        case "installPrefix": return \.installPrefix
+        case "installDestdir": return \.installDestdir
+        case "installSymroot": return \.installSymroot
+        case "darwinXCRunToolchain": return \.darwinXCRunToolchain
+        case "cmake": return \.cmake
+        case "hostCC": return \.hostCC
+        case "hostCXX": return \.hostCXX
+        case "llvmTargetsToBuild": return \.llvmTargetsToBuild
+        case "buildArgs": return \.buildArgs
+        case "litArgs": return \.litArgs
+        case "extraCMakeOptions": return \.extraCMakeOptions
+        case "extraSwiftCMakeOptions": return \.extraSwiftCMakeOptions
+        case "llvmCMakeOptions": return \.llvmCMakeOptions
+        case "extraLLVMCMakeOptions": return \.extraLLVMCMakeOptions
+        case "extraSwiftArgs": return \.extraSwiftArgs
+        default: return \.extraArguments
         }
     }
 

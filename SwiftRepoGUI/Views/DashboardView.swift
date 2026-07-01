@@ -25,6 +25,14 @@ struct DashboardView: View {
         .onAppear {
             session.attach(modelContext: modelContext)
         }
+        .alert("Error", isPresented: Binding(
+            get: { session.lastErrorMessage != nil },
+            set: { if !$0 { session.clearLastError() } }
+        )) {
+            Button("OK") { session.clearLastError() }
+        } message: {
+            Text(session.lastErrorMessage ?? "")
+        }
     }
 
     private var projectHeader: some View {
@@ -115,7 +123,7 @@ struct DashboardView: View {
                 actionButton(title: "Full Build Script", subtitle: "Uses settings below", symbol: "gearshape.2", kind: .buildScript)
                 actionButton(title: "Fresh Rebuild", subtitle: "Clean + build script", symbol: "trash.circle", kind: .freshBuild)
                 actionButton(title: "Fresh Dependency", subtitle: "ninja clean + rebuild selected repo", symbol: "arrow.clockwise.circle", action: {
-                    Task { await session.startFreshDependency() }
+                    Task { try? await session.startFreshDependency() }
                 })
                 actionButton(title: "Update Dependencies", subtitle: "update-checkout --scheme … --match-timestamp", symbol: "arrow.down.circle", kind: .updateDependencies)
                 actionButton(title: "Update & Rebuild Changed", subtitle: "Sync deps, ninja changed repos", symbol: "arrow.triangle.merge", action: {
@@ -136,7 +144,7 @@ struct DashboardView: View {
             if let action {
                 action()
             } else if let kind {
-                Task { await session.startBuild(kind: kind) }
+                Task { try? await session.startBuild(kind: kind) }
             }
         } label: {
             VStack(alignment: .leading, spacing: 6) {

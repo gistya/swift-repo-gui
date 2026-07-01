@@ -4,20 +4,50 @@ import SwiftUI
 /// Reads build logs from disk with throttled polling — keeps log text out of machine context.
 struct LogFileView: View {
     let operationID: UUID
+    let logFileName: String?
     let fallback: String
 
     @State private var reader = LogTailReader()
     @State private var autoScroll = true
+    @State private var setupError: String?
+
+    init(operationID: UUID, logFileName: String? = nil, fallback: String) {
+        self.operationID = operationID
+        self.logFileName = logFileName
+        self.fallback = fallback
+    }
 
     var body: some View {
         GroupBox("Build Log") {
             ScrollViewReader { proxy in
                 ScrollView {
-                    Text(reader.text.isEmpty ? fallback : reader.text)
-                        .font(.system(.caption, design: .monospaced))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .id("log-bottom")
+                    VStack(alignment: .leading, spacing: 8) {
+                        if let setupError {
+                            Label(setupError, systemImage: "exclamationmark.triangle")
+                                .foregroundStyle(.orange)
+                                .font(.callout)
+                        }
+                        if let readError = reader.readError {
+                            Label(readError, systemImage: "exclamationmark.triangle")
+                                .foregroundStyle(.orange)
+                                .font(.callout)
+                        }
+                        if reader.isWaitingForFile {
+                            Label("Waiting for log file \(logDisplayName).", systemImage: "clock")
+                                .foregroundStyle(.secondary)
+                                .font(.callout)
+                        }
+                        if !reader.visibleByteDescription.isEmpty {
+                            Label(reader.visibleByteDescription, systemImage: reader.isShowingTail ? "text.append" : "doc.text")
+                                .foregroundStyle(reader.isShowingTail ? .orange : .secondary)
+                                .font(.callout)
+                        }
+                        Text(displayText)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .id("log-bottom")
+                    }
                 }
                 .frame(minHeight: 240)
                 .onChange(of: reader.text) {
@@ -29,23 +59,69 @@ struct LogFileView: View {
             HStack {
                 Toggle("Auto-scroll", isOn: $autoScroll)
                 Spacer()
+                Button("Open Log") { openLog() }
                 Button("Reveal in Finder") { revealLog() }
                 Button("Refresh") { reader.reload() }
             }
             .font(.caption)
         }
-        .onAppear {
-            reader.track(url: AppPaths.logFileURL(for: operationID))
-        }
+        .onAppear(perform: startTracking)
         .onDisappear { reader.stop() }
     }
 
-    private func revealLog() {
-        let url = AppPaths.logFileURL(for: operationID)
-        if FileManager.default.fileExists(atPath: url.path) {
-            NSWorkspace.shared.activateFileViewerSelecting([url])
-        } else {
-            NSWorkspace.shared.open(AppPaths.logsDirectory)
+    private var displayText: String {
+        if !reader.text.isEmpty { return reader.text }
+        if setupError != nil || reader.readError != nil { return fallback }
+        return reader.text.isEmpty ? fallback : reader.text
+    }
+
+    private func startTracking() {
+        do {
+            setupError = nil
+            reader.track(url: try logURL())
+        } catch {
+            reader.stop()
+            setupError = error.localizedDescription
         }
+    }
+
+    private func revealLog() {
+        do {
+            let url = try logURL()
+            if FileManager.default.fileExists(atPath: url.path) {
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            } else {
+                AppFolderActions.openLogsFolder()
+            }
+        } catch {
+            setupError = error.localizedDescription
+        }
+    }
+
+    private func openLog() {
+        do {
+            let url = try logURL()
+            if FileManager.default.fileExists(atPath: url.path) {
+                NSWorkspace.shared.open(url)
+            } else {
+                AppFolderActions.openLogsFolder()
+            }
+        } catch {
+            setupError = error.localizedDescription
+        }
+    }
+
+    private func logURL() throws -> URL {
+        if let logFileName {
+            return try AppPaths.logFileURL(named: logFileName)
+        }
+        return try AppPaths.logFileURL(for: operationID)
+    }
+
+    private var logDisplayName: String {
+        if let logFileName, !logFileName.isEmpty {
+            return URL(fileURLWithPath: logFileName).lastPathComponent
+        }
+        return "\(operationID.uuidString).log"
     }
 }

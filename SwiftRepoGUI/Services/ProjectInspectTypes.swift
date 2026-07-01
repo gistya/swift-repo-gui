@@ -35,12 +35,22 @@ nonisolated struct ProjectInspectInput: Sendable, Equatable {
     let existingCandidates: [RepositoryCandidate]
 }
 
-enum ProjectInspectFailure: Error, CustomStringConvertible {
-    case missingInput
+nonisolated struct ProjectInspectOutput: Sendable, Equatable {
+    let mode: ProjectInspectMode
+    let snapshot: ValidatedProjectSnapshot?
+    let repositories: [SwiftRepository]
+}
 
-    var description: String {
+nonisolated enum ProjectInspectFailure: Error, LocalizedError, Sendable {
+    case missingInput
+    case projectNotLoaded
+
+    var errorDescription: String? {
         switch self {
-        case .missingInput: "Project inspection did not receive any input."
+        case .missingInput:
+            "Project inspection did not receive any input."
+        case .projectNotLoaded:
+            "Load a project before capturing revisions."
         }
     }
 }

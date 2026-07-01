@@ -1,7 +1,7 @@
 import Foundation
 import UniformTypeIdentifiers
 
-enum OperationImportExport {
+nonisolated enum OperationImportExport {
     static let operationUTType = UTType(filenameExtension: "swiftbuildop") ?? .json
 
     static func export(_ operation: ExportedBuildOperation) throws -> Data {
@@ -20,7 +20,7 @@ enum OperationImportExport {
     static func writeExportFile(_ operation: ExportedBuildOperation) throws -> URL {
         let data = try export(operation)
         let fileName = "operation-\(operation.id.uuidString.prefix(8))-\(operation.kind.rawValue).swiftbuildop"
-        let url = AppPaths.exportsDirectory.appendingPathComponent(fileName)
+        let url = try AppPaths.exportsDirectory().appendingPathComponent(fileName)
         try data.write(to: url, options: .atomic)
         return url
     }

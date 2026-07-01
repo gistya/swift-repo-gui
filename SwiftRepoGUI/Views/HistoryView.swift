@@ -22,8 +22,8 @@ struct HistoryView: View {
             .toolbar {
                 ToolbarItemGroup {
                     Button("Import…") { importOperationFromDisk() }
-                    Button("Open Logs") { NSWorkspace.shared.open(AppPaths.logsDirectory) }
-                    Button("Open Exports") { NSWorkspace.shared.open(AppPaths.exportsDirectory) }
+                    Button("Open Logs") { AppFolderActions.openLogsFolder() }
+                    Button("Open Exports") { AppFolderActions.openExportsFolder() }
                 }
             }
         } detail: {
@@ -62,23 +62,32 @@ struct HistoryView: View {
         do {
             let data = try Data(contentsOf: url)
             let imported = try OperationImportExport.importOperation(from: data)
-            session.settings.send(.restore(imported.options, imported.targetRepository))
-            session.setProjectPath(imported.projectPath)
-            session.setBuildSubdir(imported.buildSubdir)
-            session.refreshProject()
-            let record = BuildOperationRecord(
-                kind: imported.kind,
-                projectPath: imported.projectPath,
-                buildSubdir: imported.buildSubdir,
-                targetRepository: imported.targetRepository,
-                commandLine: imported.commandLine,
-                logFileName: "",
-                options: imported.options,
-                notes: "Imported: \(imported.notes)",
-                savedProfileName: imported.savedProfileName
-            )
-            modelContext.insert(record)
-            selectedOperationID = record.id
+            Task {
+                do {
+                    try await session.applyImportedProject(
+                        path: imported.projectPath,
+                        buildSubdir: imported.buildSubdir,
+                        options: imported.options,
+                        targetRepository: imported.targetRepository
+                    )
+                } catch {
+                    importError = error.localizedDescription
+                    return
+                }
+                let record = BuildOperationRecord(
+                    kind: imported.kind,
+                    projectPath: imported.projectPath,
+                    buildSubdir: imported.buildSubdir,
+                    targetRepository: imported.targetRepository,
+                    commandLine: imported.commandLine,
+                    logFileName: "",
+                    options: imported.options,
+                    notes: "Imported: \(imported.notes)",
+                    savedProfileName: imported.savedProfileName
+                )
+                modelContext.insert(record)
+                selectedOperationID = record.id
+            }
         } catch {
             importError = error.localizedDescription
         }
@@ -139,7 +148,7 @@ struct OperationDetailView: View {
             VStack(alignment: .leading, spacing: 16) {
                 header
                 commandSection
-                LogFileView(operationID: operation.id, fallback: operation.commandLine)
+                LogFileView(operationID: operation.id, logFileName: operation.logFileName, fallback: operation.commandLine)
                 actionButtons
             }
             .padding()

@@ -26,6 +26,7 @@ nonisolated struct ProjectContext: Sendable, Equatable {
     var validationMessage: String?
     var revisionsBeforeUpdate: [String: String] = [:]
     var inspectMode: ProjectInspectMode = .fullInspect
+    var reloadPending: Bool = false
 
     var isValid: Bool { projectInfo != nil }
 }
@@ -39,18 +40,28 @@ struct ProjectMachine: StateMachine {
 
     var machine: some XStateMachine {
         XState(.ready) {
-            XTransition(on: ProjectEvent.setPath, to: .ready).action { args, _ in
+            Always(to: .loading)
+                .when { $0.reloadPending && !$0.projectPath.isEmpty }
+                .action { ctx in
+                    var next = ctx
+                    next.reloadPending = false
+                    next.validationMessage = nil
+                    return next
+                }
+
+            XTransition(on: ProjectEvent.setPath, to: .ready).when { _, event in
+                guard case let .setPath(path)? = event else { return false }
+                return path.isEmpty
+            }.action { args, _ in
                 var ctx = args.context
                 guard case let .setPath(path)? = args.event else { return ctx }
                 ctx.projectPath = path
                 UserDefaults.standard.set(path, forKey: "projectPath")
-                if path.isEmpty {
-                    ctx.projectInfo = nil
-                    ctx.validationMessage = "Choose your swift-project directory to get started."
-                }
+                ctx.projectInfo = nil
+                ctx.validationMessage = "Choose your swift-project directory to get started."
                 return ctx
             }
-            XTransition(on: ProjectEvent.setPath, to: .loading).when { _, event in
+            XTransition(on: ProjectEvent.setPath, to: .ready).when { _, event in
                 guard case let .setPath(path)? = event else { return false }
                 return !path.isEmpty
             }.action { args, _ in
@@ -59,6 +70,7 @@ struct ProjectMachine: StateMachine {
                 ctx.projectPath = path
                 UserDefaults.standard.set(path, forKey: "projectPath")
                 ctx.inspectMode = .fullInspect
+                ctx.reloadPending = true
                 ctx.validationMessage = nil
                 return ctx
             }
@@ -81,13 +93,14 @@ struct ProjectMachine: StateMachine {
                     }
                     return ctx
                 }
-            XTransition(on: ProjectEvent.setCheckoutSchemeOverride, to: .loading).when { !$0.projectPath.isEmpty }
+            XTransition(on: ProjectEvent.setCheckoutSchemeOverride, to: .ready).when { !$0.projectPath.isEmpty }
                 .action { args, _ in
                     var ctx = args.context
                     if case let .setCheckoutSchemeOverride(scheme)? = args.event {
                         ctx.checkoutSchemeOverride = scheme
                         UserDefaults.standard.set(scheme, forKey: "checkoutSchemeOverride")
                         ctx.inspectMode = .fullInspect
+                        ctx.reloadPending = true
                         ctx.validationMessage = nil
                     }
                     return ctx
@@ -99,16 +112,23 @@ struct ProjectMachine: StateMachine {
                 ctx.validationMessage = "Choose your swift-project directory to get started."
                 return ctx
             }
-            XTransition(on: .refresh, to: .loading).when { !$0.projectPath.isEmpty }.action { args, _ in
+            XTransition(on: .refresh, to: .ready).when { !$0.projectPath.isEmpty }.action { args, _ in
                 var ctx = args.context
                 ctx.inspectMode = .fullInspect
+                ctx.reloadPending = true
                 ctx.validationMessage = nil
                 return ctx
             }
 
-            XTransition(on: .captureRevisions, to: .loading).when { $0.projectInfo != nil }.action { args, _ in
+            XTransition(on: .captureRevisions, to: .ready).when { $0.projectInfo == nil }.action { args, _ in
+                var ctx = args.context
+                ctx.validationMessage = ProjectInspectFailure.projectNotLoaded.errorDescription
+                return ctx
+            }
+            XTransition(on: .captureRevisions, to: .ready).when { $0.projectInfo != nil }.action { args, _ in
                 var ctx = args.context
                 ctx.inspectMode = .revisionsOnly
+                ctx.reloadPending = true
                 return ctx
             }
 
@@ -118,9 +138,10 @@ struct ProjectMachine: StateMachine {
                 ctx.validationMessage = "Choose your swift-project directory to get started."
                 return ctx
             }
-            XTransition(on: .restore, to: .loading).when { !$0.projectPath.isEmpty }.action { args, _ in
+            XTransition(on: .restore, to: .ready).when { !$0.projectPath.isEmpty }.action { args, _ in
                 var ctx = args.context
                 ctx.inspectMode = .fullInspect
+                ctx.reloadPending = true
                 ctx.validationMessage = nil
                 return ctx
             }
@@ -128,38 +149,28 @@ struct ProjectMachine: StateMachine {
         .initial()
 
         XState(.loading) {
-            Invoke(
-                id: "inspect",
-                source: fromTaskGroup { scope in
+            Invoke(id: "inspect", run: { scope in
+                do {
                     guard let input = scope.input?.get(ProjectInspectInput.self) else {
                         throw ProjectInspectFailure.missingInput
                     }
 
-                    let candidates: [RepositoryCandidate]
                     switch input.mode {
                     case .fullInspect:
                         let snapshot = try ProjectService.validateProject(
                             projectPath: input.projectPath,
                             checkoutSchemeOverride: input.checkoutSchemeOverride
                         )
-                        candidates = snapshot.candidates
+                        let repositories = await ProjectService.fetchRevisions(for: snapshot.candidates)
+                        return ProjectInspectOutput(mode: input.mode, snapshot: snapshot, repositories: repositories)
                     case .revisionsOnly:
-                        candidates = input.existingCandidates
+                        let repositories = await ProjectService.fetchRevisions(for: input.existingCandidates)
+                        return ProjectInspectOutput(mode: input.mode, snapshot: nil, repositories: repositories)
                     }
-
-                    return try await scope.runGroup(
-                        candidates.map { candidate in
-                            { @Sendable in
-                                SwiftRepository(
-                                    name: candidate.name,
-                                    path: candidate.path,
-                                    currentRevision: ProjectService.currentRevision(at: candidate.path)
-                                )
-                            }
-                        }
-                    )
+                } catch {
+                    throw PresentableError(error)
                 }
-            )
+            })
             .input { ctx in
                 SendableValue(
                     ProjectInspectInput(
@@ -173,8 +184,8 @@ struct ProjectMachine: StateMachine {
                     )
                 )
             }
-            .onDone(to: .ready, reading: [SwiftRepository].self) { repositories, ctx in
-                Self.applyInspectResult(repositories, to: ctx)
+            .onDone(to: .ready, reading: ProjectInspectOutput.self) { output, ctx in
+                Self.applyInspectResult(output, to: ctx)
             }
             .onError(to: .ready) { error, ctx in
                 var next = ctx
@@ -184,14 +195,61 @@ struct ProjectMachine: StateMachine {
                 next.validationMessage = error
                 return next
             }
+
+            XTransition(on: ProjectEvent.setBuildSubdir, to: .loading).action { args, _ in
+                var ctx = args.context
+                if case let .setBuildSubdir(subdir)? = args.event {
+                    ctx.selectedBuildSubdir = subdir
+                    UserDefaults.standard.set(subdir, forKey: "selectedBuildSubdir")
+                }
+                return ctx
+            }
+
+            XTransition(on: ProjectEvent.setPath, to: .ready).action { args, _ in
+                Self.queueReload(context: args.context, event: args.event, mode: .fullInspect)
+            }
+            XTransition(on: .refresh, to: .ready).when { !$0.projectPath.isEmpty }.action { args, _ in
+                Self.queueReload(context: args.context, event: args.event, mode: .fullInspect)
+            }
+            XTransition(on: ProjectEvent.setCheckoutSchemeOverride, to: .ready).when { !$0.projectPath.isEmpty }
+                .action { args, _ in
+                    var ctx = args.context
+                    if case let .setCheckoutSchemeOverride(scheme)? = args.event {
+                        ctx.checkoutSchemeOverride = scheme
+                        UserDefaults.standard.set(scheme, forKey: "checkoutSchemeOverride")
+                    }
+                    return Self.queueReload(context: ctx, event: args.event, mode: .fullInspect)
+                }
+            XTransition(on: .captureRevisions, to: .ready).when { $0.projectInfo != nil }.action { args, _ in
+                Self.queueReload(context: args.context, event: args.event, mode: .revisionsOnly)
+            }
+            XTransition(on: .restore, to: .ready).when { !$0.projectPath.isEmpty }.action { args, _ in
+                Self.queueReload(context: args.context, event: args.event, mode: .fullInspect)
+            }
         }
     }
 
-    private static func applyInspectResult(_ repositories: [SwiftRepository], to ctx: ProjectContext) -> ProjectContext {
-        var next = ctx
-        let sorted = ProjectService.sortRepositories(repositories)
+    private static func queueReload(
+        context: ProjectContext,
+        event: ProjectEvent?,
+        mode: ProjectInspectMode
+    ) -> ProjectContext {
+        var ctx = context
+        ctx.inspectMode = mode
+        ctx.reloadPending = true
+        ctx.validationMessage = nil
+        if case let .setPath(path)? = event {
+            ctx.projectPath = path
+            UserDefaults.standard.set(path, forKey: "projectPath")
+        }
+        return ctx
+    }
 
-        switch next.inspectMode {
+    private static func applyInspectResult(_ output: ProjectInspectOutput, to ctx: ProjectContext) -> ProjectContext {
+        var next = ctx
+        let sorted = output.repositories
+
+        switch output.mode {
         case .revisionsOnly:
             next.revisionsBeforeUpdate = Dictionary(
                 uniqueKeysWithValues: sorted.compactMap { repo in
@@ -203,20 +261,16 @@ struct ProjectMachine: StateMachine {
                 next.projectInfo = info.replacingRepositories(sorted)
             }
         case .fullInspect:
-            do {
-                let snapshot = try ProjectService.validateProject(
-                    projectPath: next.projectPath,
-                    checkoutSchemeOverride: next.checkoutSchemeOverride
-                )
+            if let snapshot = output.snapshot {
                 next.projectInfo = ProjectService.makeProjectInfo(snapshot: snapshot, repositories: sorted)
                 next.validationMessage = nil
                 if next.selectedBuildSubdir.isEmpty || !snapshot.detectedBuildSubdirs.contains(next.selectedBuildSubdir) {
                     next.selectedBuildSubdir = snapshot.detectedBuildSubdirs.first ?? ""
                     UserDefaults.standard.set(next.selectedBuildSubdir, forKey: "selectedBuildSubdir")
                 }
-            } catch {
+            } else {
                 next.projectInfo = nil
-                next.validationMessage = error.localizedDescription
+                next.validationMessage = "Project inspection did not return a validated snapshot."
             }
         }
 
