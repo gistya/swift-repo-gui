@@ -201,6 +201,26 @@
 			knownRegions = (
 				en,
 				Base,
+				ar,
+				bn,
+				de,
+				es,
+				fa,
+				fr,
+				he,
+				hi,
+				id,
+				it,
+				ja,
+				ko,
+				nl,
+				pl,
+				"pt-BR",
+				ru,
+				tr,
+				uk,
+				vi,
+				"zh-Hans",
 			);
 			mainGroup = 736201832FF2E6E600B6B024;
 			minimizedProjectReferenceProxies = 1;
@@ -447,6 +467,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = SwiftBuilder;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -479,6 +500,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = SwiftBuilder;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

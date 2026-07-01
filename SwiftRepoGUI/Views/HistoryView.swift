@@ -18,6 +18,8 @@ struct HistoryView: View {
                 HistoryRow(operation: operation)
                     .tag(operation.id)
             }
+            .scrollContentBackground(.hidden)
+            .background(TerminalBackground())
             .navigationSplitViewColumnWidth(min: 260, ideal: 300)
             .toolbar {
                 ToolbarItemGroup {
@@ -37,6 +39,8 @@ struct HistoryView: View {
                 )
             }
         }
+        .background(TerminalBackground())
+        .terminalText()
         .navigationTitle("History")
         .alert("Import Error", isPresented: Binding(
             get: { importError != nil },
@@ -102,17 +106,17 @@ struct HistoryRow: View {
             HStack {
                 Image(systemName: operation.kind.symbolName)
                 Text(operation.kind.title)
-                    .font(.headline)
+                    .font(.monaco(size: 13, weight: .bold))
                 Spacer()
                 statusBadge
             }
             Text(operation.createdAt, style: .date)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(.monaco(size: 10))
+                .foregroundStyle(Color.terminalGreen.opacity(0.75))
             if !operation.targetRepository.isEmpty {
                 Text(operation.targetRepository)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.monaco(size: 11))
+                    .foregroundStyle(Color.terminalGreen.opacity(0.75))
             }
         }
         .padding(.vertical, 2)
@@ -120,19 +124,13 @@ struct HistoryRow: View {
 
     @ViewBuilder
     private var statusBadge: some View {
-        let color: Color = switch operation.status {
-        case .succeeded: .green
-        case .failed: .red
-        case .running: .blue
-        case .cancelled: .orange
-        case .pending: .secondary
-        }
+        let badgeColor = operation.status == .failed ? Color.terminalFailureRed : Color.terminalGreen
         Text(operation.status.title)
-            .font(.caption2.weight(.semibold))
+            .font(.monaco(size: 10, weight: .semibold))
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
-            .background(color.opacity(0.15), in: Capsule())
-            .foregroundStyle(color)
+            .background(badgeColor.opacity(0.15), in: Capsule())
+            .foregroundStyle(badgeColor)
     }
 }
 
@@ -144,15 +142,24 @@ struct OperationDetailView: View {
     @State private var exportMessage: String?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                header
-                commandSection
-                LogFileView(operationID: operation.id, logFileName: operation.logFileName, fallback: operation.commandLine)
-                actionButtons
+        VStack(alignment: .leading, spacing: 12) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    header
+                    commandSection
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding()
+            .frame(maxHeight: 230)
+
+            HistoryLogFileView(operationID: operation.id, logFileName: operation.logFileName, fallback: operation.commandLine)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .layoutPriority(1)
+
+            actionButtons
         }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .navigationTitle(operation.kind.title)
     }
 
@@ -172,13 +179,13 @@ struct OperationDetailView: View {
             LabeledContent("Project", value: operation.projectPath)
             LabeledContent("Build Dir", value: operation.buildSubdir)
         }
-        .font(.callout)
+        .font(.monaco(size: 13))
     }
 
     private var commandSection: some View {
         GroupBox("Command") {
             Text(operation.commandLine)
-                .font(.system(.body, design: .monospaced))
+                .font(.monaco(size: 13))
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -201,8 +208,8 @@ struct OperationDetailView: View {
             Spacer()
             if let exportMessage {
                 Text(exportMessage)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.monaco(size: 11))
+                    .foregroundStyle(Color.terminalGreen.opacity(0.75))
             }
         }
     }

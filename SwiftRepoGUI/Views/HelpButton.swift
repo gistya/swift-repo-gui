@@ -10,26 +10,28 @@ struct HelpButton: View {
             showPopover.toggle()
         } label: {
             Image(systemName: "questionmark.circle")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.terminalGreen.opacity(0.75))
         }
         .buttonStyle(.plain)
         .help(descriptor.title)
         .popover(isPresented: $showPopover, arrowEdge: .trailing) {
             VStack(alignment: .leading, spacing: 12) {
                 Text(descriptor.title)
-                    .font(.headline)
+                    .font(.monaco(size: 13, weight: .bold))
                 Text(descriptor.summary)
-                    .font(.subheadline)
+                    .font(.monaco(size: 12))
                 Divider()
                 Text("Why it matters")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .font(.monaco(size: 11, weight: .semibold))
+                    .foregroundStyle(Color.terminalGreen.opacity(0.75))
                 Text(descriptor.practicalAdvice)
-                    .font(.callout)
+                    .font(.monaco(size: 13))
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding()
             .frame(width: 320)
+            .background(TerminalBackground())
+            .terminalText()
         }
     }
 }

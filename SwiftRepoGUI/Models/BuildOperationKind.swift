@@ -14,14 +14,14 @@ nonisolated enum BuildOperationKind: String, Codable, CaseIterable, Identifiable
 
     var title: String {
         switch self {
-        case .incrementalFrontend: "Incremental Frontend"
-        case .incrementalSwiftRepo: "Incremental Swift Repo"
-        case .incrementalEverything: "Incremental Everything"
-        case .buildScript: "Full Build Script"
-        case .freshBuild: "Fresh Rebuild"
-        case .updateDependencies: "Update Dependencies"
-        case .updateAndRebuild: "Update & Rebuild Changed"
-        case .dependencyBuild: "Dependency Build"
+        case .incrementalFrontend: String(localized: "Incremental Frontend")
+        case .incrementalSwiftRepo: String(localized: "Incremental Swift Repo")
+        case .incrementalEverything: String(localized: "Incremental Everything")
+        case .buildScript: String(localized: "Full Build Script")
+        case .freshBuild: String(localized: "Fresh Rebuild")
+        case .updateDependencies: String(localized: "Update Dependencies")
+        case .updateAndRebuild: String(localized: "Update & Rebuild Changed")
+        case .dependencyBuild: String(localized: "Dependency Build")
         }
     }
 
@@ -48,11 +48,11 @@ enum BuildOperationStatus: String, Codable, CaseIterable {
 
     var title: String {
         switch self {
-        case .pending: "Pending"
-        case .running: "Running"
-        case .succeeded: "Succeeded"
-        case .failed: "Failed"
-        case .cancelled: "Cancelled"
+        case .pending: String(localized: "Pending")
+        case .running: String(localized: "Running")
+        case .succeeded: String(localized: "Succeeded")
+        case .failed: String(localized: "Failed")
+        case .cancelled: String(localized: "Cancelled")
         }
     }
 }

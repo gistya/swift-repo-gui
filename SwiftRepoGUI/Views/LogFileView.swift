@@ -24,26 +24,26 @@ struct LogFileView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         if let setupError {
                             Label(setupError, systemImage: "exclamationmark.triangle")
-                                .foregroundStyle(.orange)
-                                .font(.callout)
+                                .foregroundStyle(Color.terminalGreen)
+                                .font(.monaco(size: 13))
                         }
                         if let readError = reader.readError {
                             Label(readError, systemImage: "exclamationmark.triangle")
-                                .foregroundStyle(.orange)
-                                .font(.callout)
+                                .foregroundStyle(Color.terminalGreen)
+                                .font(.monaco(size: 13))
                         }
                         if reader.isWaitingForFile {
                             Label("Waiting for log file \(logDisplayName).", systemImage: "clock")
-                                .foregroundStyle(.secondary)
-                                .font(.callout)
+                                .foregroundStyle(Color.terminalGreen.opacity(0.75))
+                                .font(.monaco(size: 13))
                         }
                         if !reader.visibleByteDescription.isEmpty {
                             Label(reader.visibleByteDescription, systemImage: reader.isShowingTail ? "text.append" : "doc.text")
-                                .foregroundStyle(reader.isShowingTail ? .orange : .secondary)
-                                .font(.callout)
+                                .foregroundStyle(Color.terminalGreen.opacity(reader.isShowingTail ? 1 : 0.75))
+                                .font(.monaco(size: 13))
                         }
                         Text(displayText)
-                            .font(.system(.caption, design: .monospaced))
+                            .font(.monaco(size: 11))
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .id("log-bottom")
@@ -63,8 +63,10 @@ struct LogFileView: View {
                 Button("Reveal in Finder") { revealLog() }
                 Button("Refresh") { reader.reload() }
             }
-            .font(.caption)
+            .font(.monaco(size: 11))
+            .foregroundStyle(Color.terminalGreen)
         }
+        .terminalText()
         .onAppear(perform: startTracking)
         .onDisappear { reader.stop() }
     }

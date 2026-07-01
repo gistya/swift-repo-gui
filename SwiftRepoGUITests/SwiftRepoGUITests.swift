@@ -52,6 +52,37 @@ struct SwiftRepoGUITests {
         #expect(progress.message == "-- Performing Test CMAKE_HAVE_LIBC_PTHREAD")
     }
 
+    @Test func buildStageClassifiesTestingAndModuleDisplay() throws {
+        var context = BuildOperationsContext()
+        context.activeJob = makeBuildJob(kind: .buildScript, displayCommand: "./swift/utils/build-script --test")
+        context.progress = BuildProgressSnapshot(
+            completedSteps: 3,
+            totalSteps: 20,
+            fraction: 0.15,
+            etaSeconds: nil,
+            message: "[3/20] Testing SwiftParseTests"
+        )
+
+        #expect(BuildStage.stage(for: context) == .testing)
+        #expect(BuildStage.moduleDisplay(for: context).contains("SWIFTPARSETESTS"))
+    }
+
+    @Test func buildStageClassifiesFailureFromIdleStatus() throws {
+        var context = BuildOperationsContext()
+        context.lastExitCode = 1
+        context.statusMessage = "Build failed."
+
+        #expect(BuildStage.stage(for: context) == .failed)
+        #expect(BuildStage.moduleDisplay(for: context) == "ERROR")
+    }
+
+    @Test func appSectionsNavigateLeftAndRightWithWraparound() throws {
+        #expect(AppSectionID.build.next == .settings)
+        #expect(AppSectionID.logs.next == .build)
+        #expect(AppSectionID.build.previous == .logs)
+        #expect(AppSectionID.history.previous == .settings)
+    }
+
     @Test func checkoutSchemeResolverUsesUnmatchedCurrentSwiftBranch() throws {
         let swiftDirectory = try makeSwiftDirectory(
             branch: "feature/current-branch",
@@ -427,6 +458,25 @@ private func makeProjectInfo() -> SwiftProjectInfo {
         root: root,
         checkoutScheme: "main",
         repositories: []
+    )
+}
+
+private func makeBuildJob(
+    kind: BuildOperationKind,
+    displayCommand: String,
+    targetRepository: String = "swift"
+) -> BuildJob {
+    BuildJob(
+        operationID: UUID(),
+        kind: kind,
+        executable: "/bin/sh",
+        arguments: [],
+        workingDirectory: "/tmp",
+        displayCommand: displayCommand,
+        logFilePath: "/tmp/build.log",
+        projectPath: "/tmp/swift-project",
+        buildSubdir: "debug",
+        targetRepository: targetRepository
     )
 }
 

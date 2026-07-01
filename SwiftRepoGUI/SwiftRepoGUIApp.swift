@@ -4,6 +4,8 @@ import SwiftData
 
 @main
 struct SwiftRepoGUIApp: App {
+    @State private var session = AppSession()
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             BuildOperationRecord.self,
@@ -20,9 +22,18 @@ struct SwiftRepoGUIApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(session: session)
         }
         .modelContainer(sharedModelContainer)
+
+        WindowGroup("SwiftBuilder Tab", for: AppSectionID.self) { $section in
+            if let section {
+                DetachedSectionWindow(session: session, section: section)
+                    .modelContainer(sharedModelContainer)
+            }
+        }
+        .defaultSize(width: 920, height: 680)
+
         .commands {
             CommandGroup(after: .newItem) {
                 Button("Open Logs Folder") {

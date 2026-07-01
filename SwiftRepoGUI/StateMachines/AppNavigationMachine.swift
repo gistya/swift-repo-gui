@@ -2,7 +2,7 @@ import CompositionalInit
 import Foundation
 import SwiftXState
 
-nonisolated enum AppSectionID: String, StateIdentifying, CaseIterable, Identifiable {
+nonisolated enum AppSectionID: String, StateIdentifying, CaseIterable, Identifiable, Codable {
     case build
     case settings
     case history
@@ -13,10 +13,10 @@ nonisolated enum AppSectionID: String, StateIdentifying, CaseIterable, Identifia
 
     var title: String {
         switch self {
-        case .build: "Build"
-        case .settings: "Settings"
-        case .history: "History"
-        case .logs: "Logs"
+        case .build: String(localized: "Build")
+        case .settings: String(localized: "Settings")
+        case .history: String(localized: "History")
+        case .logs: String(localized: "Logs")
         }
     }
 
@@ -27,6 +27,21 @@ nonisolated enum AppSectionID: String, StateIdentifying, CaseIterable, Identifia
         case .history: "clock.arrow.circlepath"
         case .logs: "doc.text"
         }
+    }
+
+    var next: AppSectionID {
+        let sections = Self.allCases
+        guard let index = sections.firstIndex(of: self) else { return .build }
+        return sections[sections.index(after: index) == sections.endIndex ? sections.startIndex : sections.index(after: index)]
+    }
+
+    var previous: AppSectionID {
+        let sections = Self.allCases
+        guard let index = sections.firstIndex(of: self) else { return .build }
+        if index == sections.startIndex {
+            return sections[sections.index(before: sections.endIndex)]
+        }
+        return sections[sections.index(before: index)]
     }
 }
 

@@ -21,6 +21,8 @@ struct DashboardView: View {
             }
             .padding()
         }
+        .background(TerminalBackground())
+        .terminalText()
         .navigationTitle("Swift Build")
         .onAppear {
             session.attach(modelContext: modelContext)
@@ -40,7 +42,7 @@ struct DashboardView: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     Text("Swift Project")
-                        .font(.headline)
+                        .font(.monaco(size: 13, weight: .bold))
                     Spacer()
                     Button("Choose…") { chooseProjectDirectory() }
                 }
@@ -57,13 +59,13 @@ struct DashboardView: View {
                         ProgressView()
                             .controlSize(.small)
                         Text("Discovering repositories…")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
+                            .font(.monaco(size: 13))
+                            .foregroundStyle(Color.terminalGreen.opacity(0.75))
                     }
                 } else if let message = project.context.validationMessage {
                     Label(message, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
-                        .font(.callout)
+                        .foregroundStyle(Color.terminalGreen)
+                        .font(.monaco(size: 13))
                 } else if let info = project.context.projectInfo {
                     HStack(spacing: 16) {
                         Label("\(info.repositories.count) repos", systemImage: "folder")
@@ -71,8 +73,8 @@ struct DashboardView: View {
                             Label("swift @ \(swift)", systemImage: "swift")
                         }
                     }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.monaco(size: 11))
+                    .foregroundStyle(Color.terminalGreen.opacity(0.75))
 
                     if !info.detectedBuildSubdirs.isEmpty {
                         Picker(
@@ -105,12 +107,12 @@ struct DashboardView: View {
             }
 
             Text("Branch `\(info.swiftBranch)` → scheme `\(info.checkoutScheme)` for update-checkout.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.monaco(size: 11))
+                .foregroundStyle(Color.terminalGreen.opacity(0.75))
 
             Text(info.schemeResolutionSource.explanation)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.monaco(size: 11))
+                .foregroundStyle(Color.terminalGreen.opacity(0.75))
         }
     }
 
@@ -149,17 +151,14 @@ struct DashboardView: View {
         } label: {
             VStack(alignment: .leading, spacing: 6) {
                 Label(title, systemImage: symbol)
-                    .font(.headline)
+                    .font(.monaco(size: 13, weight: .bold))
                 Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.monaco(size: 11))
+                    .foregroundStyle(Color.terminalGreen.opacity(0.75))
                     .multilineTextAlignment(.leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-            .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(RetroActionButtonStyle())
         .disabled(!project.context.isValid || project.matches(.loading) || build.matches(.running))
     }
 
@@ -170,7 +169,7 @@ struct DashboardView: View {
                     ProgressView()
                         .controlSize(.small)
                     Text("Loading repository list…")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.terminalGreen.opacity(0.75))
                 }
             } else if let repos = project.context.projectInfo?.repositories {
                 Picker(
@@ -182,11 +181,11 @@ struct DashboardView: View {
                     }
                 }
                 Text("Used for dependency-specific fresh/incremental builds.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.monaco(size: 11))
+                    .foregroundStyle(Color.terminalGreen.opacity(0.75))
             } else {
                 Text("Select a project to list repositories.")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.terminalGreen.opacity(0.75))
             }
         }
     }

@@ -19,8 +19,8 @@ struct BuildSettingsView: View {
                             VStack(alignment: .leading) {
                                 Text(profile.name)
                                 Text(profile.updatedAt, style: .relative)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(.monaco(size: 11))
+                                    .foregroundStyle(Color.terminalGreen.opacity(0.75))
                             }
                             Spacer()
                             Button("Load") { settings.send(.setOptions(profile.options)) }
@@ -46,6 +46,9 @@ struct BuildSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .background(TerminalBackground())
+        .terminalText()
         .navigationTitle("Build Settings")
         .sheet(isPresented: $showSaveSheet) { saveProfileSheet }
     }
@@ -77,7 +80,8 @@ struct BuildSettingsView: View {
                     labeledRow("jobs")
                     Spacer()
                     Text("\(settings.context.options.jobs)")
-                        .foregroundStyle(.secondary)
+                        .font(.monaco(size: 11))
+                        .foregroundStyle(Color.terminalGreen.opacity(0.75))
                 }
             }
             boolRow("sccache")
@@ -97,7 +101,8 @@ struct BuildSettingsView: View {
                     labeledRow("litJobs")
                     Spacer()
                     Text("\(settings.context.options.litJobs)")
-                        .foregroundStyle(.secondary)
+                        .font(.monaco(size: 11))
+                        .foregroundStyle(Color.terminalGreen.opacity(0.75))
                 }
             }
         case .products:
@@ -327,7 +332,7 @@ struct BuildSettingsView: View {
     private var saveProfileSheet: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Save Build Profile")
-                .font(.title2)
+                .font(.monaco(size: 18, weight: .bold))
             TextField("Profile name", text: $profileName)
                 .textFieldStyle(.roundedBorder)
             HStack {

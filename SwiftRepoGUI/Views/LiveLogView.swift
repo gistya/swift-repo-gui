@@ -19,6 +19,8 @@ struct LiveLogView: View {
                 ContentUnavailableView("No Logs Yet", systemImage: "doc.text", description: Text("Run a build to capture output here."))
             }
         }
+        .background(TerminalBackground())
+        .terminalText()
         .navigationTitle("Logs")
         .toolbar {
             ToolbarItemGroup {
