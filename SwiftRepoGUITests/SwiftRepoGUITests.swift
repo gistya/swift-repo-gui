@@ -64,7 +64,21 @@ struct SwiftRepoGUITests {
         )
 
         #expect(BuildStage.stage(for: context) == .testing)
-        #expect(BuildStage.moduleDisplay(for: context).contains("SWIFTPARSETESTS"))
+        #expect(BuildStage.moduleDisplay(for: context) == "SwiftParseTests")
+    }
+
+    @Test func buildStageDisplaysPrimaryTargetInsteadOfObjectFile() throws {
+        var context = BuildOperationsContext()
+        context.activeJob = makeBuildJob(kind: .buildScript, displayCommand: "./swift/utils/build-script")
+        context.progress = BuildProgressSnapshot(
+            completedSteps: 191,
+            totalSteps: 800,
+            fraction: 0.23,
+            etaSeconds: nil,
+            message: "[191/800] Building CXX object projects/libcxx/src/CMakeFiles/cxx_shared.dir/algorithm.cpp.o"
+        )
+
+        #expect(BuildStage.moduleDisplay(for: context) == "libcxx")
     }
 
     @Test func buildStageClassifiesFailureFromIdleStatus() throws {

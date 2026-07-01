@@ -5,13 +5,19 @@ import SwiftXStateSwiftUI
 struct ContentView: View {
     let session: AppSession
     @StateObject private var soundtrack = TrackerSoundtrackController()
+    @AppStorage("SwiftBuilder.soundtrackMuted") private var soundtrackMuted = false
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openWindow) private var openWindow
     @FocusState private var keyboardFocus: Bool
 
     var body: some View {
         VStack(spacing: 0) {
-            RetroTitleBar(build: session.build)
+            RetroTitleBar(
+                build: session.build,
+                isSoundMuted: soundtrackMuted,
+                audioError: soundtrack.lastError,
+                onToggleMute: { soundtrackMuted.toggle() }
+            )
 
             TerminalTabBar(
                 selected: session.selectedSection,
@@ -44,8 +50,12 @@ struct ContentView: View {
         }
         .onAppear {
             session.attach(modelContext: modelContext)
+            soundtrack.setMuted(soundtrackMuted)
             soundtrack.update(for: session.build.context)
             keyboardFocus = true
+        }
+        .onChange(of: soundtrackMuted) {
+            soundtrack.setMuted(soundtrackMuted)
         }
         .onChange(of: session.settings.context) {
             session.persistLastUsedSettings()
@@ -59,11 +69,17 @@ struct ContentView: View {
 struct DetachedSectionWindow: View {
     let session: AppSession
     let section: AppSectionID
+    @AppStorage("SwiftBuilder.soundtrackMuted") private var soundtrackMuted = false
     @Environment(\.modelContext) private var modelContext
 
     var body: some View {
         VStack(spacing: 0) {
-            RetroTitleBar(build: session.build)
+            RetroTitleBar(
+                build: session.build,
+                isSoundMuted: soundtrackMuted,
+                audioError: nil,
+                onToggleMute: { soundtrackMuted.toggle() }
+            )
             ZStack {
                 TerminalBackground()
                     .ignoresSafeArea()

@@ -44,7 +44,37 @@ nonisolated struct AppStyle: Codable, Equatable, Sendable {
             buildingBPM: 142,
             testingBPM: 168,
             measuringBPM: 104,
-            deployingBPM: 128
+            deployingBPM: 128,
+            moduleSources: [
+                TrackerModuleSource(
+                    fileName: "cabin_fever.xm",
+                    title: "Cabin Fever!",
+                    moduleID: 174_833,
+                    license: "Public Domain",
+                    sourceURL: "https://modarchive.org/index.php?request=view_by_moduleid&query=174833"
+                ),
+                TrackerModuleSource(
+                    fileName: "chip_overture.xm",
+                    title: "CHiP_OVERTURE",
+                    moduleID: 172_185,
+                    license: "Public Domain",
+                    sourceURL: "https://modarchive.org/index.php?request=view_by_moduleid&query=172185"
+                ),
+                TrackerModuleSource(
+                    fileName: "dailyagony.xm",
+                    title: "dailyagony.xm",
+                    moduleID: 169_183,
+                    license: "Public Domain",
+                    sourceURL: "https://modarchive.org/index.php?request=view_by_moduleid&query=169183"
+                ),
+                TrackerModuleSource(
+                    fileName: "10kdub.mod",
+                    title: "10k Reggae Dub",
+                    moduleID: 201_827,
+                    license: "Public Domain",
+                    sourceURL: "https://modarchive.org/index.php?request=view_by_moduleid&query=201827"
+                ),
+            ]
         )
     )
 }
@@ -91,6 +121,15 @@ nonisolated struct SoundPalette: Codable, Equatable, Sendable {
     var testingBPM: Double
     var measuringBPM: Double
     var deployingBPM: Double
+    var moduleSources: [TrackerModuleSource]
+}
+
+nonisolated struct TrackerModuleSource: Codable, Equatable, Sendable {
+    var fileName: String
+    var title: String
+    var moduleID: Int
+    var license: String
+    var sourceURL: String
 }
 
 nonisolated struct StyleColor: Codable, Equatable, Sendable {

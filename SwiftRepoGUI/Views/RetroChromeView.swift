@@ -31,6 +31,9 @@ extension View {
 
 struct RetroTitleBar: View {
     let build: MachineStore<BuildOperationsMachine>
+    let isSoundMuted: Bool
+    let audioError: String?
+    let onToggleMute: () -> Void
     @State private var pulse = false
 
     private var stage: BuildStage { BuildStage.stage(for: build.context) }
@@ -52,16 +55,25 @@ struct RetroTitleBar: View {
 
                 Spacer(minLength: 10)
 
-                LcdModuleDisplay(text: module, stage: stage)
-                    .frame(maxWidth: 380)
+                VStack(spacing: 6) {
+                    LcdModuleDisplay(text: module, stage: stage)
+                    StageLEDStrip(stage: stage)
+                }
+                .frame(maxWidth: 430)
 
                 Spacer(minLength: 10)
 
-                VStack(alignment: .trailing, spacing: 5) {
-                    StageLEDStrip(stage: stage)
+                HStack(spacing: 10) {
                     progressReadout
+                    if audioError != nil {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.monaco(size: 11, weight: .bold))
+                            .foregroundStyle(Color.terminalFailureRed)
+                            .help(audioError ?? "")
+                    }
+                    soundButton
                 }
-                .frame(minWidth: 310, alignment: .trailing)
+                .frame(minWidth: 260, alignment: .trailing)
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 10)
@@ -73,6 +85,33 @@ struct RetroTitleBar: View {
                 .frame(height: 1)
         }
         .onAppear { pulse = true }
+    }
+
+    private var soundButton: some View {
+        Button(action: onToggleMute) {
+            Image(systemName: isSoundMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(isSoundMuted ? Color.terminalDimGreen : Color.terminalGreen)
+                .frame(width: 32, height: 26)
+                .background {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.terminalButtonBottom.opacity(0.95))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(
+                                    isSoundMuted ? Color.terminalDimGreen.opacity(0.55) : Color.terminalGreen.opacity(0.55),
+                                    lineWidth: 1
+                                )
+                        )
+                        .shadow(
+                            color: isSoundMuted ? .clear : Color.terminalGreen.opacity(0.42),
+                            radius: isSoundMuted ? 0 : 6
+                        )
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isSoundMuted ? "Unmute soundtrack" : "Mute soundtrack")
+        .help(isSoundMuted ? "Unmute soundtrack" : "Mute soundtrack")
     }
 
     private var brand: some View {
@@ -143,29 +182,61 @@ struct LcdModuleDisplay: View {
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color(red: 0.05, green: 0.14, blue: 0.05),
-                            Color(red: 0.11, green: 0.23, blue: 0.09),
-                            Color(red: 0.02, green: 0.07, blue: 0.03)
+                            Color(red: 0.48, green: 0.51, blue: 0.47),
+                            Color(red: 0.64, green: 0.67, blue: 0.60),
+                            Color(red: 0.39, green: 0.42, blue: 0.38)
                         ],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                 )
-                .overlay(RoundedRectangle(cornerRadius: 7).stroke(.black.opacity(0.8), lineWidth: 2))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 7)
+                        .stroke(.black.opacity(0.78), lineWidth: 2)
+                }
+                .overlay {
+                    LcdScanlines()
+                        .clipShape(RoundedRectangle(cornerRadius: 7))
+                        .opacity(0.16)
+                }
                 .shadow(color: .white.opacity(0.35), radius: 1, x: -1, y: -1)
                 .shadow(color: .black.opacity(0.8), radius: 4, x: 2, y: 3)
 
-            Text(text)
-                .font(.monaco(size: 28, weight: .heavy))
-                .minimumScaleFactor(0.45)
-                .lineLimit(1)
-                .tracking(2)
-                .foregroundStyle(stage == .off ? Color.lcdGreen.opacity(0.25) : Color.lcdGreen)
-                .shadow(color: stage == .off ? .clear : Color.lcdGreen.opacity(0.95), radius: 5)
-                .shadow(color: .black, radius: 1, x: 1, y: 2)
-                .padding(.horizontal, 18)
+            ZStack {
+                Text(text)
+                    .font(.monaco(size: 29, weight: .heavy))
+                    .minimumScaleFactor(0.45)
+                    .lineLimit(1)
+                    .tracking(0)
+                    .foregroundStyle(.black.opacity(stage == .off ? 0.18 : 0.28))
+                    .offset(x: 1.6, y: 1.8)
+
+                Text(text)
+                    .font(.monaco(size: 29, weight: .heavy))
+                    .minimumScaleFactor(0.45)
+                    .lineLimit(1)
+                    .tracking(0)
+                    .foregroundStyle(.black.opacity(stage == .off ? 0.32 : 0.88))
+                    .shadow(color: .white.opacity(0.18), radius: 0, x: -0.8, y: -0.8)
+            }
+            .padding(.horizontal, 18)
         }
-        .frame(height: 58)
+        .frame(height: 54)
+    }
+}
+
+private struct LcdScanlines: View {
+    var body: some View {
+        Canvas { context, size in
+            var path = Path()
+            var y: CGFloat = 2
+            while y < size.height {
+                path.move(to: CGPoint(x: 0, y: y))
+                path.addLine(to: CGPoint(x: size.width, y: y))
+                y += 4
+            }
+            context.stroke(path, with: .color(.black), lineWidth: 0.7)
+        }
     }
 }
 
@@ -198,18 +269,14 @@ struct LEDIndicator: View {
     let isOn: Bool
 
     var body: some View {
-        VStack(spacing: 3) {
-            Circle()
-                .fill(isOn ? color : .black.opacity(0.42))
-                .overlay(Circle().stroke(.black.opacity(0.7), lineWidth: 1))
-                .shadow(color: isOn ? color.opacity(0.95) : .clear, radius: 7)
-                .frame(width: 10, height: 10)
-
-            Text(title)
-                .font(.monaco(size: 8, weight: .bold))
-                .foregroundStyle(isOn ? Color.terminalGreen : Color.terminalDimGreen.opacity(0.9))
-                .shadow(color: isOn ? Color.terminalGreen.opacity(0.9) : .clear, radius: 4)
-        }
+        Text(title)
+            .font(.monaco(size: 8, weight: .black))
+            .tracking(0)
+            .foregroundStyle(isOn ? color : color.opacity(0.16))
+            .shadow(color: isOn ? color.opacity(0.95) : .clear, radius: 5)
+            .shadow(color: isOn ? .white.opacity(0.24) : .clear, radius: 0, x: -0.5, y: -0.5)
+            .frame(minWidth: 48)
+            .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }
 
