@@ -32,3 +32,30 @@ nonisolated enum BuildOptionsCoding {
         }
     }
 }
+
+nonisolated struct LastUsedBuildSettings: Codable, Equatable, Sendable {
+    var options: BuildOptions
+    var selectedRepository: String
+}
+
+nonisolated enum LastUsedBuildSettingsStore {
+    private static let key = "lastUsedBuildSettings"
+
+    static func load(from defaults: UserDefaults = .standard) -> LastUsedBuildSettings? {
+        guard let data = defaults.data(forKey: key) else { return nil }
+        return try? JSONDecoder().decode(LastUsedBuildSettings.self, from: data)
+    }
+
+    static func save(
+        options: BuildOptions,
+        selectedRepository: String,
+        to defaults: UserDefaults = .standard
+    ) {
+        let snapshot = LastUsedBuildSettings(
+            options: options,
+            selectedRepository: selectedRepository.isEmpty ? "swift" : selectedRepository
+        )
+        guard let data = try? JSONEncoder().encode(snapshot) else { return }
+        defaults.set(data, forKey: key)
+    }
+}

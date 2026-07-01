@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import SwiftXStateSwiftUI
 
 struct ContentView: View {
     @State private var session = AppSession()
@@ -35,6 +36,9 @@ struct ContentView: View {
         .frame(minWidth: 900, minHeight: 640)
         .onAppear {
             session.attach(modelContext: modelContext)
+        }
+        .onChange(of: session.settings.context) {
+            session.persistLastUsedSettings()
         }
     }
 }

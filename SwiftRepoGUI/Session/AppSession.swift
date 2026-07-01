@@ -37,18 +37,23 @@ final class AppSession {
     let build: MachineStore<BuildOperationsMachine>
 
     @ObservationIgnored private weak var modelContext: ModelContext?
+    @ObservationIgnored private let settingsDefaults: UserDefaults
     @ObservationIgnored private var trackedRecords: [UUID: BuildOperationRecord] = [:]
     @ObservationIgnored private(set) var lastErrorMessage: String?
 
     var selectedSection: AppSectionID { navigation.context.section }
 
-    init(modelContext: ModelContext? = nil) {
+    init(modelContext: ModelContext? = nil, settingsDefaults: UserDefaults = .standard) {
         self.modelContext = modelContext
+        self.settingsDefaults = settingsDefaults
         navigation = store.track(AppNavigationMachine())
         project = store.track(ProjectMachine())
         settings = store.track(BuildSettingsMachine())
         build = store.track(BuildOperationsMachine())
 
+        if let lastUsedSettings = LastUsedBuildSettingsStore.load(from: settingsDefaults) {
+            settings.send(.restore(lastUsedSettings.options, lastUsedSettings.selectedRepository))
+        }
         project.send(.restore)
     }
 
@@ -58,6 +63,10 @@ final class AppSession {
 
     func clearLastError() {
         lastErrorMessage = nil
+    }
+
+    func persistLastUsedSettings() {
+        persistSettings()
     }
 
     func openLogsFolder() {
@@ -98,7 +107,7 @@ final class AppSession {
         options: BuildOptions,
         targetRepository: String
     ) async throws {
-        settings.send(.restore(options, targetRepository))
+        restoreSettings(options, targetRepository)
         setBuildSubdir(buildSubdir)
         setProjectPath(path)
         try await waitForProjectReady()
@@ -189,7 +198,7 @@ final class AppSession {
 
     func replay(_ record: BuildOperationRecord) async {
         do {
-            settings.send(.restore(record.options, record.targetRepository))
+            restoreSettings(record.options, record.targetRepository)
             setBuildSubdir(record.buildSubdir)
             setProjectPath(record.projectPath)
             try await waitForProjectReady()
@@ -231,6 +240,7 @@ final class AppSession {
             build.send(.setStatusMessage(project.context.validationMessage ?? "Project path is invalid."))
             return nil
         }
+        persistSettings()
         let operationID = UUID()
         return BuildRunRequest(
             operationID: operationID,
@@ -310,5 +320,22 @@ final class AppSession {
     private func report(_ error: any Error) {
         lastErrorMessage = localizedErrorMessage(for: error)
         build.send(.setStatusMessage(lastErrorMessage ?? "An unknown error occurred."))
+    }
+
+    private func restoreSettings(_ options: BuildOptions, _ selectedRepository: String) {
+        settings.send(.restore(options, selectedRepository))
+        LastUsedBuildSettingsStore.save(
+            options: options,
+            selectedRepository: selectedRepository,
+            to: settingsDefaults
+        )
+    }
+
+    private func persistSettings() {
+        LastUsedBuildSettingsStore.save(
+            options: settings.context.options,
+            selectedRepository: settings.context.selectedRepository,
+            to: settingsDefaults
+        )
     }
 }

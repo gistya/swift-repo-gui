@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import SwiftXStateSwiftUI
 @testable import SwiftRepoGUI
 
 struct SwiftRepoGUITests {
@@ -219,6 +220,47 @@ struct SwiftRepoGUITests {
         #expect(options.swiftDisableDeadStripping)
         #expect(!options.installablePackage)
         #expect(options.jobs > 0)
+    }
+
+    @Test func lastUsedBuildSettingsStoreRoundTripsOptionsAndRepository() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        var options = BuildOptions()
+        options.installablePackage = true
+        options.hostTarget = "macosx-arm64"
+        options.extraCMakeOptions = "-DFOO=bar -DBAZ=qux"
+        options.useCustomBuildScriptArguments = true
+        options.customBuildScriptArguments = "--installable-package --host-target=macosx-arm64"
+
+        LastUsedBuildSettingsStore.save(
+            options: options,
+            selectedRepository: "llvm-project",
+            to: defaults
+        )
+
+        let loaded = try #require(LastUsedBuildSettingsStore.load(from: defaults))
+        #expect(loaded.options == options)
+        #expect(loaded.selectedRepository == "llvm-project")
+    }
+
+    @Test @MainActor func appSessionRestoresLastUsedBuildSettingsOnLaunch() async throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        var options = BuildOptions()
+        options.foundation = true
+        options.installSwiftPM = true
+        options.buildSubdir = "macos-arm64"
+        LastUsedBuildSettingsStore.save(
+            options: options,
+            selectedRepository: "swift-package-manager",
+            to: defaults
+        )
+
+        let session = AppSession(settingsDefaults: defaults)
+
+        try await waitForSettings(session, options: options, selectedRepository: "swift-package-manager")
+        #expect(session.settings.context.options == options)
+        #expect(session.settings.context.selectedRepository == "swift-package-manager")
     }
 
     @Test func buildJobPlannerCreatesChangedRepositoryRequestJob() throws {
@@ -454,6 +496,30 @@ private func runGit(_ arguments: [String], in directory: URL) throws {
         let data = output.fileHandleForReading.readDataToEndOfFile()
         let message = String(data: data, encoding: .utf8) ?? "git failed"
         throw TestCommandError(message)
+    }
+}
+
+private func makeIsolatedDefaults() throws -> (UserDefaults, String) {
+    let suiteName = "SwiftRepoGUITests-\(UUID().uuidString)"
+    guard let defaults = UserDefaults(suiteName: suiteName) else {
+        throw TestCommandError("Could not create isolated UserDefaults.")
+    }
+    defaults.removePersistentDomain(forName: suiteName)
+    return (defaults, suiteName)
+}
+
+@MainActor
+private func waitForSettings(
+    _ session: AppSession,
+    options: BuildOptions,
+    selectedRepository: String
+) async throws {
+    for _ in 0..<50 {
+        if session.settings.context.options == options,
+           session.settings.context.selectedRepository == selectedRepository {
+            return
+        }
+        try await Task.sleep(for: .milliseconds(20))
     }
 }
 
