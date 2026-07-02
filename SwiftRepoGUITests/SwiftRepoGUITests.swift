@@ -478,6 +478,7 @@ struct SwiftRepoGUITests {
 
         #expect(result.succeeded)
         #expect(finalLog.contains("[2/2] second"))
+        #expect(finalLog.contains("Process exited with code 0."))
         #expect(snapshots.contains { $0.completedSteps == 1 && $0.totalSteps == 2 })
         #expect(snapshots.contains { $0.completedSteps == 2 && $0.totalSteps == 2 })
     }

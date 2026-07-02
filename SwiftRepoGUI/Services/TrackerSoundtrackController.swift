@@ -182,9 +182,7 @@ final class TrackerSoundtrackController: ObservableObject {
     private func pause() {
         guard currentTrack != nil else { return }
         send(.pause)
-        if engine.isRunning {
-            engine.pause()
-        }
+        activeStream?.pause()
     }
 
     private func resume() {
@@ -194,6 +192,7 @@ final class TrackerSoundtrackController: ObservableObject {
             return
         }
         guard ensureEngine() else { return }
+        activeStream?.play()
         send(.resume)
     }
 
@@ -230,6 +229,9 @@ final class TrackerSoundtrackController: ObservableObject {
             track: track,
             purpose: purpose,
             sampleRate: sampleRate,
+            streamBufferFrames: soundStyle.streamBufferFrames,
+            streamPrerollFrames: soundStyle.streamPrerollFrames,
+            streamRenderChunkFrames: soundStyle.streamRenderChunkFrames,
             maxDuration: soundStyle.maxRenderedTrackDuration,
             tailDuration: soundStyle.trackEndTailDuration
         )
@@ -255,7 +257,8 @@ final class TrackerSoundtrackController: ObservableObject {
         install(stream, generation: generation)
         send(.trackReady(prepared.track, moduleTitle: prepared.moduleTitle, generation: generation))
         if !isPaused {
-            _ = ensureEngine()
+            guard ensureEngine() else { return }
+            stream.play()
         }
     }
 
@@ -279,20 +282,23 @@ final class TrackerSoundtrackController: ObservableObject {
         }
         detachActiveStream()
         activeStream = stream
-        engine.attach(stream.sourceNode)
-        engine.connect(stream.sourceNode, to: engine.mainMixerNode, format: format)
+        engine.attach(stream.playerNode)
+        engine.connect(stream.playerNode, to: engine.mainMixerNode, format: format)
         engine.prepare()
+        stream.startScheduling()
         startFinishPolling(generation: generation)
         if shouldResume {
-            _ = ensureEngine()
+            guard ensureEngine() else { return }
+            stream.play()
         }
     }
 
     private func detachActiveStream() {
         stopFinishPolling()
         guard let activeStream else { return }
-        engine.disconnectNodeOutput(activeStream.sourceNode)
-        engine.detach(activeStream.sourceNode)
+        activeStream.stop()
+        engine.disconnectNodeOutput(activeStream.playerNode)
+        engine.detach(activeStream.playerNode)
         self.activeStream = nil
     }
 
@@ -649,6 +655,9 @@ private nonisolated struct TrackerStreamRequest: Sendable {
     let track: TrackerModuleTrack
     let purpose: SoundtrackPurpose
     let sampleRate: Double
+    let streamBufferFrames: Int
+    let streamPrerollFrames: Int
+    let streamRenderChunkFrames: Int
     let maxDuration: Double
     let tailDuration: Double
 }
@@ -689,7 +698,7 @@ private nonisolated final class SoundtrackEffectsSettingsBox: @unchecked Sendabl
 
 private nonisolated final class TrackerAudioStream: @unchecked Sendable {
     let moduleTitle: String?
-    let sourceNode: AVAudioSourceNode
+    let playerNode = AVAudioPlayerNode()
     private let core: TrackerAudioStreamCore
     var isFinished: Bool { core.isFinished }
 
@@ -703,9 +712,31 @@ private nonisolated final class TrackerAudioStream: @unchecked Sendable {
         )
         self.core = core
         moduleTitle = core.moduleTitle
-        sourceNode = AVAudioSourceNode { _, _, frameCount, audioBufferList in
-            core.render(frameCount: Int(frameCount), audioBufferList: audioBufferList)
+    }
+
+    func startScheduling() {
+        core.startScheduling(on: playerNode)
+    }
+
+    func play() {
+        guard !isFinished else { return }
+        core.requestPlayback(on: playerNode)
+    }
+
+    func pause() {
+        core.cancelPlaybackRequest()
+        if playerNode.isPlaying {
+            playerNode.pause()
         }
+    }
+
+    func stop() {
+        playerNode.stop()
+        core.stop()
+    }
+
+    deinit {
+        core.stop()
     }
 }
 
@@ -730,10 +761,21 @@ private nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
     private let renderer: ModuleRenderer
     private let effectsProcessor: SoundtrackEffectsProcessor
     private let effectsSettingsBox: SoundtrackEffectsSettingsBox
+    private let format: AVAudioFormat
+    private let renderChunkFrameCount: Int
+    private let prerollFrameCount: Int
+    private let maxQueuedFrameCount: Int
     private let maxFrameCount: Int
     private let finishFlag = SoundtrackStreamFinishFlag()
+    private let condition = NSCondition()
+    private weak var playerNode: AVAudioPlayerNode?
     private var renderedFrameCount = 0
+    private var queuedFrameCount = 0
+    private var didRenderFinalBuffer = false
     private var didFinish = false
+    private var didStartRendering = false
+    private var playbackRequested = false
+    private var stopRequested = false
     var isFinished: Bool { finishFlag.isFinished }
 
     init(
@@ -745,7 +787,11 @@ private nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
         let module = try ModuleLoader.load(url: request.track.url)
         moduleTitle = module.title.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
         let sampleRate = Int(request.sampleRate.rounded())
+        format = AVAudioFormat(standardFormatWithSampleRate: request.sampleRate, channels: 2)!
         maxFrameCount = max(1, Int((request.maxDuration * request.sampleRate).rounded()))
+        maxQueuedFrameCount = max(4_096, request.streamBufferFrames)
+        renderChunkFrameCount = max(512, min(request.streamRenderChunkFrames, maxQueuedFrameCount))
+        prerollFrameCount = max(0, min(request.streamPrerollFrames, maxQueuedFrameCount))
         renderer = ModuleRenderer(
             module: module,
             sampleRate: sampleRate,
@@ -758,95 +804,222 @@ private nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
         renderer.prepareSongRendering(tailSeconds: request.tailDuration)
     }
 
-    func render(frameCount requestedFrameCount: Int, audioBufferList: UnsafeMutablePointer<AudioBufferList>) -> OSStatus {
-        let frameCount = max(0, requestedFrameCount)
-        guard frameCount > 0 else { return noErr }
-        guard !didFinish, renderedFrameCount < maxFrameCount else {
-            zero(audioBufferList: audioBufferList, frameCount: frameCount)
-            finishOnce()
-            return noErr
+    func startScheduling(on playerNode: AVAudioPlayerNode) {
+        condition.lock()
+        self.playerNode = playerNode
+        let shouldStart: Bool
+        if didStartRendering {
+            shouldStart = false
+        } else {
+            didStartRendering = true
+            shouldStart = true
         }
+        condition.unlock()
 
-        let remainingFrames = maxFrameCount - renderedFrameCount
-        let songFrames = renderer.renderSongFrames(frameCount: min(frameCount, remainingFrames))
-        renderedFrameCount += songFrames.buffer.frameCount
-        let processed = effectsProcessor.process(songFrames.buffer, settings: effectsSettingsBox.get())
-        write(processed, to: audioBufferList, requestedFrameCount: frameCount)
+        guard shouldStart else { return }
 
-        if songFrames.isFinished || renderedFrameCount >= maxFrameCount {
+        let thread = Thread { [self] in
+            scheduleLoop()
+        }
+        thread.name = "SwiftBuilder Tracker Buffer Scheduler"
+        thread.qualityOfService = .userInitiated
+        thread.start()
+    }
+
+    func stop() {
+        condition.lock()
+        stopRequested = true
+        playbackRequested = false
+        condition.broadcast()
+        condition.unlock()
+    }
+
+    func requestPlayback(on playerNode: AVAudioPlayerNode) {
+        let shouldPlay: Bool
+        condition.lock()
+        self.playerNode = playerNode
+        if shouldStartPlaybackImmediatelyLocked {
+            playbackRequested = false
+            shouldPlay = true
+        } else {
+            playbackRequested = true
+            shouldPlay = false
+        }
+        condition.unlock()
+
+        if shouldPlay, !playerNode.isPlaying {
+            playerNode.play()
+        }
+    }
+
+    func cancelPlaybackRequest() {
+        condition.lock()
+        playbackRequested = false
+        condition.broadcast()
+        condition.unlock()
+    }
+
+    private func scheduleLoop() {
+        while true {
+            guard waitForSchedulingCapacity() else { return }
+            guard let playerNode else { return }
+
+            let remainingFrames = maxFrameCount - renderedFrameCount
+            guard remainingFrames > 0 else {
+                let shouldStartPlayback = markRenderComplete()
+                if shouldStartPlayback, !playerNode.isPlaying {
+                    playerNode.play()
+                }
+                return
+            }
+
+            let requestedFrames = min(renderChunkFrameCount, remainingFrames)
+            let songFrames = renderer.renderSongFrames(frameCount: requestedFrames)
+            guard songFrames.buffer.frameCount > 0 else {
+                let shouldStartPlayback = markRenderComplete()
+                if shouldStartPlayback, !playerNode.isPlaying {
+                    playerNode.play()
+                }
+                return
+            }
+
+            renderedFrameCount += songFrames.buffer.frameCount
+            let processed = effectsProcessor.process(songFrames.buffer, settings: effectsSettingsBox.get())
+            guard let audioBuffer = makeAudioBuffer(from: processed) else {
+                let shouldStartPlayback = markRenderComplete()
+                if shouldStartPlayback, !playerNode.isPlaying {
+                    playerNode.play()
+                }
+                return
+            }
+
+            let shouldStartPlayback = schedule(audioBuffer, on: playerNode)
+            if shouldStartPlayback, !playerNode.isPlaying {
+                playerNode.play()
+            }
+
+            if songFrames.isFinished || renderedFrameCount >= maxFrameCount {
+                let shouldStartPlayback = markRenderComplete()
+                if shouldStartPlayback, !playerNode.isPlaying {
+                    playerNode.play()
+                }
+                return
+            }
+        }
+    }
+
+    private func waitForSchedulingCapacity() -> Bool {
+        condition.lock()
+        defer { condition.unlock() }
+
+        while !stopRequested && queuedFrameCount > maxQueuedFrameCount - renderChunkFrameCount {
+            _ = condition.wait(until: Date(timeIntervalSinceNow: 0.05))
+        }
+        return !stopRequested
+    }
+
+    private func schedule(_ buffer: AVAudioPCMBuffer, on playerNode: AVAudioPlayerNode) -> Bool {
+        let frameCount = Int(buffer.frameLength)
+        let shouldStartPlayback: Bool
+        condition.lock()
+        queuedFrameCount += frameCount
+        shouldStartPlayback = shouldStartPlaybackLocked
+        if shouldStartPlayback {
+            playbackRequested = false
+        }
+        condition.broadcast()
+        condition.unlock()
+
+        playerNode.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
+            self?.bufferDidPlay(frameCount: frameCount)
+        }
+        return shouldStartPlayback
+    }
+
+    private func bufferDidPlay(frameCount: Int) {
+        condition.lock()
+        queuedFrameCount = max(0, queuedFrameCount - frameCount)
+        let shouldFinish = !stopRequested && didRenderFinalBuffer && queuedFrameCount == 0
+        condition.broadcast()
+        condition.unlock()
+
+        if shouldFinish {
             finishOnce()
         }
-        return noErr
+    }
+
+    private func markRenderComplete() -> Bool {
+        let shouldStartPlayback: Bool
+        let shouldFinish: Bool
+        condition.lock()
+        didRenderFinalBuffer = true
+        shouldStartPlayback = shouldStartPlaybackLocked
+        if shouldStartPlayback {
+            playbackRequested = false
+        }
+        shouldFinish = !stopRequested && queuedFrameCount == 0
+        condition.broadcast()
+        condition.unlock()
+
+        if shouldFinish {
+            finishOnce()
+        }
+        return shouldStartPlayback
+    }
+
+    private var shouldStartPlaybackImmediatelyLocked: Bool {
+        !stopRequested && !didFinish && (queuedFrameCount >= playbackStartFrameCount || didRenderFinalBuffer)
+    }
+
+    private var shouldStartPlaybackLocked: Bool {
+        playbackRequested && shouldStartPlaybackImmediatelyLocked
+    }
+
+    private var playbackStartFrameCount: Int {
+        min(max(1, prerollFrameCount), maxFrameCount)
+    }
+
+    private func makeAudioBuffer(from pcm: PCMBuffer) -> AVAudioPCMBuffer? {
+        let frameCount = pcm.frameCount
+        guard frameCount > 0,
+              let buffer = AVAudioPCMBuffer(
+                pcmFormat: format,
+                frameCapacity: AVAudioFrameCount(frameCount)
+              ) else { return nil }
+
+        buffer.frameLength = AVAudioFrameCount(frameCount)
+        if let channels = buffer.floatChannelData, Int(format.channelCount) >= 2 {
+            let left = channels[0]
+            let right = channels[1]
+            for frame in 0..<frameCount {
+                let sourceIndex = frame * pcm.channelCount
+                left[frame] = pcm.interleavedSamples[sourceIndex]
+                right[frame] = pcm.interleavedSamples[sourceIndex + min(1, pcm.channelCount - 1)]
+            }
+        } else if let interleaved = buffer.audioBufferList.pointee.mBuffers.mData?.assumingMemoryBound(to: Float.self) {
+            for frame in 0..<frameCount {
+                let outputIndex = frame * 2
+                let sourceIndex = frame * pcm.channelCount
+                interleaved[outputIndex] = pcm.interleavedSamples[sourceIndex]
+                interleaved[outputIndex + 1] = pcm.interleavedSamples[sourceIndex + min(1, pcm.channelCount - 1)]
+            }
+        }
+        return buffer
     }
 
     private func finishOnce() {
-        guard !didFinish else { return }
-        didFinish = true
-        finishFlag.markFinished()
-    }
-
-    private func write(
-        _ pcm: PCMBuffer,
-        to audioBufferList: UnsafeMutablePointer<AudioBufferList>,
-        requestedFrameCount: Int
-    ) {
-        let buffers = UnsafeMutableAudioBufferListPointer(audioBufferList)
-        if buffers.count >= 2 {
-            writeNonInterleaved(pcm, to: buffers, requestedFrameCount: requestedFrameCount)
+        condition.lock()
+        let shouldFinish: Bool
+        if didFinish {
+            shouldFinish = false
         } else {
-            writeInterleaved(pcm, to: buffers, requestedFrameCount: requestedFrameCount)
+            didFinish = true
+            shouldFinish = true
         }
-    }
+        condition.unlock()
 
-    private func writeNonInterleaved(
-        _ pcm: PCMBuffer,
-        to buffers: UnsafeMutableAudioBufferListPointer,
-        requestedFrameCount: Int
-    ) {
-        guard let left = buffers[0].mData?.assumingMemoryBound(to: Float.self),
-              let right = buffers[1].mData?.assumingMemoryBound(to: Float.self) else { return }
-
-        for frame in 0..<requestedFrameCount {
-            if frame < pcm.frameCount {
-                let sourceIndex = frame * pcm.channelCount
-                left[frame] = pcm.interleavedSamples[sourceIndex]
-                right[frame] = pcm.interleavedSamples[sourceIndex + 1]
-            } else {
-                left[frame] = 0
-                right[frame] = 0
-            }
-        }
-    }
-
-    private func writeInterleaved(
-        _ pcm: PCMBuffer,
-        to buffers: UnsafeMutableAudioBufferListPointer,
-        requestedFrameCount: Int
-    ) {
-        guard buffers.count > 0,
-              let output = buffers[0].mData?.assumingMemoryBound(to: Float.self) else { return }
-        for frame in 0..<requestedFrameCount {
-            let outputIndex = frame * 2
-            if frame < pcm.frameCount {
-                let sourceIndex = frame * pcm.channelCount
-                output[outputIndex] = pcm.interleavedSamples[sourceIndex]
-                output[outputIndex + 1] = pcm.interleavedSamples[sourceIndex + 1]
-            } else {
-                output[outputIndex] = 0
-                output[outputIndex + 1] = 0
-            }
-        }
-    }
-
-    private func zero(audioBufferList: UnsafeMutablePointer<AudioBufferList>, frameCount: Int) {
-        let buffers = UnsafeMutableAudioBufferListPointer(audioBufferList)
-        for buffer in buffers {
-            guard let data = buffer.mData else { continue }
-            let sampleCount = Int(buffer.mDataByteSize) / MemoryLayout<Float>.stride
-            let samples = data.assumingMemoryBound(to: Float.self)
-            for index in 0..<min(sampleCount, frameCount * 2) {
-                samples[index] = 0
-            }
+        if shouldFinish {
+            finishFlag.markFinished()
         }
     }
 
@@ -863,6 +1036,7 @@ private nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
         }
     }
 }
+
 
 extension TrackerModuleTrack {
     nonisolated func nowPlaying(moduleTitle: String?) -> SoundtrackNowPlaying {

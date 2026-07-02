@@ -45,6 +45,9 @@ nonisolated struct AppStyle: Codable, Equatable, Sendable {
             testingBPM: 168,
             measuringBPM: 104,
             deployingBPM: 128,
+            streamBufferFrames: 65_536,
+            streamPrerollFrames: 16_384,
+            streamRenderChunkFrames: 8_192,
             maxRenderedTrackDuration: 600,
             trackEndTailDuration: 2,
             trackerModuleDirectory: "TrackerModules",
@@ -95,6 +98,9 @@ nonisolated struct SoundPalette: Codable, Equatable, Sendable {
     var testingBPM: Double
     var measuringBPM: Double
     var deployingBPM: Double
+    var streamBufferFrames: Int
+    var streamPrerollFrames: Int
+    var streamRenderChunkFrames: Int
     var maxRenderedTrackDuration: Double
     var trackEndTailDuration: Double
     var trackerModuleDirectory: String

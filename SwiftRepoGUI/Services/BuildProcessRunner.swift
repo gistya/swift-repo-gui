@@ -270,9 +270,7 @@ nonisolated enum BuildProcessRunner {
             reader.terminateIfRunning()
         }
 
-        if exitCode != 0 {
-            try? appendDiagnostic("Process exited with code \(exitCode).", to: job.logFilePath)
-        }
+        try? appendDiagnostic("Process exited with code \(exitCode).", to: job.logFilePath)
 
         return BuildProcessResult(
             exitCode: exitCode,
