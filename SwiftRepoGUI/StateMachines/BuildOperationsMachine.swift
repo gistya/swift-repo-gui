@@ -5,6 +5,13 @@ import SwiftXState
 nonisolated enum BuildOpsState: String, StateIdentifying {
     case idle
     case running
+    case building
+    case testing
+    case measuring
+    case deploying
+    case completed
+    case error
+    case cancelled
     static var _blank: BuildOpsState { .idle }
 }
 
@@ -45,13 +52,67 @@ struct BuildOperationsMachine: StateMachine {
                 guard case let .start(job)? = args.event else { return args.context }
                 return Self.start(job: job, context: args.context)
             }
+            XTransition(on: BuildOpsEvent.setStatusMessage, to: .error)
+                .when { _, event in Self.isFailureStatusEvent(event) }
+                .action { args, _ in Self.applyStatusMessage(args.event, to: args.context) }
             XTransition(on: BuildOpsEvent.setStatusMessage, to: .idle).action { args, _ in
-                var ctx = args.context
-                if case let .setStatusMessage(message)? = args.event { ctx.statusMessage = message }
-                return ctx
+                Self.applyStatusMessage(args.event, to: args.context)
             }
         }
         .initial()
+
+        XState(.completed) {
+            Always(to: .error)
+                .when(Self.isFailureContext)
+            XTransition(on: BuildOpsEvent.startRequest, to: .running).action { args, _ in
+                guard case let .startRequest(request)? = args.event else { return args.context }
+                return Self.start(job: BuildJobPlanner.job(for: request), context: args.context)
+            }
+            XTransition(on: BuildOpsEvent.start, to: .running).action { args, _ in
+                guard case let .start(job)? = args.event else { return args.context }
+                return Self.start(job: job, context: args.context)
+            }
+            XTransition(on: BuildOpsEvent.setStatusMessage, to: .error)
+                .when { _, event in Self.isFailureStatusEvent(event) }
+                .action { args, _ in Self.applyStatusMessage(args.event, to: args.context) }
+            XTransition(on: BuildOpsEvent.setStatusMessage, to: .idle).action { args, _ in
+                Self.applyStatusMessage(args.event, to: args.context)
+            }
+        }
+
+        XState(.error) {
+            XTransition(on: BuildOpsEvent.startRequest, to: .running).action { args, _ in
+                guard case let .startRequest(request)? = args.event else { return args.context }
+                return Self.start(job: BuildJobPlanner.job(for: request), context: args.context)
+            }
+            XTransition(on: BuildOpsEvent.start, to: .running).action { args, _ in
+                guard case let .start(job)? = args.event else { return args.context }
+                return Self.start(job: job, context: args.context)
+            }
+            XTransition(on: BuildOpsEvent.setStatusMessage, to: .error)
+                .when { _, event in Self.isFailureStatusEvent(event) }
+                .action { args, _ in Self.applyStatusMessage(args.event, to: args.context) }
+            XTransition(on: BuildOpsEvent.setStatusMessage, to: .idle).action { args, _ in
+                Self.applyStatusMessage(args.event, to: args.context)
+            }
+        }
+
+        XState(.cancelled) {
+            XTransition(on: BuildOpsEvent.startRequest, to: .running).action { args, _ in
+                guard case let .startRequest(request)? = args.event else { return args.context }
+                return Self.start(job: BuildJobPlanner.job(for: request), context: args.context)
+            }
+            XTransition(on: BuildOpsEvent.start, to: .running).action { args, _ in
+                guard case let .start(job)? = args.event else { return args.context }
+                return Self.start(job: job, context: args.context)
+            }
+            XTransition(on: BuildOpsEvent.setStatusMessage, to: .error)
+                .when { _, event in Self.isFailureStatusEvent(event) }
+                .action { args, _ in Self.applyStatusMessage(args.event, to: args.context) }
+            XTransition(on: BuildOpsEvent.setStatusMessage, to: .idle).action { args, _ in
+                Self.applyStatusMessage(args.event, to: args.context)
+            }
+        }
 
         XState(.running) {
             Invoke(id: "build-process", run: { scope in
@@ -73,7 +134,7 @@ struct BuildOperationsMachine: StateMachine {
                 }
             })
             .input { ctx in SendableValue(ctx.activeJob) }
-            .onDone(to: .idle) { (result: BuildProcessResult, ctx) in
+            .onDone(to: .completed) { (result: BuildProcessResult, ctx) in
                 var next = ctx
                 next.lastExitCode = result.exitCode
                 next.activeJob = nil
@@ -91,7 +152,7 @@ struct BuildOperationsMachine: StateMachine {
                 }
                 return next
             }
-            .onError(to: .idle) { error, ctx in
+            .onError(to: .error) { error, ctx in
                 var next = ctx
                 next.activeJob = nil
                 next.lastExitCode = -1
@@ -99,21 +160,55 @@ struct BuildOperationsMachine: StateMachine {
                 return next
             }
 
-            XTransition(on: BuildOpsEvent.progressUpdated, to: .running).action { args, _ in
-                var ctx = args.context
-                if case let .progressUpdated(snapshot)? = args.event {
-                    ctx.progress = snapshot
-                }
-                return ctx
-            }
-            XTransition(on: .cancel, to: .idle).action { args, _ in
+            XTransition(on: .cancel, to: .cancelled).action { args, _ in
                 var ctx = args.context
                 ctx.activeJob = nil
                 ctx.statusMessage = "Build cancelled."
                 ctx.lastExitCode = -1
                 return ctx
             }
+
+            XState(.building) {
+                for transition in Self.progressTransitions() {
+                    transition
+                }
+            }
+            .initial()
+
+            XState(.testing) {
+                for transition in Self.progressTransitions() {
+                    transition
+                }
+            }
+
+            XState(.measuring) {
+                for transition in Self.progressTransitions() {
+                    transition
+                }
+            }
+
+            XState(.deploying) {
+                for transition in Self.progressTransitions() {
+                    transition
+                }
+            }
         }
+    }
+
+    private static func progressTransitions() -> [XTransition<BuildOperationsContext, BuildOpsEvent, BuildOpsState>] {
+        [
+            XTransition(on: BuildOpsEvent.progressUpdated, to: .testing)
+                .when { ctx, event in Self.stage(for: event, context: ctx) == .testing }
+                .action { args, _ in Self.applyProgress(args.event, to: args.context) },
+            XTransition(on: BuildOpsEvent.progressUpdated, to: .measuring)
+                .when { ctx, event in Self.stage(for: event, context: ctx) == .measuring }
+                .action { args, _ in Self.applyProgress(args.event, to: args.context) },
+            XTransition(on: BuildOpsEvent.progressUpdated, to: .deploying)
+                .when { ctx, event in Self.stage(for: event, context: ctx) == .deploying }
+                .action { args, _ in Self.applyProgress(args.event, to: args.context) },
+            XTransition(on: BuildOpsEvent.progressUpdated, to: .building)
+                .action { args, _ in Self.applyProgress(args.event, to: args.context) },
+        ]
     }
 
     private static func start(job: BuildJob, context: BuildOperationsContext) -> BuildOperationsContext {
@@ -131,6 +226,57 @@ struct BuildOperationsMachine: StateMachine {
         ctx.statusMessage = nil
         ctx.lastExitCode = nil
         return ctx
+    }
+
+    private static func applyProgress(
+        _ event: BuildOpsEvent?,
+        to context: BuildOperationsContext
+    ) -> BuildOperationsContext {
+        var ctx = context
+        if case let .progressUpdated(snapshot)? = event {
+            ctx.progress = snapshot
+        }
+        return ctx
+    }
+
+    private static func applyStatusMessage(
+        _ event: BuildOpsEvent?,
+        to context: BuildOperationsContext
+    ) -> BuildOperationsContext {
+        var ctx = context
+        if case let .setStatusMessage(message)? = event {
+            ctx.statusMessage = message
+            ctx.lastExitCode = isFailureStatus(message) ? -1 : ctx.lastExitCode
+        }
+        return ctx
+    }
+
+    private static func stage(
+        for event: BuildOpsEvent?,
+        context: BuildOperationsContext
+    ) -> BuildStage {
+        guard case let .progressUpdated(snapshot)? = event else {
+            return BuildStage.stage(for: context)
+        }
+        return BuildStage.runningStage(for: context.activeJob, progress: snapshot)
+    }
+
+    private static func isFailureStatusEvent(_ event: BuildOpsEvent?) -> Bool {
+        guard case let .setStatusMessage(message)? = event else { return false }
+        return isFailureStatus(message)
+    }
+
+    private static func isFailureStatus(_ message: String) -> Bool {
+        let status = message.lowercased()
+        return status.contains("failed") || status.contains("error")
+    }
+
+    private static func isFailureContext(_ context: BuildOperationsContext) -> Bool {
+        if let exitCode = context.lastExitCode, exitCode != 0 { return true }
+        if let message = context.statusMessage {
+            return isFailureStatus(message)
+        }
+        return false
     }
 }
 

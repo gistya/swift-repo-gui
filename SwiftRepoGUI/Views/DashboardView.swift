@@ -64,7 +64,7 @@ struct DashboardView: View {
                     }
                 } else if let message = project.context.validationMessage {
                     Label(message, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(Color.terminalGreen)
+                        .foregroundStyle(project.matches(.error) ? Color.terminalFailureRed : Color.terminalGreen)
                         .font(.monaco(size: 13))
                 } else if let info = project.context.projectInfo {
                     HStack(spacing: 16) {

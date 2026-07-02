@@ -35,8 +35,8 @@ struct RetroTitleBar: View {
     let soundtrackDeck: SoundtrackDeckConfiguration?
     @State private var pulse = false
 
-    private var stage: BuildStage { BuildStage.stage(for: build.context) }
-    private var module: String { BuildStage.moduleDisplay(for: build.context) }
+    private var stage: BuildStage { build.currentStage }
+    private var module: String { BuildStage.moduleDisplay(for: stage, context: build.context) }
     private var audioError: String? { soundtrackDeck?.audioError }
 
     var body: some View {
@@ -147,6 +147,17 @@ struct RetroTitleBar: View {
                 .font(.monaco(size: 12, weight: .bold))
                 .foregroundStyle(Color.terminalGreen.opacity(0.72))
         }
+    }
+}
+
+private extension MachineStore<BuildOperationsMachine> {
+    var currentStage: BuildStage {
+        if matches(.testing) { return .testing }
+        if matches(.measuring) { return .measuring }
+        if matches(.deploying) { return .deploying }
+        if matches(.building) || matches(.running) { return .building }
+        if matches(.error) { return .failed }
+        return BuildStage.stage(for: context)
     }
 }
 

@@ -25,6 +25,9 @@ nonisolated enum BuildStage: String, CaseIterable, Sendable, Equatable, Hashable
 
     static func stage(for context: BuildOperationsContext) -> BuildStage {
         if !context.isRunning {
+            if context.statusMessage == "Build cancelled." {
+                return .off
+            }
             if let exitCode = context.lastExitCode, exitCode != 0 {
                 return .failed
             }
@@ -35,11 +38,37 @@ nonisolated enum BuildStage: String, CaseIterable, Sendable, Equatable, Hashable
             return .off
         }
 
-        guard let job = context.activeJob else { return .building }
+        return runningStage(for: context.activeJob, progress: context.progress)
+    }
+
+    static func stage(for state: BuildOpsState, context: BuildOperationsContext) -> BuildStage {
+        switch state {
+        case .building, .running:
+            .building
+        case .testing:
+            .testing
+        case .measuring:
+            .measuring
+        case .deploying:
+            .deploying
+        case .error:
+            .failed
+        case .cancelled:
+            .off
+        case .idle, .completed:
+            stage(for: context)
+        }
+    }
+
+    static func runningStage(
+        for job: BuildJob?,
+        progress: BuildProgressSnapshot
+    ) -> BuildStage {
+        guard let job else { return .building }
         let text = [
             job.kind.rawValue,
             job.displayCommand,
-            context.progress.message ?? "",
+            progress.message ?? "",
             job.targetRepository
         ]
             .joined(separator: " ")
@@ -64,6 +93,19 @@ nonisolated enum BuildStage: String, CaseIterable, Sendable, Equatable, Hashable
     static func moduleDisplay(for context: BuildOperationsContext) -> String {
         if stage(for: context) == .failed { return String(localized: "ERROR") }
         guard context.isRunning else { return String(localized: "READY") }
+        if let message = context.progress.message,
+           let target = primaryTarget(from: message) {
+            return clipped(target, limit: 22)
+        }
+        if let target = context.activeJob?.targetRepository, !target.isEmpty {
+            return clipped(target, limit: 22)
+        }
+        return clipped(context.activeJob?.kind.title ?? String(localized: "RUNNING"), limit: 22)
+    }
+
+    static func moduleDisplay(for stage: BuildStage, context: BuildOperationsContext) -> String {
+        if stage == .failed { return String(localized: "ERROR") }
+        guard stage.isActive else { return String(localized: "READY") }
         if let message = context.progress.message,
            let target = primaryTarget(from: message) {
             return clipped(target, limit: 22)
