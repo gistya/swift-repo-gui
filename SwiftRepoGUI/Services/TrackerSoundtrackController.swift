@@ -826,9 +826,15 @@ private actor SoundtrackAudioActor {
             )
             install(stream)
             await audioMachine.send(.trackReady(moduleTitle: stream.moduleTitle, generation: generation))
+            guard isCurrent(stream, generation: generation) else {
+                return supersededStream(for: request, stream: stream)
+            }
 
             if startImmediately {
                 stream.waitUntilReadyForPlayback(timeout: 0.35)
+                guard isCurrent(stream, generation: generation) else {
+                    return supersededStream(for: request, stream: stream)
+                }
                 guard await startEngineOrFail() else {
                     return PreparedTrackerStream(
                         track: request.track,
@@ -837,7 +843,19 @@ private actor SoundtrackAudioActor {
                         errorMessage: lastEngineError ?? "Audio engine unavailable."
                     )
                 }
-                stream.play()
+                guard isCurrent(stream, generation: generation) else {
+                    return supersededStream(for: request, stream: stream)
+                }
+                guard stream.play() else {
+                    let message = "Audio stream is no longer connected to the engine."
+                    await audioMachine.send(.fail(message))
+                    return PreparedTrackerStream(
+                        track: request.track,
+                        succeeded: false,
+                        moduleTitle: stream.moduleTitle,
+                        errorMessage: message
+                    )
+                }
                 await audioMachine.send(.play)
             }
 
@@ -870,9 +888,13 @@ private actor SoundtrackAudioActor {
 
     func resume() async {
         await ensureMachineStarted()
-        guard activeStream != nil else { return }
+        guard let stream = activeStream else { return }
         guard await startEngineOrFail() else { return }
-        activeStream?.play()
+        guard isCurrent(stream, generation: activeGeneration) else { return }
+        guard stream.play() else {
+            await audioMachine.send(.fail("Audio stream is no longer connected to the engine."))
+            return
+        }
         await audioMachine.send(.play)
     }
 
@@ -929,9 +951,28 @@ private actor SoundtrackAudioActor {
     private func stopActiveStream() {
         guard let stream = activeStream else { return }
         stream.stop()
-        engine.disconnectNodeOutput(stream.playerNode)
-        engine.detach(stream.playerNode)
+        if stream.isConnected(to: engine) {
+            engine.disconnectNodeOutput(stream.playerNode)
+            engine.detach(stream.playerNode)
+        }
         activeStream = nil
+    }
+
+    private func isCurrent(_ stream: TrackerAudioStream, generation: Int) -> Bool {
+        guard let activeStream else { return false }
+        return generation == activeGeneration && activeStream === stream
+    }
+
+    private func supersededStream(
+        for request: TrackerStreamRequest,
+        stream: TrackerAudioStream
+    ) -> PreparedTrackerStream {
+        PreparedTrackerStream(
+            track: request.track,
+            succeeded: false,
+            moduleTitle: stream.moduleTitle,
+            errorMessage: "Audio stream was replaced before playback started."
+        )
     }
 
     private static func localizedErrorMessage(for error: any Error) -> String {
@@ -1213,26 +1254,34 @@ private nonisolated final class TrackerAudioStream: @unchecked Sendable {
         core.waitUntilReadyForPlayback(timeout: timeout)
     }
 
-    func play() {
-        guard !isFinished else { return }
+    @discardableResult
+    func play() -> Bool {
+        guard !isFinished, playerNode.engine != nil else { return false }
         if !playerNode.isPlaying {
             playerNode.play()
         }
+        return true
     }
 
     func pause() {
-        if playerNode.isPlaying {
+        if playerNode.engine != nil, playerNode.isPlaying {
             playerNode.pause()
         }
     }
 
     func stop() {
-        playerNode.stop()
         core.stop()
+        if playerNode.engine != nil {
+            playerNode.stop()
+        }
+    }
+
+    func isConnected(to engine: AVAudioEngine) -> Bool {
+        playerNode.engine === engine
     }
 
     deinit {
-        core.stop()
+        core.stop(waitUntilSchedulerExits: false)
     }
 }
 
@@ -1264,12 +1313,14 @@ private nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
     private let maxFrameCount: Int
     private let finishFlag = SoundtrackStreamFinishFlag()
     private let condition = NSCondition()
+    private let completionQueue = DispatchQueue(label: "SwiftBuilder.TrackerAudioStream.Completions", qos: .default) // .userInitiated caused issues
     private weak var playerNode: AVAudioPlayerNode?
     private var renderedFrameCount = 0
     private var queuedFrameCount = 0
     private var didRenderFinalBuffer = false
     private var didFinish = false
     private var didStartRendering = false
+    private var didExitScheduling = false
     private var stopRequested = false
     var isFinished: Bool { finishFlag.isFinished }
 
@@ -1308,6 +1359,7 @@ private nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
             shouldStart = false
         } else {
             didStartRendering = true
+            didExitScheduling = false
             shouldStart = true
         }
         condition.unlock()
@@ -1318,7 +1370,7 @@ private nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
             scheduleLoop()
         }
         thread.name = "SwiftBuilder Tracker Buffer Scheduler"
-        thread.qualityOfService = .userInitiated
+        thread.qualityOfService = .default // .userInitiated caused issues
         thread.start()
     }
 
@@ -1335,14 +1387,20 @@ private nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
         }
     }
 
-    func stop() {
+    func stop(waitUntilSchedulerExits: Bool = true) {
+        let deadline = Date(timeIntervalSinceNow: 0.5)
         condition.lock()
         stopRequested = true
         condition.broadcast()
+        while waitUntilSchedulerExits && didStartRendering && !didExitScheduling {
+            guard condition.wait(until: deadline) else { break }
+        }
         condition.unlock()
     }
 
     private func scheduleLoop() {
+        defer { markSchedulerExited() }
+
         while true {
             guard waitForSchedulingCapacity() else { return }
             guard let playerNode else { return }
@@ -1366,6 +1424,7 @@ private nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
                 markRenderComplete()
                 return
             }
+            guard shouldContinueScheduling() else { return }
 
             schedule(audioBuffer, on: playerNode)
 
@@ -1374,6 +1433,13 @@ private nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
                 return
             }
         }
+    }
+
+    private func markSchedulerExited() {
+        condition.lock()
+        didExitScheduling = true
+        condition.broadcast()
+        condition.unlock()
     }
 
     private func waitForSchedulingCapacity() -> Bool {
@@ -1386,6 +1452,12 @@ private nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
         return !stopRequested
     }
 
+    private func shouldContinueScheduling() -> Bool {
+        condition.lock()
+        defer { condition.unlock() }
+        return !stopRequested
+    }
+
     private func schedule(_ buffer: AVAudioPCMBuffer, on playerNode: AVAudioPlayerNode) {
         let frameCount = Int(buffer.frameLength)
         condition.lock()
@@ -1393,8 +1465,11 @@ private nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
         condition.broadcast()
         condition.unlock()
 
+        let completionQueue = completionQueue
         playerNode.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
-            self?.bufferDidPlay(frameCount: frameCount)
+            completionQueue.async { [weak self] in
+                self?.bufferDidPlay(frameCount: frameCount)
+            }
         }
     }
 
