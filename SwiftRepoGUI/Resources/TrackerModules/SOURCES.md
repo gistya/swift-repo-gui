@@ -1,9 +1,9 @@
 # Tracker Module Sources
 
 These tracker modules are bundled as soundtrack source material for SwiftBuilder.
-SwiftBuilder discovers every `.mod`, `.xm`, `.it`, `.s3m`, and `.mptm` file in this bundle folder at runtime and randomly picks from that set when the soundtrack starts or changes moments.
+SwiftBuilder discovers every `.mod`, `.xm`, and `.it` file in this bundle folder at runtime and randomly picks from that set when the soundtrack starts or changes moments.
 
-AVFoundation does not natively decode tracker module formats, so playback currently uses SwiftBuilder's in-app tracker-style renderer seeded by the selected module file. A future libopenmpt-backed player can replace the renderer behind the same module discovery path.
+AVFoundation does not natively decode tracker module formats, so SwiftBuilder plays these with the local Ox0badf00d Swift package, which parses MOD/XM/IT data and renders stereo PCM for AVAudioEngine.
 
 Source URLs are copied from each file's macOS `Where from` metadata when available. Older files without that extended attribute use their known Mod Archive download URL.
 

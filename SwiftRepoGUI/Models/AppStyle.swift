@@ -46,7 +46,7 @@ nonisolated struct AppStyle: Codable, Equatable, Sendable {
             measuringBPM: 104,
             deployingBPM: 128,
             trackerModuleDirectory: "TrackerModules",
-            trackerModuleExtensions: ["mod", "xm", "it", "s3m", "mptm"]
+            trackerModuleExtensions: ["mod", "xm", "it"]
         )
     )
 }

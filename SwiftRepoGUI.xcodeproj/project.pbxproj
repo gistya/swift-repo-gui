@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		73BADF0001BADF0000B6B024 /* Ox0badf00d in Frameworks */ = {isa = PBXBuildFile; productRef = 73BADF0002BADF0000B6B024 /* Ox0badf00d */; };
 		7362027C2FF2FB5400B6B024 /* SwiftXState in Frameworks */ = {isa = PBXBuildFile; productRef = 73A100012FF3000100B6B024 /* SwiftXState */; };
 		7362027D2FF2FB5400B6B024 /* SwiftXStateSwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = 73A100032FF3000100B6B024 /* SwiftXStateSwiftUI */; };
 /* End PBXBuildFile section */
@@ -57,6 +58,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				73BADF0001BADF0000B6B024 /* Ox0badf00d in Frameworks */,
 				7362027D2FF2FB5400B6B024 /* SwiftXStateSwiftUI in Frameworks */,
 				7362027C2FF2FB5400B6B024 /* SwiftXState in Frameworks */,
 			);
@@ -119,6 +121,7 @@
 			);
 			name = SwiftRepoGUI;
 			packageProductDependencies = (
+				73BADF0002BADF0000B6B024 /* Ox0badf00d */,
 				73A100012FF3000100B6B024 /* SwiftXState */,
 				73A100032FF3000100B6B024 /* SwiftXStateSwiftUI */,
 			);
@@ -225,6 +228,7 @@
 			mainGroup = 736201832FF2E6E600B6B024;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				73BADF0003BADF0000B6B024 /* XCLocalSwiftPackageReference "Ox0badf00d" */,
 				73A100052FF3000100B6B024 /* XCLocalSwiftPackageReference "../../phy/SwiftXState" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -641,6 +645,10 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
+		73BADF0003BADF0000B6B024 /* XCLocalSwiftPackageReference "Ox0badf00d" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Ox0badf00d;
+		};
 		73A100052FF3000100B6B024 /* XCLocalSwiftPackageReference "../../phy/SwiftXState" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../../phy/SwiftXState;
@@ -648,6 +656,10 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		73BADF0002BADF0000B6B024 /* Ox0badf00d */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Ox0badf00d;
+		};
 		73A100012FF3000100B6B024 /* SwiftXState */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SwiftXState;
