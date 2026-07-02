@@ -37,8 +37,8 @@ nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
         let sampleRate = Int(request.sampleRate.rounded())
         format = AVAudioFormat(standardFormatWithSampleRate: request.sampleRate, channels: 2)!
         maxFrameCount = max(1, Int((request.maxDuration * request.sampleRate).rounded()))
-        maxQueuedFrameCount = max(4_096, request.streamBufferFrames)
-        renderChunkFrameCount = max(512, min(request.streamRenderChunkFrames, maxQueuedFrameCount))
+        maxQueuedFrameCount = max(16_384, request.streamBufferFrames)
+        renderChunkFrameCount = max(1024, min(request.streamRenderChunkFrames, maxQueuedFrameCount))
         let cappedPrerollFrameCount = min(request.streamPrerollFrames, maxQueuedFrameCount)
         playbackStartFrameCount = min(max(1, cappedPrerollFrameCount), maxFrameCount)
         renderer = ModuleRenderer(

@@ -251,7 +251,7 @@ final class TrackerSoundtrackController: ObservableObject {
         let shouldStart = !isPaused && !isMuted
         let audioActor = audioActor
 
-        Task {
+        Task(priority: .medium) {
             let prepared = await audioActor.play(
                 request: request,
                 generation: generation,
