@@ -2,6 +2,7 @@
 "Settings" = "Ajustes";
 "History" = "Historial";
 "Logs" = "Registros";
+"Inspector" = "Inspector";
 "Active Build" = "Compilación activa";
 "Build Log" = "Registro de compilación";
 "Loading Log..." = "Cargando registro...";

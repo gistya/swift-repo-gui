@@ -19,47 +19,54 @@ final class TrackerSoundtrackController: ObservableObject {
 
     private let stateStore: MainStore
     private let soundtrackMachine: MachineStore<SoundtrackMachine>
+    private let audioActor: SoundtrackAudioActor
     private let soundStyle: SoundPalette
     private let defaults: UserDefaults
-    private let sampleRate: Double
-    private let format: AVAudioFormat
-    private let engine = AVAudioEngine()
-    private let prepareQueue = DispatchQueue(label: "SwiftBuilder.Soundtrack.Prepare", qos: .userInitiated)
-    private let effectsSettingsBox = SoundtrackEffectsSettingsBox(.default)
     private var renderGeneration = 0
     private var currentStage: BuildStage = .off
     private var currentTrack: TrackerModuleTrack?
     private var wasRunning = false
-    private var audioAvailable = true
     private var startupPlayed = false
     private var lastContext = BuildOperationsContext()
     private var activePurpose: SoundtrackPurpose = .startup
-    private var activeStream: TrackerAudioStream?
     private var finishPollTask: Task<Void, Never>?
     private let tracks: [TrackerModuleTrack]
 
-    init(defaults: UserDefaults = .standard) {
+    init(
+        defaults: UserDefaults = .standard,
+        inspect: (@Sendable (InspectionEvent) -> Void)? = nil
+    ) {
         self.defaults = defaults
         let store = MainStore()
         stateStore = store
-        soundtrackMachine = store.track(SoundtrackMachine())
+        let machine = SoundtrackMachine()
+        let actor = createActor(
+            machine,
+            id: "swiftbuilder.soundtrack.ui",
+            options: ActorOptions(systemId: "swiftbuilder.soundtrack.ui"),
+            inspect: inspect
+        )
+        soundtrackMachine = store.track(MachineStore(actor: actor, initialContext: machine.context))
         let style = SwiftBuilderStyle.current.sound
         soundStyle = style
-        sampleRate = style.sampleRate
-        format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 2)!
         tracks = TrackerModuleLibrary.discover()
+        let resolvedVolume: Double
         if let savedVolume = defaults.object(forKey: Self.volumeDefaultsKey) as? Double {
-            volume = Self.clampedVolume(savedVolume)
+            resolvedVolume = Self.clampedVolume(savedVolume)
         } else {
-            volume = Self.clampedVolume(Double(style.masterVolume))
+            resolvedVolume = Self.clampedVolume(Double(style.masterVolume))
         }
-        effectsSettings = SoundtrackEffectsSettingsStore.load(from: defaults)
-        effectsSettingsBox.set(effectsSettings)
+        volume = resolvedVolume
+        let loadedEffects = SoundtrackEffectsSettingsStore.load(from: defaults)
+        effectsSettings = loadedEffects
+        audioActor = SoundtrackAudioActor(
+            style: style,
+            volume: Float(resolvedVolume),
+            effectsSettings: loadedEffects,
+            inspect: inspect
+        )
 
-        engine.mainMixerNode.outputVolume = Float(volume)
-        engine.prepare()
-
-        send(.restore(muted: isMuted, volume: volume, effects: effectsSettings))
+        send(.restore(muted: isMuted, volume: resolvedVolume, effects: loadedEffects))
     }
 
     func start() {
@@ -74,7 +81,6 @@ final class TrackerSoundtrackController: ObservableObject {
         if muted {
             stopAll()
         } else {
-            audioAvailable = true
             if lastContext.isRunning {
                 currentStage = .off
                 update(for: lastContext, forceStageRefresh: true)
@@ -89,14 +95,18 @@ final class TrackerSoundtrackController: ObservableObject {
         let clamped = Self.clampedVolume(newVolume)
         send(.setVolume(clamped))
         defaults.set(clamped, forKey: Self.volumeDefaultsKey)
-        engine.mainMixerNode.outputVolume = Float(clamped)
+        Task {
+            await audioActor.setVolume(Float(clamped))
+        }
     }
 
     func setEffectsSettings(_ newSettings: SoundtrackEffectsSettings) {
         let normalized = newSettings.normalized()
-        effectsSettingsBox.set(normalized)
         send(.setEffects(normalized))
         SoundtrackEffectsSettingsStore.save(normalized, to: defaults)
+        Task {
+            await audioActor.setEffectsSettings(normalized)
+        }
     }
 
     func resetEffectsSettings() {
@@ -182,7 +192,9 @@ final class TrackerSoundtrackController: ObservableObject {
     private func pause() {
         guard currentTrack != nil else { return }
         send(.pause)
-        activeStream?.pause()
+        Task {
+            await audioActor.pause()
+        }
     }
 
     private func resume() {
@@ -191,18 +203,19 @@ final class TrackerSoundtrackController: ObservableObject {
             playRandomTrack(for: activePurpose)
             return
         }
-        guard ensureEngine() else { return }
-        activeStream?.play()
         send(.resume)
+        Task {
+            await audioActor.resume()
+        }
     }
 
     private func stopAll() {
         renderGeneration += 1
-        if engine.isRunning {
-            engine.pause()
-        }
-        detachActiveStream()
+        stopFinishPolling()
         send(.stop)
+        Task {
+            await audioActor.stop()
+        }
     }
 
     private func playRandomTrack(for purpose: SoundtrackPurpose) {
@@ -224,25 +237,28 @@ final class TrackerSoundtrackController: ObservableObject {
     private func play(_ track: TrackerModuleTrack, for purpose: SoundtrackPurpose) {
         renderGeneration += 1
         let generation = renderGeneration
+        stopFinishPolling()
         send(.requestTrack(track, purpose: purpose, generation: generation))
         let request = TrackerStreamRequest(
             track: track,
             purpose: purpose,
-            sampleRate: sampleRate,
+            sampleRate: soundStyle.sampleRate,
             streamBufferFrames: soundStyle.streamBufferFrames,
             streamPrerollFrames: soundStyle.streamPrerollFrames,
             streamRenderChunkFrames: soundStyle.streamRenderChunkFrames,
             maxDuration: soundStyle.maxRenderedTrackDuration,
             tailDuration: soundStyle.trackEndTailDuration
         )
-        let effectsSettingsBox = effectsSettingsBox
+        let shouldStart = !isPaused && !isMuted
+        let audioActor = audioActor
 
-        prepareQueue.async { [weak self] in
-            let prepared = Self.prepareStream(
-                for: request,
-                effectsSettingsBox: effectsSettingsBox
+        Task {
+            let prepared = await audioActor.play(
+                request: request,
+                generation: generation,
+                startImmediately: shouldStart
             )
-            DispatchQueue.main.async { [weak self] in
+            await MainActor.run { [weak self] in
                 self?.play(prepared, generation: generation)
             }
         }
@@ -250,56 +266,12 @@ final class TrackerSoundtrackController: ObservableObject {
 
     private func play(_ prepared: PreparedTrackerStream, generation: Int) {
         guard generation == renderGeneration, !isMuted else { return }
-        guard let stream = prepared.stream else {
+        guard prepared.succeeded else {
             send(.fail("Could not stream \(prepared.track.fileName): \(prepared.errorMessage ?? "Unknown error")"))
             return
         }
-        install(stream, generation: generation)
         send(.trackReady(prepared.track, moduleTitle: prepared.moduleTitle, generation: generation))
-        if !isPaused {
-            guard ensureEngine() else { return }
-            stream.play()
-        }
-    }
-
-    private func ensureEngine() -> Bool {
-        guard !isMuted, audioAvailable else { return false }
-        if engine.isRunning { return true }
-        do {
-            try engine.start()
-            return true
-        } catch {
-            audioAvailable = false
-            send(.fail(localizedErrorMessage(for: error)))
-            return false
-        }
-    }
-
-    private func install(_ stream: TrackerAudioStream, generation: Int) {
-        let shouldResume = engine.isRunning && !isPaused
-        if engine.isRunning {
-            engine.pause()
-        }
-        detachActiveStream()
-        activeStream = stream
-        engine.attach(stream.playerNode)
-        engine.connect(stream.playerNode, to: engine.mainMixerNode, format: format)
-        engine.prepare()
-        stream.startScheduling()
         startFinishPolling(generation: generation)
-        if shouldResume {
-            guard ensureEngine() else { return }
-            stream.play()
-        }
-    }
-
-    private func detachActiveStream() {
-        stopFinishPolling()
-        guard let activeStream else { return }
-        activeStream.stop()
-        engine.disconnectNodeOutput(activeStream.playerNode)
-        engine.detach(activeStream.playerNode)
-        self.activeStream = nil
     }
 
     private func startFinishPolling(generation: Int) {
@@ -308,7 +280,7 @@ final class TrackerSoundtrackController: ObservableObject {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(200))
                 guard !Task.isCancelled, let self else { return }
-                guard self.activeStream?.isFinished == true else { continue }
+                guard await self.audioActor.isFinished(generation: generation) else { continue }
                 self.finishPollTask = nil
                 self.trackFinished(generation: generation)
                 return
@@ -338,7 +310,6 @@ final class TrackerSoundtrackController: ObservableObject {
 
     private func trackFinished(generation: Int) {
         guard generation == renderGeneration, !isMuted, !isPaused else { return }
-        detachActiveStream()
         send(.finish)
         playRandomTrack(for: activePurpose)
     }
@@ -362,33 +333,6 @@ final class TrackerSoundtrackController: ObservableObject {
         lastError = context.lastError
         currentTrack = context.currentTrack
         activePurpose = context.activePurpose
-    }
-}
-
-private extension TrackerSoundtrackController {
-    nonisolated static func prepareStream(
-        for request: TrackerStreamRequest,
-        effectsSettingsBox: SoundtrackEffectsSettingsBox
-    ) -> PreparedTrackerStream {
-        do {
-            let stream = try TrackerAudioStream(
-                request: request,
-                effectsSettingsBox: effectsSettingsBox
-            )
-            return PreparedTrackerStream(
-                track: request.track,
-                stream: stream,
-                moduleTitle: stream.moduleTitle,
-                errorMessage: nil
-            )
-        } catch {
-            return PreparedTrackerStream(
-                track: request.track,
-                stream: nil,
-                moduleTitle: nil,
-                errorMessage: error.localizedDescription
-            )
-        }
     }
 }
 
@@ -662,11 +606,313 @@ private nonisolated struct TrackerStreamRequest: Sendable {
     let tailDuration: Double
 }
 
-private nonisolated struct PreparedTrackerStream {
+private nonisolated struct PreparedTrackerStream: Sendable {
     let track: TrackerModuleTrack
-    let stream: TrackerAudioStream?
+    let succeeded: Bool
     let moduleTitle: String?
     let errorMessage: String?
+}
+
+private actor SoundtrackAudioActor {
+    private let format: AVAudioFormat
+    private let engine = AVAudioEngine()
+    private let effectsSettingsBox: SoundtrackEffectsSettingsBox
+    private let audioMachine: MachineActor<SoundtrackAudioMachine>
+
+    private var activeStream: TrackerAudioStream?
+    private var activeGeneration = 0
+    private var audioAvailable = true
+    private var didStartMachine = false
+    private var lastEngineError: String?
+
+    init(
+        style: SoundPalette,
+        volume: Float,
+        effectsSettings: SoundtrackEffectsSettings,
+        inspect: (@Sendable (InspectionEvent) -> Void)? = nil
+    ) {
+        format = AVAudioFormat(standardFormatWithSampleRate: style.sampleRate, channels: 2)!
+        effectsSettingsBox = SoundtrackEffectsSettingsBox(effectsSettings)
+        audioMachine = createActor(
+            SoundtrackAudioMachine(),
+            id: "swiftbuilder.soundtrack.audio",
+            options: ActorOptions(
+                systemId: "swiftbuilder.soundtrack.audio",
+                snapshotMicrosteps: false
+            ),
+            inspect: inspect
+        )
+        engine.mainMixerNode.outputVolume = volume
+        engine.prepare()
+    }
+
+    func setVolume(_ volume: Float) async {
+        await ensureMachineStarted()
+        let clamped = min(1, max(0, volume))
+        engine.mainMixerNode.outputVolume = clamped
+        await audioMachine.send(.setVolume(Double(clamped)))
+    }
+
+    func setEffectsSettings(_ settings: SoundtrackEffectsSettings) async {
+        await ensureMachineStarted()
+        let normalized = settings.normalized()
+        effectsSettingsBox.set(normalized)
+        await audioMachine.send(.setEffects(normalized))
+    }
+
+    func play(
+        request: TrackerStreamRequest,
+        generation: Int,
+        startImmediately: Bool
+    ) async -> PreparedTrackerStream {
+        await ensureMachineStarted()
+        await audioMachine.send(.requestTrack(request.track, purpose: request.purpose, generation: generation))
+
+        if engine.isRunning {
+            engine.pause()
+        }
+        stopActiveStream()
+        activeGeneration = generation
+
+        do {
+            let stream = try TrackerAudioStream(
+                request: request,
+                effectsSettingsBox: effectsSettingsBox
+            )
+            install(stream)
+            await audioMachine.send(.trackReady(moduleTitle: stream.moduleTitle, generation: generation))
+
+            if startImmediately {
+                stream.waitUntilReadyForPlayback(timeout: 0.35)
+                guard await startEngineOrFail() else {
+                    return PreparedTrackerStream(
+                        track: request.track,
+                        succeeded: false,
+                        moduleTitle: stream.moduleTitle,
+                        errorMessage: lastEngineError ?? "Audio engine unavailable."
+                    )
+                }
+                stream.play()
+                await audioMachine.send(.play)
+            }
+
+            return PreparedTrackerStream(
+                track: request.track,
+                succeeded: true,
+                moduleTitle: stream.moduleTitle,
+                errorMessage: nil
+            )
+        } catch {
+            let message = Self.localizedErrorMessage(for: error)
+            await audioMachine.send(.fail(message))
+            return PreparedTrackerStream(
+                track: request.track,
+                succeeded: false,
+                moduleTitle: nil,
+                errorMessage: message
+            )
+        }
+    }
+
+    func pause() async {
+        await ensureMachineStarted()
+        activeStream?.pause()
+        if engine.isRunning {
+            engine.pause()
+        }
+        await audioMachine.send(.pause)
+    }
+
+    func resume() async {
+        await ensureMachineStarted()
+        guard activeStream != nil else { return }
+        guard await startEngineOrFail() else { return }
+        activeStream?.play()
+        await audioMachine.send(.play)
+    }
+
+    func stop() async {
+        await ensureMachineStarted()
+        if engine.isRunning {
+            engine.pause()
+        }
+        stopActiveStream()
+        activeGeneration += 1
+        await audioMachine.send(.stop)
+    }
+
+    func isFinished(generation: Int) async -> Bool {
+        generation == activeGeneration && activeStream?.isFinished == true
+    }
+
+    private func ensureMachineStarted() async {
+        guard !didStartMachine else { return }
+        await audioMachine.start()
+        didStartMachine = true
+    }
+
+    private func startEngineOrFail() async -> Bool {
+        guard audioAvailable else {
+            await audioMachine.send(.fail(lastEngineError ?? "Audio engine unavailable."))
+            return false
+        }
+        guard !engine.isRunning else { return true }
+
+        do {
+            try engine.start()
+            lastEngineError = nil
+            return true
+        } catch {
+            let message = Self.localizedErrorMessage(for: error)
+            audioAvailable = false
+            lastEngineError = message
+            await audioMachine.send(.fail(message))
+            return false
+        }
+    }
+
+    private func install(_ stream: TrackerAudioStream) {
+        activeStream = stream
+        engine.attach(stream.playerNode)
+        engine.connect(stream.playerNode, to: engine.mainMixerNode, format: format)
+        engine.prepare()
+        stream.startScheduling()
+    }
+
+    private func stopActiveStream() {
+        guard let stream = activeStream else { return }
+        stream.stop()
+        engine.disconnectNodeOutput(stream.playerNode)
+        engine.detach(stream.playerNode)
+        activeStream = nil
+    }
+
+    private static func localizedErrorMessage(for error: any Error) -> String {
+        if let localizedError = error as? any LocalizedError,
+           let description = localizedError.errorDescription?.nilIfEmpty {
+            return description
+        }
+        return error.localizedDescription
+    }
+}
+
+private nonisolated enum SoundtrackAudioPhase: String, Sendable, Equatable {
+    case stopped
+    case loading
+    case ready
+    case playing
+    case paused
+    case failed
+}
+
+private nonisolated enum SoundtrackAudioMachineState: String, StateIdentifying {
+    case active
+    static var _blank: SoundtrackAudioMachineState { .active }
+}
+
+private nonisolated enum SoundtrackAudioEvent: EventIdentifying {
+    case requestTrack(TrackerModuleTrack, purpose: SoundtrackPurpose, generation: Int)
+    case trackReady(moduleTitle: String?, generation: Int)
+    case setVolume(Double)
+    case setEffects(SoundtrackEffectsSettings)
+    case play
+    case pause
+    case stop
+    case fail(String)
+
+    static var _blank: SoundtrackAudioEvent { .stop }
+}
+
+private nonisolated struct SoundtrackAudioContext: Sendable, Equatable {
+    var phase: SoundtrackAudioPhase = .stopped
+    var currentTrack: TrackerModuleTrack?
+    var activePurpose: SoundtrackPurpose = .startup
+    var moduleTitle: String?
+    var generation = 0
+    var volume: Double = Double(SwiftBuilderStyle.current.sound.masterVolume)
+    var effectsSettings: SoundtrackEffectsSettings = .default
+    var lastError: String?
+}
+
+private struct SoundtrackAudioMachine: StateMachine {
+    typealias Context = SoundtrackAudioContext
+    typealias StateID = SoundtrackAudioMachineState
+    typealias EventID = SoundtrackAudioEvent
+
+    var context: SoundtrackAudioContext { .init() }
+
+    var machine: some XStateMachine {
+        XState(.active) {
+            XTransition(on: SoundtrackAudioEvent.requestTrack, to: .active).action { args, _ in
+                var ctx = args.context
+                guard case let .requestTrack(track, purpose, generation)? = args.event else { return ctx }
+                ctx.phase = .loading
+                ctx.currentTrack = track
+                ctx.activePurpose = purpose
+                ctx.moduleTitle = nil
+                ctx.generation = generation
+                ctx.lastError = nil
+                return ctx
+            }
+
+            XTransition(on: SoundtrackAudioEvent.trackReady, to: .active).action { args, _ in
+                var ctx = args.context
+                guard case let .trackReady(moduleTitle, generation)? = args.event,
+                      generation == ctx.generation else { return ctx }
+                ctx.phase = .ready
+                ctx.moduleTitle = moduleTitle
+                ctx.lastError = nil
+                return ctx
+            }
+
+            XTransition(on: SoundtrackAudioEvent.setVolume, to: .active).action { args, _ in
+                var ctx = args.context
+                if case let .setVolume(volume)? = args.event {
+                    ctx.volume = min(1, max(0, volume))
+                }
+                return ctx
+            }
+
+            XTransition(on: SoundtrackAudioEvent.setEffects, to: .active).action { args, _ in
+                var ctx = args.context
+                if case let .setEffects(settings)? = args.event {
+                    ctx.effectsSettings = settings.normalized()
+                }
+                return ctx
+            }
+
+            XTransition(on: .play, to: .active).action { ctx in
+                var ctx = ctx
+                ctx.phase = .playing
+                ctx.lastError = nil
+                return ctx
+            }
+
+            XTransition(on: .pause, to: .active).action { ctx in
+                var ctx = ctx
+                ctx.phase = .paused
+                return ctx
+            }
+
+            XTransition(on: .stop, to: .active).action { ctx in
+                var ctx = ctx
+                ctx.phase = .stopped
+                ctx.currentTrack = nil
+                ctx.moduleTitle = nil
+                return ctx
+            }
+
+            XTransition(on: SoundtrackAudioEvent.fail, to: .active).action { args, _ in
+                var ctx = args.context
+                if case let .fail(message)? = args.event {
+                    ctx.phase = .failed
+                    ctx.lastError = message
+                }
+                return ctx
+            }
+        }
+        .initial()
+    }
 }
 
 private nonisolated enum SoundtrackPurpose: Sendable, Equatable, Hashable {
@@ -718,13 +964,18 @@ private nonisolated final class TrackerAudioStream: @unchecked Sendable {
         core.startScheduling(on: playerNode)
     }
 
+    func waitUntilReadyForPlayback(timeout: TimeInterval) {
+        core.waitUntilReadyForPlayback(timeout: timeout)
+    }
+
     func play() {
         guard !isFinished else { return }
-        core.requestPlayback(on: playerNode)
+        if !playerNode.isPlaying {
+            playerNode.play()
+        }
     }
 
     func pause() {
-        core.cancelPlaybackRequest()
         if playerNode.isPlaying {
             playerNode.pause()
         }
@@ -763,7 +1014,7 @@ private nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
     private let effectsSettingsBox: SoundtrackEffectsSettingsBox
     private let format: AVAudioFormat
     private let renderChunkFrameCount: Int
-    private let prerollFrameCount: Int
+    private let playbackStartFrameCount: Int
     private let maxQueuedFrameCount: Int
     private let maxFrameCount: Int
     private let finishFlag = SoundtrackStreamFinishFlag()
@@ -774,7 +1025,6 @@ private nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
     private var didRenderFinalBuffer = false
     private var didFinish = false
     private var didStartRendering = false
-    private var playbackRequested = false
     private var stopRequested = false
     var isFinished: Bool { finishFlag.isFinished }
 
@@ -791,7 +1041,8 @@ private nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
         maxFrameCount = max(1, Int((request.maxDuration * request.sampleRate).rounded()))
         maxQueuedFrameCount = max(4_096, request.streamBufferFrames)
         renderChunkFrameCount = max(512, min(request.streamRenderChunkFrames, maxQueuedFrameCount))
-        prerollFrameCount = max(0, min(request.streamPrerollFrames, maxQueuedFrameCount))
+        let cappedPrerollFrameCount = min(request.streamPrerollFrames, maxQueuedFrameCount)
+        playbackStartFrameCount = min(max(1, cappedPrerollFrameCount), maxFrameCount)
         renderer = ModuleRenderer(
             module: module,
             sampleRate: sampleRate,
@@ -826,35 +1077,22 @@ private nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
         thread.start()
     }
 
+    func waitUntilReadyForPlayback(timeout: TimeInterval) {
+        let deadline = Date(timeIntervalSinceNow: timeout)
+        condition.lock()
+        defer { condition.unlock() }
+
+        while !stopRequested &&
+            !didFinish &&
+            !didRenderFinalBuffer &&
+            queuedFrameCount < playbackStartFrameCount {
+            guard condition.wait(until: deadline) else { break }
+        }
+    }
+
     func stop() {
         condition.lock()
         stopRequested = true
-        playbackRequested = false
-        condition.broadcast()
-        condition.unlock()
-    }
-
-    func requestPlayback(on playerNode: AVAudioPlayerNode) {
-        let shouldPlay: Bool
-        condition.lock()
-        self.playerNode = playerNode
-        if shouldStartPlaybackImmediatelyLocked {
-            playbackRequested = false
-            shouldPlay = true
-        } else {
-            playbackRequested = true
-            shouldPlay = false
-        }
-        condition.unlock()
-
-        if shouldPlay, !playerNode.isPlaying {
-            playerNode.play()
-        }
-    }
-
-    func cancelPlaybackRequest() {
-        condition.lock()
-        playbackRequested = false
         condition.broadcast()
         condition.unlock()
     }
@@ -866,43 +1104,28 @@ private nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
 
             let remainingFrames = maxFrameCount - renderedFrameCount
             guard remainingFrames > 0 else {
-                let shouldStartPlayback = markRenderComplete()
-                if shouldStartPlayback, !playerNode.isPlaying {
-                    playerNode.play()
-                }
+                markRenderComplete()
                 return
             }
 
             let requestedFrames = min(renderChunkFrameCount, remainingFrames)
             let songFrames = renderer.renderSongFrames(frameCount: requestedFrames)
             guard songFrames.buffer.frameCount > 0 else {
-                let shouldStartPlayback = markRenderComplete()
-                if shouldStartPlayback, !playerNode.isPlaying {
-                    playerNode.play()
-                }
+                markRenderComplete()
                 return
             }
 
             renderedFrameCount += songFrames.buffer.frameCount
             let processed = effectsProcessor.process(songFrames.buffer, settings: effectsSettingsBox.get())
             guard let audioBuffer = makeAudioBuffer(from: processed) else {
-                let shouldStartPlayback = markRenderComplete()
-                if shouldStartPlayback, !playerNode.isPlaying {
-                    playerNode.play()
-                }
+                markRenderComplete()
                 return
             }
 
-            let shouldStartPlayback = schedule(audioBuffer, on: playerNode)
-            if shouldStartPlayback, !playerNode.isPlaying {
-                playerNode.play()
-            }
+            schedule(audioBuffer, on: playerNode)
 
             if songFrames.isFinished || renderedFrameCount >= maxFrameCount {
-                let shouldStartPlayback = markRenderComplete()
-                if shouldStartPlayback, !playerNode.isPlaying {
-                    playerNode.play()
-                }
+                markRenderComplete()
                 return
             }
         }
@@ -918,22 +1141,16 @@ private nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
         return !stopRequested
     }
 
-    private func schedule(_ buffer: AVAudioPCMBuffer, on playerNode: AVAudioPlayerNode) -> Bool {
+    private func schedule(_ buffer: AVAudioPCMBuffer, on playerNode: AVAudioPlayerNode) {
         let frameCount = Int(buffer.frameLength)
-        let shouldStartPlayback: Bool
         condition.lock()
         queuedFrameCount += frameCount
-        shouldStartPlayback = shouldStartPlaybackLocked
-        if shouldStartPlayback {
-            playbackRequested = false
-        }
         condition.broadcast()
         condition.unlock()
 
         playerNode.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
             self?.bufferDidPlay(frameCount: frameCount)
         }
-        return shouldStartPlayback
     }
 
     private func bufferDidPlay(frameCount: Int) {
@@ -948,15 +1165,10 @@ private nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
         }
     }
 
-    private func markRenderComplete() -> Bool {
-        let shouldStartPlayback: Bool
+    private func markRenderComplete() {
         let shouldFinish: Bool
         condition.lock()
         didRenderFinalBuffer = true
-        shouldStartPlayback = shouldStartPlaybackLocked
-        if shouldStartPlayback {
-            playbackRequested = false
-        }
         shouldFinish = !stopRequested && queuedFrameCount == 0
         condition.broadcast()
         condition.unlock()
@@ -964,19 +1176,6 @@ private nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
         if shouldFinish {
             finishOnce()
         }
-        return shouldStartPlayback
-    }
-
-    private var shouldStartPlaybackImmediatelyLocked: Bool {
-        !stopRequested && !didFinish && (queuedFrameCount >= playbackStartFrameCount || didRenderFinalBuffer)
-    }
-
-    private var shouldStartPlaybackLocked: Bool {
-        playbackRequested && shouldStartPlaybackImmediatelyLocked
-    }
-
-    private var playbackStartFrameCount: Int {
-        min(max(1, prerollFrameCount), maxFrameCount)
     }
 
     private func makeAudioBuffer(from pcm: PCMBuffer) -> AVAudioPCMBuffer? {

@@ -2,6 +2,7 @@
 "Settings" = "設定";
 "History" = "履歴";
 "Logs" = "ログ";
+"Inspector" = "インスペクタ";
 "Active Build" = "実行中のビルド";
 "Build Log" = "ビルドログ";
 "Loading Log..." = "ログを読み込み中...";

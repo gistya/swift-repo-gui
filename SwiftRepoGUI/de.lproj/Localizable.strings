@@ -2,6 +2,7 @@
 "Settings" = "Einstellungen";
 "History" = "Verlauf";
 "Logs" = "Protokolle";
+"Inspector" = "Inspektor";
 "Active Build" = "Aktiver Build";
 "Build Log" = "Build-Protokoll";
 "Loading Log..." = "Protokoll wird geladen...";

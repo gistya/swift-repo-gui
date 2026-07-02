@@ -1,14 +1,22 @@
 import SwiftUI
 import SwiftData
+import SwiftXStateInspectorUI
 import SwiftXStateSwiftUI
 
 struct ContentView: View {
     let session: AppSession
-    @StateObject private var soundtrack = TrackerSoundtrackController()
+    @StateObject private var soundtrack: TrackerSoundtrackController
     @AppStorage("SwiftBuilder.soundtrackMuted") private var soundtrackMuted = false
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openWindow) private var openWindow
     @FocusState private var keyboardFocus: Bool
+
+    init(session: AppSession) {
+        self.session = session
+        _soundtrack = StateObject(
+            wrappedValue: TrackerSoundtrackController(inspect: session.inspector.observe())
+        )
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -126,6 +134,9 @@ struct AppSectionContent: View {
             HistoryView(session: session)
         case .logs:
             LiveLogView(build: session.build)
+        case .inspector:
+            MachineInspectorView(store: session.inspector)
+                .inspectorStyle(.dark)
         }
     }
 }

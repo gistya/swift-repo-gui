@@ -2,6 +2,7 @@
 "Settings" = "设置";
 "History" = "历史";
 "Logs" = "日志";
+"Inspector" = "检查器";
 "Active Build" = "活动构建";
 "Build Log" = "构建日志";
 "Loading Log..." = "正在加载日志...";

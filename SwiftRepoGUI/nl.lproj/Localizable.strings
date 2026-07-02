@@ -2,6 +2,7 @@
 "Settings" = "Instellingen";
 "History" = "Geschiedenis";
 "Logs" = "Logs";
+"Inspector" = "Inspecteur";
 "Active Build" = "Actieve build";
 "Build Log" = "Buildlog";
 "Loading Log..." = "Log laden...";

@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import SwiftData
 import SwiftXState
+import SwiftXStateInspectorUI
 import SwiftXStateSwiftUI
 
 nonisolated enum SessionWaitError: Error, LocalizedError, Sendable {
@@ -29,7 +30,8 @@ final class AppSession {
     static let projectLoadTimeout: Duration = .seconds(120)
     static let buildTimeout: Duration = .seconds(86_400)
 
-    let store = MainStore()
+    let store: MainStore
+    let inspector: InspectorStore
 
     let navigation: MachineStore<AppNavigationMachine>
     let project: MachineStore<ProjectMachine>
@@ -46,10 +48,35 @@ final class AppSession {
     init(modelContext: ModelContext? = nil, settingsDefaults: UserDefaults = .standard) {
         self.modelContext = modelContext
         self.settingsDefaults = settingsDefaults
-        navigation = store.track(AppNavigationMachine())
-        project = store.track(ProjectMachine())
-        settings = store.track(BuildSettingsMachine())
-        build = store.track(BuildOperationsMachine())
+        let mainStore = MainStore()
+        let inspectorStore = InspectorStore()
+        let inspect = inspectorStore.observe()
+        store = mainStore
+        inspector = inspectorStore
+        navigation = mainStore.track(inspectedStore(
+            AppNavigationMachine(),
+            id: "swiftbuilder.navigation",
+            systemId: "swiftbuilder.navigation",
+            inspect: inspect
+        ))
+        project = mainStore.track(inspectedStore(
+            ProjectMachine(),
+            id: "swiftbuilder.project",
+            systemId: "swiftbuilder.project",
+            inspect: inspect
+        ))
+        settings = mainStore.track(inspectedStore(
+            BuildSettingsMachine(),
+            id: "swiftbuilder.settings",
+            systemId: "swiftbuilder.settings",
+            inspect: inspect
+        ))
+        build = mainStore.track(inspectedStore(
+            BuildOperationsMachine(),
+            id: "swiftbuilder.build",
+            systemId: "swiftbuilder.build",
+            inspect: inspect
+        ))
 
         if let lastUsedSettings = LastUsedBuildSettingsStore.load(from: settingsDefaults) {
             settings.send(.restore(lastUsedSettings.options, lastUsedSettings.selectedRepository))
@@ -338,4 +365,20 @@ final class AppSession {
             to: settingsDefaults
         )
     }
+}
+
+@MainActor
+private func inspectedStore<M: StateMachine>(
+    _ machine: M,
+    id: String,
+    systemId: String,
+    inspect: @escaping @Sendable (InspectionEvent) -> Void
+) -> MachineStore<M> {
+    let actor = createActor(
+        machine,
+        id: id,
+        options: ActorOptions(systemId: systemId),
+        inspect: inspect
+    )
+    return MachineStore(actor: actor, initialContext: machine.context)
 }

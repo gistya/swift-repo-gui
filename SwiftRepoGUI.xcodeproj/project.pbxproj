@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		7362027C2FF2FB5400B6B024 /* SwiftXState in Frameworks */ = {isa = PBXBuildFile; productRef = 73A100012FF3000100B6B024 /* SwiftXState */; };
 		7362027D2FF2FB5400B6B024 /* SwiftXStateSwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = 73A100032FF3000100B6B024 /* SwiftXStateSwiftUI */; };
+		7362027E2FF2FB5400B6B024 /* SwiftXStateInspectorUI in Frameworks */ = {isa = PBXBuildFile; productRef = 73A100042FF3000100B6B024 /* SwiftXStateInspectorUI */; };
 		73BADF0001BADF0000B6B024 /* Ox0badf00d in Frameworks */ = {isa = PBXBuildFile; productRef = 73BADF0002BADF0000B6B024 /* Ox0badf00d */; };
 /* End PBXBuildFile section */
 
@@ -59,6 +60,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				73BADF0001BADF0000B6B024 /* Ox0badf00d in Frameworks */,
+				7362027E2FF2FB5400B6B024 /* SwiftXStateInspectorUI in Frameworks */,
 				7362027D2FF2FB5400B6B024 /* SwiftXStateSwiftUI in Frameworks */,
 				7362027C2FF2FB5400B6B024 /* SwiftXState in Frameworks */,
 			);
@@ -124,6 +126,7 @@
 				73BADF0002BADF0000B6B024 /* Ox0badf00d */,
 				73A100012FF3000100B6B024 /* SwiftXState */,
 				73A100032FF3000100B6B024 /* SwiftXStateSwiftUI */,
+				73A100042FF3000100B6B024 /* SwiftXStateInspectorUI */,
 			);
 			productName = SwiftRepoGUI;
 			productReference = 7362018C2FF2E6E600B6B024 /* SwiftRepoGUI.app */;
@@ -663,6 +666,10 @@
 		73A100032FF3000100B6B024 /* SwiftXStateSwiftUI */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SwiftXStateSwiftUI;
+		};
+		73A100042FF3000100B6B024 /* SwiftXStateInspectorUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SwiftXStateInspectorUI;
 		};
 		73BADF0002BADF0000B6B024 /* Ox0badf00d */ = {
 			isa = XCSwiftPackageProductDependency;
