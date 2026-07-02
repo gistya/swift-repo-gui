@@ -2,23 +2,50 @@ import SwiftXState
 
 struct SoundtrackMachine: StateMachine {
     typealias Context = SoundtrackContext
-    typealias StateID = SoundtrackMachineState
+    typealias StateID = SoundtrackState
     typealias EventID = SoundtrackEvent
 
-    var context: SoundtrackContext { .init() }
+    let initialContext: SoundtrackContext
+
+    init(context: SoundtrackContext = .initial(
+        style: SwiftBuilderStyle.current.sound,
+        tracks: TrackerModuleLibrary.discover()
+    )) {
+        initialContext = context
+    }
+
+    var context: SoundtrackContext { initialContext }
     var isParallel: Bool { true }
 
     var machine: some XStateMachine {
         XState(.playback) {
-            XState(.notPlaying) {
-                for transition in Self.notPlayingTransitions() {
+            XState(.stopped) {
+                for transition in Self.stoppedTransitions() {
                     transition
                 }
             }
             .initial()
 
+            XState(.loading) {
+                for transition in Self.loadingTransitions() {
+                    transition
+                }
+            }
+
             XState(.playing) {
                 for transition in Self.playingTransitions() {
+                    transition
+                }
+            }
+
+            XState(.paused) {
+                for transition in Self.pausedTransitions() {
+                    transition
+                }
+            }
+
+            XState(.failed) {
+                for transition in Self.failedTransitions() {
                     transition
                 }
             }
@@ -40,223 +67,512 @@ struct SoundtrackMachine: StateMachine {
         }
     }
 
-    private static func notPlayingTransitions() -> [XTransition<SoundtrackContext, SoundtrackEvent, SoundtrackMachineState>] {
+    private static func stoppedTransitions() -> [XTransition<SoundtrackContext, SoundtrackEvent, SoundtrackState>] {
+        var transitions = commonTransitions(stayingIn: .stopped)
+        transitions.append(XTransition(on: .launch, to: .loading)
+            .when(Self.canLaunchPlayback)
+            .action { args, _ in Self.applyLaunch(args.context, shouldPlay: true) })
+        transitions.append(XTransition(on: .launch, to: .failed)
+            .when(Self.launchNeedsMissingTracksFailure)
+            .action { args, _ in Self.applyFailure("No tracker modules were found in the app bundle.", to: args.context) })
+        transitions.append(XTransition(on: .launch, to: .stopped)
+            .action { args, _ in Self.applyLaunch(args.context, shouldPlay: false) })
+        transitions.append(XTransition(on: .togglePause, to: .loading)
+            .when(Self.canStartFromStopped)
+            .action { args, _ in Self.queueTrackForCurrentPurpose(args.context, startImmediately: true) })
+        transitions.append(XTransition(on: .previousTrack, to: .loading)
+            .when(Self.canSelectTrack)
+            .action { args, _ in Self.queueOffsetTrack(-1, context: args.context, startImmediately: true) })
+        transitions.append(XTransition(on: .nextTrack, to: .loading)
+            .when(Self.canSelectTrack)
+            .action { args, _ in Self.queueOffsetTrack(1, context: args.context, startImmediately: true) })
+        transitions.append(XTransition(on: .playTestCue, to: .loading)
+            .when(Self.canSelectTrack)
+            .action { args, _ in Self.queueRandomTrack(for: .test, context: args.context, startImmediately: true) })
+        transitions.append(XTransition(on: SoundtrackEvent.buildSnapshotChanged, to: .loading)
+            .when(Self.buildChangeNeedsTrack)
+            .action { args, _ in Self.applyBuildContextAndQueueTrack(args.event, to: args.context) })
+        transitions.append(XTransition(on: SoundtrackEvent.buildSnapshotChanged, to: .stopped)
+            .action { args, _ in Self.applyBuildContext(args.event, to: args.context) })
+        transitions.append(XTransition(on: SoundtrackEvent.playbackStopped, to: .stopped)
+            .action { args, _ in Self.applyStopped(args.event, to: args.context) })
+        transitions.append(XTransition(on: SoundtrackEvent.audioFailed, to: .failed)
+            .action { args, _ in Self.applyFailure(args.event, to: args.context) })
+        return transitions
+    }
+
+    private static func loadingTransitions() -> [XTransition<SoundtrackContext, SoundtrackEvent, SoundtrackState>] {
+        var transitions = commonTransitions(stayingIn: .loading)
+        transitions.append(XTransition(on: SoundtrackEvent.playbackPrepared, to: .playing)
+            .when(Self.preparedStartedCurrentGeneration)
+            .action { args, _ in Self.applyPlaybackPrepared(args.event, to: args.context) })
+        transitions.append(XTransition(on: SoundtrackEvent.playbackPrepared, to: .paused)
+            .when(Self.preparedPausedCurrentGeneration)
+            .action { args, _ in Self.applyPlaybackPrepared(args.event, to: args.context) })
+        transitions.append(XTransition(on: SoundtrackEvent.audioFailed, to: .failed)
+            .action { args, _ in Self.applyFailure(args.event, to: args.context) })
+        transitions.append(XTransition(on: .togglePause, to: .paused)
+            .action { args, _ in Self.applyPauseIntent(args.context) })
+        transitions.append(XTransition(on: .previousTrack, to: .loading)
+            .when(Self.canSelectTrack)
+            .action { args, _ in Self.queueOffsetTrack(-1, context: args.context, startImmediately: true) })
+        transitions.append(XTransition(on: .nextTrack, to: .loading)
+            .when(Self.canSelectTrack)
+            .action { args, _ in Self.queueOffsetTrack(1, context: args.context, startImmediately: true) })
+        transitions.append(XTransition(on: SoundtrackEvent.buildSnapshotChanged, to: .loading)
+            .action { args, _ in Self.applyBuildContext(args.event, to: args.context) })
+        transitions.append(XTransition(on: SoundtrackEvent.playbackStopped, to: .stopped)
+            .action { args, _ in Self.applyStopped(args.event, to: args.context) })
+        return transitions
+    }
+
+    private static func playingTransitions() -> [XTransition<SoundtrackContext, SoundtrackEvent, SoundtrackState>] {
+        var transitions = commonTransitions(stayingIn: .playing)
+        transitions.append(XTransition(on: .togglePause, to: .playing)
+            .action { args, _ in Self.queuePause(args.context) })
+        transitions.append(XTransition(on: SoundtrackEvent.playbackPaused, to: .paused)
+            .action { args, _ in Self.applyPlaybackPaused(args.event, to: args.context) })
+        transitions.append(XTransition(on: .previousTrack, to: .loading)
+            .when(Self.canSelectTrack)
+            .action { args, _ in Self.queueOffsetTrack(-1, context: args.context, startImmediately: true) })
+        transitions.append(XTransition(on: .nextTrack, to: .loading)
+            .when(Self.canSelectTrack)
+            .action { args, _ in Self.queueOffsetTrack(1, context: args.context, startImmediately: true) })
+        transitions.append(XTransition(on: .playTestCue, to: .loading)
+            .when(Self.canSelectTrack)
+            .action { args, _ in Self.queueRandomTrack(for: .test, context: args.context, startImmediately: true) })
+        transitions.append(XTransition(on: SoundtrackEvent.buildSnapshotChanged, to: .loading)
+            .when(Self.buildChangeNeedsTrack)
+            .action { args, _ in Self.applyBuildContextAndQueueTrack(args.event, to: args.context) })
+        transitions.append(XTransition(on: SoundtrackEvent.buildSnapshotChanged, to: .playing)
+            .action { args, _ in Self.applyBuildContext(args.event, to: args.context) })
+        transitions.append(XTransition(on: SoundtrackEvent.trackFinished, to: .loading)
+            .when(Self.shouldAutoAdvanceFinishedTrack)
+            .action { args, _ in Self.applyTrackFinishedAndQueueNext(args.event, to: args.context) })
+        transitions.append(XTransition(on: SoundtrackEvent.trackFinished, to: .stopped)
+            .action { args, _ in Self.applyTrackFinished(args.event, to: args.context) })
+        transitions.append(XTransition(on: SoundtrackEvent.audioFailed, to: .failed)
+            .action { args, _ in Self.applyFailure(args.event, to: args.context) })
+        return transitions
+    }
+
+    private static func pausedTransitions() -> [XTransition<SoundtrackContext, SoundtrackEvent, SoundtrackState>] {
+        var transitions = commonTransitions(stayingIn: .paused)
+        transitions.append(XTransition(on: .togglePause, to: .paused)
+            .when(Self.canResumeCurrentTrack)
+            .action { args, _ in Self.queueResume(args.context) })
+        transitions.append(XTransition(on: .togglePause, to: .loading)
+            .when(Self.canStartFromPaused)
+            .action { args, _ in Self.queueTrackForCurrentPurpose(args.context, startImmediately: true) })
+        transitions.append(XTransition(on: .previousTrack, to: .loading)
+            .when(Self.canSelectTrack)
+            .action { args, _ in Self.queueOffsetTrack(-1, context: args.context, startImmediately: false) })
+        transitions.append(XTransition(on: .nextTrack, to: .loading)
+            .when(Self.canSelectTrack)
+            .action { args, _ in Self.queueOffsetTrack(1, context: args.context, startImmediately: false) })
+        transitions.append(XTransition(on: SoundtrackEvent.buildSnapshotChanged, to: .paused)
+            .action { args, _ in Self.applyBuildContext(args.event, to: args.context) })
+        transitions.append(XTransition(on: SoundtrackEvent.playbackPaused, to: .paused)
+            .action { args, _ in Self.applyPlaybackPaused(args.event, to: args.context) })
+        transitions.append(XTransition(on: SoundtrackEvent.playbackResumed, to: .playing)
+            .action { args, _ in Self.applyPlaybackResumed(args.event, to: args.context) })
+        transitions.append(XTransition(on: SoundtrackEvent.audioFailed, to: .failed)
+            .action { args, _ in Self.applyFailure(args.event, to: args.context) })
+        return transitions
+    }
+
+    private static func failedTransitions() -> [XTransition<SoundtrackContext, SoundtrackEvent, SoundtrackState>] {
+        var transitions = commonTransitions(stayingIn: .failed)
+        transitions.append(XTransition(on: .launch, to: .loading)
+            .when(Self.canLaunchPlayback)
+            .action { args, _ in Self.applyLaunch(args.context, shouldPlay: true) })
+        transitions.append(XTransition(on: .previousTrack, to: .loading)
+            .when(Self.canSelectTrack)
+            .action { args, _ in Self.queueOffsetTrack(-1, context: args.context, startImmediately: true) })
+        transitions.append(XTransition(on: .nextTrack, to: .loading)
+            .when(Self.canSelectTrack)
+            .action { args, _ in Self.queueOffsetTrack(1, context: args.context, startImmediately: true) })
+        transitions.append(XTransition(on: .playTestCue, to: .loading)
+            .when(Self.canSelectTrack)
+            .action { args, _ in Self.queueRandomTrack(for: .test, context: args.context, startImmediately: true) })
+        transitions.append(XTransition(on: SoundtrackEvent.buildSnapshotChanged, to: .loading)
+            .when(Self.buildChangeNeedsTrack)
+            .action { args, _ in Self.applyBuildContextAndQueueTrack(args.event, to: args.context) })
+        transitions.append(XTransition(on: SoundtrackEvent.buildSnapshotChanged, to: .failed)
+            .action { args, _ in Self.applyBuildContext(args.event, to: args.context) })
+        return transitions
+    }
+
+    private static func commonTransitions(
+        stayingIn state: SoundtrackState
+    ) -> [XTransition<SoundtrackContext, SoundtrackEvent, SoundtrackState>] {
         [
-            XTransition(on: SoundtrackEvent.restore, to: .notPlaying)
-                .action { args, _ in Self.applyRestore(args.event, to: args.context) },
-            XTransition(on: SoundtrackEvent.setMuted, to: .notPlaying)
-                .action { args, _ in Self.applyMuted(args.event, to: args.context) },
-            XTransition(on: SoundtrackEvent.setVolume, to: .notPlaying)
+            XTransition(on: SoundtrackEvent.setVolume, to: state)
                 .action { args, _ in Self.applyVolume(args.event, to: args.context) },
-            XTransition(on: SoundtrackEvent.setPurpose, to: .notPlaying)
-                .action { args, _ in Self.applyPurpose(args.event, to: args.context) },
-            XTransition(on: SoundtrackEvent.requestTrack, to: .notPlaying)
-                .action { args, _ in Self.applyTrackRequest(args.event, to: args.context) },
-            XTransition(on: SoundtrackEvent.trackReady, to: .playing)
-                .when { ctx, event in Self.canPlayTrackReady(event, context: ctx) }
-                .action { args, _ in Self.applyTrackReady(args.event, to: args.context, phase: .playing) },
-            XTransition(on: SoundtrackEvent.trackReady, to: .notPlaying)
-                .action { args, _ in Self.applyTrackReady(args.event, to: args.context, phase: .stopped) },
-            XTransition(on: SoundtrackEvent.resume, to: .playing)
-                .when { $0.currentTrack != nil && !$0.isMuted }
-                .action { ctx in
-                    var ctx = ctx
-                    ctx.phase = .playing
-                    return ctx
-                },
-            XTransition(on: SoundtrackEvent.resume, to: .notPlaying)
-                .action { args, _ in Self.applyResume(args.context) },
-            XTransition(on: SoundtrackEvent.stop, to: .notPlaying)
-                .action { args, _ in Self.applyStop(args.context) },
-            XTransition(on: SoundtrackEvent.fail, to: .notPlaying)
-                .action { args, _ in Self.applyFailure(args.event, to: args.context) },
-            XTransition(on: SoundtrackEvent.finish, to: .notPlaying)
-                .action { args, _ in Self.applyFinish(args.context) },
+            XTransition(on: SoundtrackEvent.setEffects, to: state)
+                .action { args, _ in Self.applyEffects(args.event, to: args.context) },
+            XTransition(on: .resetEffects, to: state)
+                .action { args, _ in Self.applyEffects(.setEffects(.default), to: args.context) },
+            XTransition(on: SoundtrackEvent.audioRequestHandled, to: state)
+                .action { args, _ in Self.clearHandledRequest(args.event, from: args.context) },
+            XTransition(on: .toggleMute, to: .stopped)
+                .when { context, _ in !context.isMuted }
+                .action { args, _ in Self.applyMute(to: args.context) },
+            XTransition(on: .toggleMute, to: .loading)
+                .when(Self.unmuteCanStartPlayback)
+                .action { args, _ in Self.applyUnmute(args.context, shouldPlay: true) },
+            XTransition(on: .toggleMute, to: .stopped)
+                .action { args, _ in Self.applyUnmute(args.context, shouldPlay: false) },
+            XTransition(on: SoundtrackEvent.playbackStopped, to: .stopped)
+                .action { args, _ in Self.applyStopped(args.event, to: args.context) },
         ]
     }
 
-    private static func playingTransitions() -> [XTransition<SoundtrackContext, SoundtrackEvent, SoundtrackMachineState>] {
+    private static func tubeRackTransitions() -> [XTransition<SoundtrackContext, SoundtrackEvent, SoundtrackState>] {
         [
-            XTransition(on: SoundtrackEvent.restore, to: .notPlaying)
-                .when { _, event in Self.restoreMutes(event) }
-                .action { args, _ in Self.applyRestore(args.event, to: args.context) },
-            XTransition(on: SoundtrackEvent.restore, to: .playing)
-                .action { args, _ in Self.applyRestore(args.event, to: args.context) },
-            XTransition(on: SoundtrackEvent.setMuted, to: .notPlaying)
-                .when { _, event in Self.muteEventTurnsOff(event) }
-                .action { args, _ in Self.applyMuted(args.event, to: args.context) },
-            XTransition(on: SoundtrackEvent.setMuted, to: .playing)
-                .action { args, _ in Self.applyMuted(args.event, to: args.context) },
-            XTransition(on: SoundtrackEvent.setVolume, to: .playing)
-                .action { args, _ in Self.applyVolume(args.event, to: args.context) },
-            XTransition(on: SoundtrackEvent.setPurpose, to: .playing)
-                .action { args, _ in Self.applyPurpose(args.event, to: args.context) },
-            XTransition(on: SoundtrackEvent.requestTrack, to: .notPlaying)
-                .action { args, _ in Self.applyTrackRequest(args.event, to: args.context) },
-            XTransition(on: SoundtrackEvent.pause, to: .notPlaying)
-                .when { $0.currentTrack != nil && !$0.isMuted }
-                .action { ctx in
-                    var ctx = ctx
-                    ctx.phase = .paused
-                    return ctx
-                },
-            XTransition(on: SoundtrackEvent.stop, to: .notPlaying)
-                .action { args, _ in Self.applyStop(args.context) },
-            XTransition(on: SoundtrackEvent.fail, to: .notPlaying)
-                .action { args, _ in Self.applyFailure(args.event, to: args.context) },
-            XTransition(on: SoundtrackEvent.finish, to: .notPlaying)
-                .action { args, _ in Self.applyFinish(args.context) },
-        ]
-    }
-
-    private static func tubeRackTransitions() -> [XTransition<SoundtrackContext, SoundtrackEvent, SoundtrackMachineState>] {
-        [
-            XTransition(on: SoundtrackEvent.restore, to: .tubeRackOn)
-                .when { _, event in Self.restoreEffectsEnabled(event) },
-            XTransition(on: SoundtrackEvent.restore, to: .tubeRackOff),
             XTransition(on: SoundtrackEvent.setEffects, to: .tubeRackOn)
                 .when { _, event in Self.effectsEnabled(event) }
                 .action { args, _ in Self.applyEffects(args.event, to: args.context) },
+            XTransition(on: .resetEffects, to: .tubeRackOn)
+                .when { _ in SoundtrackEffectsSettings.default.normalized().isEnabled }
+                .action { args, _ in Self.applyEffects(.setEffects(.default), to: args.context) },
             XTransition(on: SoundtrackEvent.setEffects, to: .tubeRackOff)
                 .action { args, _ in Self.applyEffects(args.event, to: args.context) },
+            XTransition(on: .resetEffects, to: .tubeRackOff)
+                .action { args, _ in Self.applyEffects(.setEffects(.default), to: args.context) },
         ]
     }
+}
 
-    private static func applyRestore(_ event: SoundtrackEvent?, to context: SoundtrackContext) -> SoundtrackContext {
-        var ctx = context
-        if case let .restore(muted, volume, effects)? = event {
-            ctx.isMuted = muted
-            ctx.volume = min(1, max(0, volume))
-            ctx.effectsSettings = effects.normalized()
-            if muted {
-                ctx.phase = .stopped
-                ctx.currentTrack = nil
-                ctx.nowPlaying = .empty
-            }
-        }
-        return ctx
+private extension SoundtrackMachine {
+    static func canLaunchPlayback(_ context: SoundtrackContext, _ event: SoundtrackEvent?) -> Bool {
+        guard case .launch? = event else { return false }
+        return !context.isMuted && !context.startupPlayed && !context.tracks.isEmpty
     }
 
-    private static func applyMuted(_ event: SoundtrackEvent?, to context: SoundtrackContext) -> SoundtrackContext {
-        var ctx = context
-        if case let .setMuted(muted)? = event {
-            ctx.isMuted = muted
-            ctx.lastError = nil
-            if muted {
-                ctx.phase = .stopped
-                ctx.currentTrack = nil
-                ctx.nowPlaying = .empty
-            }
-        }
-        return ctx
+    static func launchNeedsMissingTracksFailure(_ context: SoundtrackContext, _ event: SoundtrackEvent?) -> Bool {
+        guard case .launch? = event else { return false }
+        return !context.isMuted && !context.startupPlayed && context.tracks.isEmpty
     }
 
-    private static func applyVolume(_ event: SoundtrackEvent?, to context: SoundtrackContext) -> SoundtrackContext {
-        var ctx = context
-        if case let .setVolume(volume)? = event {
-            ctx.volume = min(1, max(0, volume))
-        }
-        return ctx
+    static func canStartFromStopped(_ context: SoundtrackContext, _ event: SoundtrackEvent?) -> Bool {
+        guard case .togglePause? = event else { return false }
+        return !context.isMuted && !context.tracks.isEmpty
     }
 
-    private static func applyEffects(_ event: SoundtrackEvent?, to context: SoundtrackContext) -> SoundtrackContext {
-        var ctx = context
-        if case let .setEffects(settings)? = event {
-            ctx.effectsSettings = settings.normalized()
-        }
-        return ctx
+    static func canStartFromPaused(_ context: SoundtrackContext, _ event: SoundtrackEvent?) -> Bool {
+        guard case .togglePause? = event else { return false }
+        return !context.isMuted && context.currentTrack == nil && !context.tracks.isEmpty
     }
 
-    private static func applyPurpose(_ event: SoundtrackEvent?, to context: SoundtrackContext) -> SoundtrackContext {
-        var ctx = context
-        if case let .setPurpose(purpose)? = event {
-            ctx.activePurpose = purpose
-        }
-        return ctx
+    static func canResumeCurrentTrack(_ context: SoundtrackContext, _ event: SoundtrackEvent?) -> Bool {
+        guard case .togglePause? = event else { return false }
+        return !context.isMuted && context.currentTrack != nil
     }
 
-    private static func applyTrackRequest(_ event: SoundtrackEvent?, to context: SoundtrackContext) -> SoundtrackContext {
-        var ctx = context
-        if case let .requestTrack(track, purpose, generation)? = event {
-            ctx.phase = .loading
-            ctx.currentTrack = track
-            ctx.nowPlaying = track.nowPlaying(moduleTitle: nil)
-            ctx.activePurpose = purpose
-            ctx.generation = generation
-            ctx.lastError = nil
-        }
-        return ctx
+    static func canSelectTrack(_ context: SoundtrackContext, _ event: SoundtrackEvent?) -> Bool {
+        context.canSelectTrack
     }
 
-    private static func applyTrackReady(
-        _ event: SoundtrackEvent?,
-        to context: SoundtrackContext,
-        phase: SoundtrackPhase
-    ) -> SoundtrackContext {
-        var ctx = context
-        if case let .trackReady(track, moduleTitle, generation)? = event,
-           generation == ctx.generation {
-            ctx.currentTrack = track
-            ctx.nowPlaying = track.nowPlaying(moduleTitle: moduleTitle)
-            ctx.phase = phase
-            ctx.lastError = nil
-        }
-        return ctx
+    static func unmuteCanStartPlayback(_ context: SoundtrackContext, _ event: SoundtrackEvent?) -> Bool {
+        guard case .toggleMute? = event else { return false }
+        return context.isMuted && !context.tracks.isEmpty
     }
 
-    private static func applyResume(_ context: SoundtrackContext) -> SoundtrackContext {
-        var ctx = context
-        guard !ctx.isMuted else { return ctx }
-        ctx.phase = ctx.currentTrack == nil ? .stopped : .playing
-        return ctx
+    static func buildChangeNeedsTrack(_ context: SoundtrackContext, _ event: SoundtrackEvent?) -> Bool {
+        buildPurpose(for: event, previous: context) != nil
     }
 
-    private static func applyStop(_ context: SoundtrackContext) -> SoundtrackContext {
-        var ctx = context
-        ctx.phase = .stopped
-        ctx.currentTrack = nil
-        ctx.nowPlaying = .empty
-        return ctx
+    static func preparedStartedCurrentGeneration(_ context: SoundtrackContext, _ event: SoundtrackEvent?) -> Bool {
+        guard case let .playbackPrepared(_, generation, started)? = event else { return false }
+        return started && generation == context.generation
     }
 
-    private static func applyFailure(_ event: SoundtrackEvent?, to context: SoundtrackContext) -> SoundtrackContext {
-        var ctx = context
-        if case let .fail(message)? = event {
-            ctx.phase = .failed
-            ctx.lastError = message
-        }
-        return ctx
+    static func preparedPausedCurrentGeneration(_ context: SoundtrackContext, _ event: SoundtrackEvent?) -> Bool {
+        guard case let .playbackPrepared(_, generation, started)? = event else { return false }
+        return !started && generation == context.generation
     }
 
-    private static func applyFinish(_ context: SoundtrackContext) -> SoundtrackContext {
-        var ctx = context
-        ctx.phase = .stopped
-        return ctx
+    static func shouldAutoAdvanceFinishedTrack(_ context: SoundtrackContext, _ event: SoundtrackEvent?) -> Bool {
+        guard case let .trackFinished(generation)? = event else { return false }
+        return generation == context.generation && !context.isMuted && context.playbackPhase != .paused && !context.tracks.isEmpty
     }
 
-    private static func canPlayTrackReady(_ event: SoundtrackEvent?, context: SoundtrackContext) -> Bool {
-        guard !context.isMuted,
-              case let .trackReady(_, _, generation)? = event else { return false }
-        return generation == context.generation
-    }
-
-    private static func restoreMutes(_ event: SoundtrackEvent?) -> Bool {
-        guard case let .restore(muted, _, _)? = event else { return false }
-        return muted
-    }
-
-    private static func muteEventTurnsOff(_ event: SoundtrackEvent?) -> Bool {
-        guard case let .setMuted(muted)? = event else { return false }
-        return muted
-    }
-
-    private static func restoreEffectsEnabled(_ event: SoundtrackEvent?) -> Bool {
-        guard case let .restore(_, _, effects)? = event else { return false }
-        return effects.normalized().isEnabled
-    }
-
-    private static func effectsEnabled(_ event: SoundtrackEvent?) -> Bool {
+    static func effectsEnabled(_ event: SoundtrackEvent?) -> Bool {
         guard case let .setEffects(settings)? = event else { return false }
         return settings.normalized().isEnabled
+    }
+}
+
+private extension SoundtrackMachine {
+    static func applyLaunch(_ context: SoundtrackContext, shouldPlay: Bool) -> SoundtrackContext {
+        var ctx = context
+        guard !ctx.startupPlayed else { return ctx }
+        ctx.startupPlayed = true
+        guard shouldPlay else { return ctx }
+        return queueRandomTrack(for: .startup, context: ctx, startImmediately: true)
+    }
+
+    static func applyMute(to context: SoundtrackContext) -> SoundtrackContext {
+        var ctx = context
+        ctx.isMuted = true
+        ctx.playbackPhase = .stopped
+        ctx.currentTrack = nil
+        ctx.moduleTitle = nil
+        ctx.lastError = nil
+        ctx.generation += 1
+        ctx.enqueue(.stop(generation: ctx.generation))
+        return ctx
+    }
+
+    static func applyUnmute(_ context: SoundtrackContext, shouldPlay: Bool) -> SoundtrackContext {
+        var ctx = context
+        ctx.isMuted = false
+        ctx.lastError = nil
+        guard shouldPlay else { return ctx }
+        let purpose: SoundtrackPurpose = ctx.wasBuildRunning && ctx.currentStage.isActive
+            ? .stage(ctx.currentStage)
+            : .startup
+        ctx.startupPlayed = true
+        return queueRandomTrack(for: purpose, context: ctx, startImmediately: true)
+    }
+
+    static func applyVolume(_ event: SoundtrackEvent?, to context: SoundtrackContext) -> SoundtrackContext {
+        var ctx = context
+        guard case let .setVolume(volume)? = event else { return ctx }
+        let clamped = SoundtrackContext.clampedVolume(volume)
+        ctx.volume = clamped
+        ctx.enqueue(.setVolume(clamped))
+        return ctx
+    }
+
+    static func applyEffects(_ event: SoundtrackEvent?, to context: SoundtrackContext) -> SoundtrackContext {
+        var ctx = context
+        guard case let .setEffects(settings)? = event else { return ctx }
+        let normalized = settings.normalized()
+        ctx.effectsSettings = normalized
+        ctx.enqueue(.setEffects(normalized))
+        return ctx
+    }
+
+    static func clearHandledRequest(_ event: SoundtrackEvent?, from context: SoundtrackContext) -> SoundtrackContext {
+        var ctx = context
+        guard case let .audioRequestHandled(id)? = event,
+              ctx.pendingAudioRequest?.id == id else { return ctx }
+        ctx.pendingAudioRequest = nil
+        return ctx
+    }
+
+    static func applyBuildContext(_ event: SoundtrackEvent?, to context: SoundtrackContext) -> SoundtrackContext {
+        var ctx = context
+        guard case let .buildSnapshotChanged(buildSnapshot)? = event else { return ctx }
+        if ctx.playbackPhase == .paused, buildSnapshot.stage != .off {
+            ctx.activePurpose = .stage(buildSnapshot.stage)
+        }
+        ctx.wasBuildRunning = buildSnapshot.isRunning
+        ctx.currentStage = buildSnapshot.stage
+        return ctx
+    }
+
+    static func applyBuildContextAndQueueTrack(_ event: SoundtrackEvent?, to context: SoundtrackContext) -> SoundtrackContext {
+        guard let purpose = buildPurpose(for: event, previous: context) else {
+            return applyBuildContext(event, to: context)
+        }
+        let ctx = applyBuildContext(event, to: context)
+        return queueRandomTrack(for: purpose, context: ctx, startImmediately: true)
+    }
+
+    static func applyPlaybackPrepared(_ event: SoundtrackEvent?, to context: SoundtrackContext) -> SoundtrackContext {
+        var ctx = context
+        guard case let .playbackPrepared(moduleTitle, generation, started)? = event,
+              generation == ctx.generation else { return ctx }
+        ctx.moduleTitle = moduleTitle
+        ctx.playbackPhase = started ? .playing : .paused
+        ctx.lastError = nil
+        ctx.pendingAudioRequest = nil
+        return ctx
+    }
+
+    static func applyPlaybackPaused(_ event: SoundtrackEvent?, to context: SoundtrackContext) -> SoundtrackContext {
+        var ctx = context
+        guard case let .playbackPaused(generation)? = event,
+              generation == ctx.generation else { return ctx }
+        ctx.playbackPhase = .paused
+        ctx.pendingAudioRequest = nil
+        return ctx
+    }
+
+    static func applyPlaybackResumed(_ event: SoundtrackEvent?, to context: SoundtrackContext) -> SoundtrackContext {
+        var ctx = context
+        guard case let .playbackResumed(generation)? = event,
+              generation == ctx.generation else { return ctx }
+        ctx.playbackPhase = .playing
+        ctx.pendingAudioRequest = nil
+        return ctx
+    }
+
+    static func applyStopped(_ event: SoundtrackEvent?, to context: SoundtrackContext) -> SoundtrackContext {
+        var ctx = context
+        if case let .playbackStopped(generation)? = event, generation != ctx.generation {
+            return ctx
+        }
+        ctx.playbackPhase = .stopped
+        ctx.currentTrack = nil
+        ctx.moduleTitle = nil
+        ctx.pendingAudioRequest = nil
+        return ctx
+    }
+
+    static func applyTrackFinished(_ event: SoundtrackEvent?, to context: SoundtrackContext) -> SoundtrackContext {
+        var ctx = context
+        guard case let .trackFinished(generation)? = event,
+              generation == ctx.generation else { return ctx }
+        ctx.playbackPhase = .stopped
+        ctx.currentTrack = nil
+        ctx.moduleTitle = nil
+        ctx.pendingAudioRequest = nil
+        return ctx
+    }
+
+    static func applyTrackFinishedAndQueueNext(_ event: SoundtrackEvent?, to context: SoundtrackContext) -> SoundtrackContext {
+        let stopped = applyTrackFinished(event, to: context)
+        guard stopped.canSelectTrack else { return stopped }
+        return queueRandomTrack(for: context.activePurpose, context: stopped, startImmediately: true)
+    }
+
+    static func applyFailure(_ event: SoundtrackEvent?, to context: SoundtrackContext) -> SoundtrackContext {
+        guard case let .audioFailed(message, generation)? = event else { return context }
+        if let generation, generation != context.generation { return context }
+        return applyFailure(message, to: context)
+    }
+
+    static func applyFailure(_ message: String, to context: SoundtrackContext) -> SoundtrackContext {
+        var ctx = context
+        ctx.playbackPhase = .failed
+        ctx.lastError = message
+        ctx.currentTrack = nil
+        ctx.moduleTitle = nil
+        ctx.pendingAudioRequest = nil
+        return ctx
+    }
+
+    static func applyPauseIntent(_ context: SoundtrackContext) -> SoundtrackContext {
+        var ctx = context
+        ctx.playbackPhase = .paused
+        return ctx
+    }
+
+    static func queuePause(_ context: SoundtrackContext) -> SoundtrackContext {
+        var ctx = context
+        ctx.enqueue(.pause(generation: ctx.generation))
+        return ctx
+    }
+
+    static func queueResume(_ context: SoundtrackContext) -> SoundtrackContext {
+        var ctx = context
+        ctx.enqueue(.resume(generation: ctx.generation))
+        return ctx
+    }
+
+    static func queueTrackForCurrentPurpose(
+        _ context: SoundtrackContext,
+        startImmediately: Bool
+    ) -> SoundtrackContext {
+        queueRandomTrack(for: context.activePurpose, context: context, startImmediately: startImmediately)
+    }
+
+    static func queueRandomTrack(
+        for purpose: SoundtrackPurpose,
+        context: SoundtrackContext,
+        startImmediately: Bool
+    ) -> SoundtrackContext {
+        let ctx = context
+        guard let track = randomTrack(in: ctx) else {
+            return applyFailure("No tracker modules were found in the app bundle.", to: ctx)
+        }
+        return queueTrack(track, purpose: purpose, context: ctx, startImmediately: startImmediately)
+    }
+
+    static func queueOffsetTrack(
+        _ offset: Int,
+        context: SoundtrackContext,
+        startImmediately: Bool
+    ) -> SoundtrackContext {
+        let ctx = context
+        guard let track = track(offsetBy: offset, in: ctx) else {
+            return applyFailure("No tracker modules were found in the app bundle.", to: ctx)
+        }
+        return queueTrack(track, purpose: ctx.activePurpose, context: ctx, startImmediately: startImmediately)
+    }
+
+    static func queueTrack(
+        _ track: TrackerModuleTrack,
+        purpose: SoundtrackPurpose,
+        context: SoundtrackContext,
+        startImmediately: Bool
+    ) -> SoundtrackContext {
+        var ctx = context
+        ctx.generation += 1
+        ctx.playbackPhase = .loading
+        ctx.currentTrack = track
+        ctx.activePurpose = purpose
+        ctx.moduleTitle = nil
+        ctx.lastError = nil
+        let request = TrackerStreamRequest(
+            track: track,
+            purpose: purpose,
+            sampleRate: ctx.soundStyle.sampleRate,
+            streamBufferFrames: ctx.soundStyle.streamBufferFrames,
+            streamPrerollFrames: ctx.soundStyle.streamPrerollFrames,
+            streamRenderChunkFrames: ctx.soundStyle.streamRenderChunkFrames,
+            maxDuration: ctx.soundStyle.maxRenderedTrackDuration,
+            tailDuration: ctx.soundStyle.trackEndTailDuration
+        )
+        ctx.enqueue(.play(request, generation: ctx.generation, startImmediately: startImmediately))
+        return ctx
+    }
+}
+
+private extension SoundtrackMachine {
+    static func buildPurpose(
+        for event: SoundtrackEvent?,
+        previous context: SoundtrackContext
+    ) -> SoundtrackPurpose? {
+        guard case let .buildSnapshotChanged(buildSnapshot)? = event,
+              !context.isMuted,
+              context.playbackPhase != .paused,
+              !context.tracks.isEmpty else { return nil }
+
+        if buildSnapshot.isRunning, !context.wasBuildRunning {
+            return .stage(buildSnapshot.stage)
+        }
+        if buildSnapshot.stage == .failed, context.currentStage != .failed {
+            return .failure
+        }
+        if !buildSnapshot.isRunning, context.wasBuildRunning, buildSnapshot.succeeded {
+            return .success
+        }
+        if buildSnapshot.stage.isActive, buildSnapshot.stage != context.currentStage {
+            return .stage(buildSnapshot.stage)
+        }
+        return nil
+    }
+
+    static func randomTrack(in context: SoundtrackContext) -> TrackerModuleTrack? {
+        guard !context.tracks.isEmpty else { return nil }
+        let candidates = context.tracks.count > 1
+            ? context.tracks.filter { $0 != context.currentTrack }
+            : context.tracks
+        return candidates.randomElement() ?? context.tracks.randomElement()
+    }
+
+    static func track(offsetBy offset: Int, in context: SoundtrackContext) -> TrackerModuleTrack? {
+        guard !context.tracks.isEmpty else { return nil }
+        guard let currentTrack = context.currentTrack,
+              let currentIndex = context.tracks.firstIndex(of: currentTrack) else {
+            return offset >= 0 ? context.tracks.first : context.tracks.last
+        }
+        let nextIndex = (currentIndex + offset + context.tracks.count) % context.tracks.count
+        return context.tracks[nextIndex]
     }
 }

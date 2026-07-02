@@ -1,18 +1,23 @@
 import SwiftXState
 
 nonisolated enum SoundtrackEvent: EventIdentifying {
-    case restore(muted: Bool, volume: Double, effects: SoundtrackEffectsSettings)
-    case setMuted(Bool)
+    case launch
+    case buildSnapshotChanged(SoundtrackBuildSnapshot)
+    case toggleMute
+    case togglePause
+    case previousTrack
+    case nextTrack
+    case playTestCue
     case setVolume(Double)
     case setEffects(SoundtrackEffectsSettings)
-    case setPurpose(SoundtrackPurpose)
-    case requestTrack(TrackerModuleTrack, purpose: SoundtrackPurpose, generation: Int)
-    case trackReady(TrackerModuleTrack, moduleTitle: String?, generation: Int)
-    case pause
-    case resume
-    case stop
-    case fail(String)
-    case finish
+    case resetEffects
+    case playbackPrepared(moduleTitle: String?, generation: Int, started: Bool)
+    case playbackPaused(generation: Int)
+    case playbackResumed(generation: Int)
+    case playbackStopped(generation: Int)
+    case trackFinished(generation: Int)
+    case audioFailed(String, generation: Int?)
+    case audioRequestHandled(Int)
 
-    static var _blank: SoundtrackEvent { .stop }
+    static var _blank: SoundtrackEvent { .launch }
 }

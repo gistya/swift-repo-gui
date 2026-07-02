@@ -1,56 +1,39 @@
 import AVFoundation
-import SwiftXState
 
 actor SoundtrackAudioActor {
+    nonisolated private let finishedGenerationBroadcaster = AsyncEventBroadcaster<Int>()
+
+    nonisolated var finishedGenerations: AsyncStream<Int> {
+        finishedGenerationBroadcaster.stream(bufferingPolicy: .bufferingNewest(16))
+    }
+
     private let format: AVAudioFormat
     private let engine = AVAudioEngine()
     private let effectsSettingsBox: SoundtrackEffectsSettingsBox
-    private let audioMachine: MachineActor<SoundtrackAudioMachine>
-    private let initialVolume: Double
-    private let initialEffectsSettings: SoundtrackEffectsSettings
 
     private var activeStream: TrackerAudioStream?
     private var activeGeneration = 0
     private var audioAvailable = true
-    private var didStartMachine = false
     private var lastEngineError: String?
+    private var finishTask: Task<Void, Never>?
 
     init(
         style: SoundPalette,
         volume: Float,
-        effectsSettings: SoundtrackEffectsSettings,
-        inspect: (@Sendable (InspectionEvent) -> Void)? = nil
+        effectsSettings: SoundtrackEffectsSettings
     ) {
         format = AVAudioFormat(standardFormatWithSampleRate: style.sampleRate, channels: 2)!
-        let normalizedEffects = effectsSettings.normalized()
-        effectsSettingsBox = SoundtrackEffectsSettingsBox(normalizedEffects)
-        initialVolume = Double(volume)
-        initialEffectsSettings = normalizedEffects
-        audioMachine = createActor(
-            SoundtrackAudioMachine(),
-            id: "swiftbuilder.soundtrack.audio",
-            options: ActorOptions(
-                systemId: "swiftbuilder.soundtrack.audio",
-                snapshotMicrosteps: false
-            ),
-            inspect: inspect
-        )
+        effectsSettingsBox = SoundtrackEffectsSettingsBox(effectsSettings.normalized())
         engine.mainMixerNode.outputVolume = volume
         engine.prepare()
     }
 
-    func setVolume(_ volume: Float) async {
-        await ensureMachineStarted()
-        let clamped = min(1, max(0, volume))
-        engine.mainMixerNode.outputVolume = clamped
-        await audioMachine.send(.setVolume(Double(clamped)))
+    func setVolume(_ volume: Double) async {
+        engine.mainMixerNode.outputVolume = Float(min(1, max(0, volume)))
     }
 
     func setEffectsSettings(_ settings: SoundtrackEffectsSettings) async {
-        await ensureMachineStarted()
-        let normalized = settings.normalized()
-        effectsSettingsBox.set(normalized)
-        await audioMachine.send(.setEffects(normalized))
+        effectsSettingsBox.set(settings.normalized())
     }
 
     func play(
@@ -58,9 +41,6 @@ actor SoundtrackAudioActor {
         generation: Int,
         startImmediately: Bool
     ) async -> PreparedTrackerStream {
-        await ensureMachineStarted()
-        await audioMachine.send(.requestTrack(request.track, purpose: request.purpose, generation: generation))
-
         if engine.isRunning {
             engine.pause()
         }
@@ -72,14 +52,13 @@ actor SoundtrackAudioActor {
                 request: request,
                 effectsSettingsBox: effectsSettingsBox
             )
-            install(stream)
-            await audioMachine.send(.trackReady(moduleTitle: stream.moduleTitle, generation: generation))
+            install(stream, generation: generation)
             guard isCurrent(stream, generation: generation) else {
                 return supersededStream(for: request, stream: stream)
             }
 
             if startImmediately {
-                stream.waitUntilReadyForPlayback(timeout: 0.35)
+                await stream.awaitReadyForPlayback(timeout: 0.35)
                 guard isCurrent(stream, generation: generation) else {
                     return supersededStream(for: request, stream: stream)
                 }
@@ -95,16 +74,13 @@ actor SoundtrackAudioActor {
                     return supersededStream(for: request, stream: stream)
                 }
                 guard stream.play() else {
-                    let message = "Audio stream is no longer connected to the engine."
-                    await audioMachine.send(.fail(message))
                     return PreparedTrackerStream(
                         track: request.track,
                         succeeded: false,
                         moduleTitle: stream.moduleTitle,
-                        errorMessage: message
+                        errorMessage: "Audio stream is no longer connected to the engine."
                     )
                 }
-                await audioMachine.send(.play)
             }
 
             return PreparedTrackerStream(
@@ -114,65 +90,64 @@ actor SoundtrackAudioActor {
                 errorMessage: nil
             )
         } catch {
-            let message = Self.localizedErrorMessage(for: error)
-            await audioMachine.send(.fail(message))
             return PreparedTrackerStream(
                 track: request.track,
                 succeeded: false,
                 moduleTitle: nil,
-                errorMessage: message
+                errorMessage: Self.localizedErrorMessage(for: error)
             )
         }
     }
 
-    func pause() async {
-        await ensureMachineStarted()
+    func pause() async -> String? {
         activeStream?.pause()
         if engine.isRunning {
             engine.pause()
         }
-        await audioMachine.send(.pause)
+        return nil
     }
 
-    func resume() async {
-        await ensureMachineStarted()
-        guard let stream = activeStream else { return }
-        guard await startEngineOrFail() else { return }
-        guard isCurrent(stream, generation: activeGeneration) else { return }
-        guard stream.play() else {
-            await audioMachine.send(.fail("Audio stream is no longer connected to the engine."))
-            return
+    func resume() async -> String? {
+        guard let stream = activeStream else {
+            return "No tracker stream is ready to resume."
         }
-        await audioMachine.send(.play)
+        guard await startEngineOrFail() else {
+            return lastEngineError ?? "Audio engine unavailable."
+        }
+        guard isCurrent(stream, generation: activeGeneration) else {
+            return "Audio stream was replaced before playback resumed."
+        }
+        guard stream.play() else {
+            return "Audio stream is no longer connected to the engine."
+        }
+        return nil
     }
 
     func stop() async {
-        await ensureMachineStarted()
         if engine.isRunning {
             engine.pause()
         }
         stopActiveStream()
         activeGeneration += 1
-        await audioMachine.send(.stop)
     }
 
-    func isFinished(generation: Int) async -> Bool {
-        generation == activeGeneration && activeStream?.isFinished == true
-    }
-
-    private func ensureMachineStarted() async {
-        guard !didStartMachine else { return }
-        await audioMachine.start()
-        await audioMachine.send(.setVolume(initialVolume))
-        await audioMachine.send(.setEffects(initialEffectsSettings))
-        didStartMachine = true
+    private func streamDidFinish(_ stream: TrackerAudioStream, generation: Int) async {
+        guard activeStream === stream, generation == activeGeneration else { return }
+        if engine.isRunning {
+            engine.pause()
+        }
+        stream.stop()
+        if stream.isConnected(to: engine) {
+            engine.disconnectNodeOutput(stream.playerNode)
+            engine.detach(stream.playerNode)
+        }
+        activeStream = nil
+        finishTask = nil
+        finishedGenerationBroadcaster.yield { generation }
     }
 
     private func startEngineOrFail() async -> Bool {
-        guard audioAvailable else {
-            await audioMachine.send(.fail(lastEngineError ?? "Audio engine unavailable."))
-            return false
-        }
+        guard audioAvailable else { return false }
         guard !engine.isRunning else { return true }
 
         do {
@@ -183,21 +158,29 @@ actor SoundtrackAudioActor {
             let message = Self.localizedErrorMessage(for: error)
             audioAvailable = false
             lastEngineError = message
-            await audioMachine.send(.fail(message))
             return false
         }
     }
 
-    private func install(_ stream: TrackerAudioStream) {
+    private func install(_ stream: TrackerAudioStream, generation: Int) {
         activeStream = stream
         engine.attach(stream.playerNode)
         engine.connect(stream.playerNode, to: engine.mainMixerNode, format: format)
         engine.prepare()
+        let finishStream = stream.finishStream
+        finishTask = Task { [weak self, stream] in
+            for await _ in finishStream {
+                await self?.streamDidFinish(stream, generation: generation)
+                return
+            }
+        }
         stream.startScheduling()
     }
 
     private func stopActiveStream() {
         guard let stream = activeStream else { return }
+        finishTask?.cancel()
+        finishTask = nil
         stream.stop()
         if stream.isConnected(to: engine) {
             engine.disconnectNodeOutput(stream.playerNode)

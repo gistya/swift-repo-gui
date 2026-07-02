@@ -1,7 +1,9 @@
 import Foundation
 import Observation
 
-/// Polls a log file on a background interval so build output does not live in machine context.
+/// Follows a log file reactively: DispatchSource file-system events (bridged through AsyncStream and
+/// throttled) trigger incremental reads, so build output does not live in machine context and no
+/// interval polling runs.
 @MainActor
 @Observable
 final class LogTailReader {
@@ -12,8 +14,11 @@ final class LogTailReader {
     private(set) var isWaitingForFile = false
     private(set) var fileSize: UInt64 = 0
     private(set) var visibleStartOffset: UInt64 = 0
-    private var pollTask: Task<Void, Never>?
+    @ObservationIgnored private var eventSource: LogFileEventSource?
+    @ObservationIgnored private var eventTask: Task<Void, Never>?
     private var loadTask: Task<Void, Never>?
+    /// A change event arrived while a read was in flight — run one more read when it lands.
+    private var pendingReload = false
     private var trackedURL: URL?
     private var readOffset: UInt64 = 0
 
@@ -24,23 +29,31 @@ final class LogTailReader {
         text = ""
         readOffset = 0
         reload()
-        pollTask = Task { [weak self] in
-            while !Task.isCancelled {
-                do {
-                    try await Task.sleep(for: .milliseconds(250))
-                } catch {
-                    return
+        // File-system events (throttled — write storms collapse to one read per window) drive the
+        // incremental reads; the source emits once on arm so the first read happens immediately.
+        let source = LogFileEventSource(url: url)
+        eventSource = source
+        let events = source.stream
+        eventTask = Task { [weak self] in
+            for await _ in events {
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    self?.reload()
                 }
-                self?.reload()
+                try? await Task.sleep(for: .milliseconds(100))
             }
         }
+        source.start()
     }
 
     func stop() {
-        pollTask?.cancel()
+        eventTask?.cancel()
+        eventTask = nil
+        eventSource?.cancel()
+        eventSource = nil
         loadTask?.cancel()
-        pollTask = nil
         loadTask = nil
+        pendingReload = false
         trackedURL = nil
         readError = nil
         isWaitingForFile = false
@@ -51,9 +64,19 @@ final class LogTailReader {
 
     func reload() {
         guard let trackedURL else { return }
-        guard loadTask == nil else { return }
+        guard loadTask == nil else {
+            pendingReload = true   // coalesce: re-read once the in-flight read finishes
+            return
+        }
         let offset = readOffset
         loadTask = Task { [trackedURL] in
+            defer {
+                // Drain a change event that arrived while this read was in flight.
+                if pendingReload {
+                    pendingReload = false
+                    reload()
+                }
+            }
             let result = await Self.readLog(at: trackedURL, offset: offset)
             guard !Task.isCancelled, self.trackedURL == trackedURL else { return }
             loadTask = nil

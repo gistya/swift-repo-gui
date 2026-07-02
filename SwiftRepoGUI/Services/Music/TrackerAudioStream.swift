@@ -7,6 +7,10 @@ nonisolated final class TrackerAudioStream: @unchecked Sendable {
     private let core: TrackerAudioStreamCore
     var isFinished: Bool { core.isFinished }
 
+    /// Emits a single `Void` when the stream plays to its natural end (replaying for late
+    /// subscribers), then completes. Stopped/superseded streams never fire.
+    var finishStream: AsyncStream<Void> { core.finishStream }
+
     init(
         request: TrackerStreamRequest,
         effectsSettingsBox: SoundtrackEffectsSettingsBox
@@ -23,8 +27,22 @@ nonisolated final class TrackerAudioStream: @unchecked Sendable {
         core.startScheduling(on: playerNode)
     }
 
-    func waitUntilReadyForPlayback(timeout: TimeInterval) {
-        core.waitUntilReadyForPlayback(timeout: timeout)
+    /// Suspend until enough audio is queued to start playback (or rendering ends / the stream stops
+    /// / `timeout` elapses) — the readiness stream replaces the old
+    /// blocking condition-variable wait so no executor thread is held.
+    func awaitReadyForPlayback(timeout: TimeInterval) async {
+        let readyStream = core.readyForPlaybackStream
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask {
+                for await _ in readyStream { break }
+            }
+            group.addTask {
+                let milliseconds = max(0, Int((timeout * 1_000).rounded()))
+                try? await Task.sleep(for: .milliseconds(milliseconds))
+            }
+            await group.next()
+            group.cancelAll()
+        }
     }
 
     @discardableResult

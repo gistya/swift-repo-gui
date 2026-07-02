@@ -259,7 +259,7 @@ nonisolated enum ProjectService {
         }
     }
 
-    static func currentRevision(at repoPath: URL) -> String? {
+    static func currentRevision(at repoPath: URL, timeout: TimeInterval = 2) -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
         process.arguments = ["-C", repoPath.path, "rev-parse", "--short", "HEAD"]
@@ -268,13 +268,29 @@ nonisolated enum ProjectService {
         process.standardError = Pipe()
         do {
             try process.run()
-            process.waitUntilExit()
+            guard waitForProcessExit(process, timeout: timeout) else { return nil }
             guard process.terminationStatus == 0 else { return nil }
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
         } catch {
             return nil
         }
+    }
+
+    private static func waitForProcessExit(_ process: Process, timeout: TimeInterval) -> Bool {
+        let deadline = Date(timeIntervalSinceNow: timeout)
+        while process.isRunning {
+            if Date() >= deadline {
+                process.terminate()
+                let terminationDeadline = Date(timeIntervalSinceNow: 0.25)
+                while process.isRunning && Date() < terminationDeadline {
+                    Thread.sleep(forTimeInterval: 0.01)
+                }
+                return !process.isRunning
+            }
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        return true
     }
 
     static func detectBuildSubdirs(in buildRoot: URL) throws -> [String] {

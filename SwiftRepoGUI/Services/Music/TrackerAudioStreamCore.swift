@@ -14,6 +14,9 @@ nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
     private let maxQueuedFrameCount: Int
     private let maxFrameCount: Int
     private let finishFlag = SoundtrackStreamFinishFlag()
+    /// One-shot readiness: flips to true when enough frames are queued to start playback (or the
+    /// track renders out before reaching the preroll threshold, or the stream stops).
+    private let readySignal = AsyncOneShotSignal()
     private let condition = NSCondition()
     private let completionQueue = DispatchQueue(label: "SwiftBuilder.TrackerAudioStream.Completions", qos: .default) // .userInitiated caused issues
     private weak var playerNode: AVAudioPlayerNode?
@@ -25,6 +28,14 @@ nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
     private var didExitScheduling = false
     private var stopRequested = false
     var isFinished: Bool { finishFlag.isFinished }
+
+    /// Emits a single `Void` when the stream has played to its natural end, then completes.
+    /// Replays for late subscribers; stopped/superseded streams never fire it.
+    var finishStream: AsyncStream<Void> { finishFlag.stream }
+
+    /// Emits a single `Void` once enough audio is queued to start playback (or rendering ended or
+    /// the stream stopped — anything that makes further waiting pointless), then completes.
+    var readyForPlaybackStream: AsyncStream<Void> { readySignal.stream }
 
     init(
         request: TrackerStreamRequest,
@@ -76,19 +87,6 @@ nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
         thread.start()
     }
 
-    func waitUntilReadyForPlayback(timeout: TimeInterval) {
-        let deadline = Date(timeIntervalSinceNow: timeout)
-        condition.lock()
-        defer { condition.unlock() }
-
-        while !stopRequested &&
-            !didFinish &&
-            !didRenderFinalBuffer &&
-            queuedFrameCount < playbackStartFrameCount {
-            guard condition.wait(until: deadline) else { break }
-        }
-    }
-
     func stop(waitUntilSchedulerExits: Bool = true) {
         let deadline = Date(timeIntervalSinceNow: 0.5)
         condition.lock()
@@ -98,6 +96,8 @@ nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
             guard condition.wait(until: deadline) else { break }
         }
         condition.unlock()
+        // Release any readiness waiter — there is nothing left to wait for.
+        readySignal.signal()
     }
 
     private func scheduleLoop() {
@@ -164,8 +164,12 @@ nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
         let frameCount = Int(buffer.frameLength)
         condition.lock()
         queuedFrameCount += frameCount
+        let becameReady = queuedFrameCount >= playbackStartFrameCount
         condition.broadcast()
         condition.unlock()
+        if becameReady {
+            readySignal.signal()
+        }
 
         let completionQueue = completionQueue
         playerNode.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
@@ -195,6 +199,8 @@ nonisolated final class TrackerAudioStreamCore: @unchecked Sendable {
         condition.broadcast()
         condition.unlock()
 
+        // A track shorter than the preroll threshold is as ready as it will ever be.
+        readySignal.signal()
         if shouldFinish {
             finishOnce()
         }

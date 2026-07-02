@@ -1,9 +1,11 @@
 import Testing
 import Foundation
 import Ox0badf00d
+import SwiftXState
 import SwiftXStateSwiftUI
 @testable import SwiftRepoGUI
 
+@Suite(.serialized)
 struct SwiftRepoGUITests {
 
     @Test func progressParserExtractsNinjaCounters() async throws {
@@ -165,6 +167,71 @@ struct SwiftRepoGUITests {
         let normalized = settings.normalized()
 
         #expect(SoundtrackEffectsSettingsStore.load(from: defaults) == normalized)
+    }
+
+    @Test func soundtrackMachineQueuesAudioCommandsBeforeConfirmedPlaybackStateChanges() throws {
+        let track = TrackerModuleTrack(
+            url: URL(fileURLWithPath: "/tmp/drozerix_-_bubble_machine.xm"),
+            fileName: "drozerix_-_bubble_machine.xm",
+            title: "drozerix_-_bubble_machine",
+            format: "XM"
+        )
+        let soundStyle = SwiftBuilderStyle.current.sound
+        let context = SoundtrackContext(
+            isMuted: false,
+            tracks: [track],
+            volume: Double(soundStyle.masterVolume),
+            effectsSettings: .default,
+            soundStyle: soundStyle
+        )
+        let machine = SoundtrackMachine(context: context)
+        let schema = machine.buildSchema()
+        let resolvedMachine = schema.resolve(
+            id: "soundtrack-test-\(UUID().uuidString)",
+            context: context
+        )
+        var snapshot = initialTransition(resolvedMachine).snapshot
+
+        snapshot = transition(resolvedMachine, snapshot: snapshot, event: SoundtrackEvent.launch.event).snapshot
+
+        let loadingContext = snapshot.context
+        let loadingConfiguration = schema.configuration(from: snapshot.value)
+        if loadingConfiguration?.matches(.loading) != true {
+            Issue.record("After launch: value=\(snapshot.value), configuration=\(String(describing: loadingConfiguration)), context=\(loadingContext)")
+        }
+        #expect(loadingConfiguration?.matches(.loading) == true)
+        guard case let .play(_, generation, startImmediately)? = loadingContext.pendingAudioRequest?.command else {
+            Issue.record("Launch should queue a play command.")
+            return
+        }
+        #expect(startImmediately)
+
+        snapshot = transition(
+            resolvedMachine,
+            snapshot: snapshot,
+            event: SoundtrackEvent.playbackPrepared(
+                moduleTitle: "Bubble Machine!",
+                generation: generation,
+                started: true
+            ).event
+        ).snapshot
+        #expect(schema.configuration(from: snapshot.value)?.matches(.playing) == true)
+        #expect(snapshot.context.nowPlaying.title == "Bubble Machine!")
+
+        snapshot = transition(resolvedMachine, snapshot: snapshot, event: SoundtrackEvent.togglePause.event).snapshot
+        #expect(schema.configuration(from: snapshot.value)?.matches(.playing) == true)
+        let pauseContext = snapshot.context
+        guard case let .pause(pauseGeneration)? = pauseContext.pendingAudioRequest?.command else {
+            Issue.record("Pause should queue a pause command before the machine enters paused.")
+            return
+        }
+
+        snapshot = transition(
+            resolvedMachine,
+            snapshot: snapshot,
+            event: SoundtrackEvent.playbackPaused(generation: pauseGeneration).event
+        ).snapshot
+        #expect(schema.configuration(from: snapshot.value)?.matches(.paused) == true)
     }
 
     @Test func appSectionsNavigateLeftAndRightWithWraparound() throws {

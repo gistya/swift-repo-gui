@@ -37,9 +37,11 @@ final class AppSession {
     let project: MachineStore<ProjectMachine>
     let settings: MachineStore<BuildSettingsMachine>
     let build: MachineStore<BuildOperationsMachine>
+    let soundtrack: MachineStore<SoundtrackMachine>
 
     @ObservationIgnored private weak var modelContext: ModelContext?
     @ObservationIgnored private let settingsDefaults: UserDefaults
+    @ObservationIgnored private var soundtrackDriver: SoundtrackEffectDriver?
     @ObservationIgnored private var trackedRecords: [UUID: BuildOperationRecord] = [:]
     @ObservationIgnored private(set) var lastErrorMessage: String?
 
@@ -53,11 +55,10 @@ final class AppSession {
         let inspect = inspectorStore.observe()
         store = mainStore
         inspector = inspectorStore
-        navigation = mainStore.track(inspectedStore(
+        navigation = mainStore.track(nonInspectedStore(
             AppNavigationMachine(),
             id: "swiftbuilder.navigation",
             systemId: "swiftbuilder.navigation",
-            inspect: inspect
         ))
         project = mainStore.track(inspectedStore(
             ProjectMachine(),
@@ -65,12 +66,29 @@ final class AppSession {
             systemId: "swiftbuilder.project",
             inspect: inspect
         ))
-        settings = mainStore.track(inspectedStore(
+        settings = mainStore.track(nonInspectedStore(
             BuildSettingsMachine(),
             id: "swiftbuilder.settings",
             systemId: "swiftbuilder.settings",
+        ))
+        let soundStyle = SwiftBuilderStyle.current.sound
+        let soundtrackContext = SoundtrackContext.initial(
+            style: soundStyle,
+            tracks: TrackerModuleLibrary.discover(),
+            defaults: settingsDefaults
+        )
+        let soundtrackStore = mainStore.track(inspectedStore(
+            SoundtrackMachine(context: soundtrackContext),
+            id: "swiftbuilder.soundtrack",
+            systemId: "swiftbuilder.soundtrack",
             inspect: inspect
         ))
+        soundtrack = soundtrackStore
+        soundtrackDriver = SoundtrackEffectDriver(
+            store: soundtrackStore,
+            style: soundStyle,
+            defaults: settingsDefaults
+        )
         build = mainStore.track(inspectedStore(
             BuildOperationsMachine(),
             id: "swiftbuilder.build",
@@ -316,28 +334,30 @@ final class AppSession {
     }
 
     private func waitForBuildIdle(timeout: Duration = AppSession.buildTimeout) async throws {
-        let clock = ContinuousClock()
-        let deadline = clock.now + timeout
-        while build.matches(.running) {
-            if clock.now >= deadline {
-                throw SessionWaitError.buildTimedOut(seconds: Int(timeout.components.seconds))
+        // Snapshot-driven, not polled: the machine actor replays its current snapshot on subscribe
+        // and pushes every transition; the AsyncStream bridge enforces the deadline. Progress
+        // mirroring onto the tracked record now happens per snapshot (formerly per poll tick).
+        let snapshots = build.snapshots(timeout: timeout) {
+            SessionWaitError.buildTimedOut(seconds: Int(timeout.components.seconds))
+        }
+        for try await snapshot in snapshots {
+            if let operationID = snapshot.context.lastOperationID,
+               let record = trackedRecords[operationID] {
+                record.progress = snapshot.context.progress.fraction
+                record.etaSeconds = snapshot.context.progress.etaSeconds
             }
-            if let record = trackedRecords[build.context.lastOperationID ?? UUID()] {
-                record.progress = build.context.progress.fraction
-                record.etaSeconds = build.context.progress.etaSeconds
-            }
-            try await Task.sleep(for: .milliseconds(200))
+            if !(snapshot.configuration?.matches(.running) ?? false) { return }
         }
     }
 
     func waitForProjectReady(timeout: Duration = AppSession.projectLoadTimeout) async throws {
-        let clock = ContinuousClock()
-        let deadline = clock.now + timeout
-        while project.matches(.loading) || project.context.reloadPending {
-            if clock.now >= deadline {
-                throw SessionWaitError.projectLoadTimedOut(seconds: Int(timeout.components.seconds))
+        let snapshots = project.snapshots(timeout: timeout) {
+            SessionWaitError.projectLoadTimedOut(seconds: Int(timeout.components.seconds))
+        }
+        for try await snapshot in snapshots {
+            if !(snapshot.configuration?.matches(.loading) ?? false), !snapshot.context.reloadPending {
+                break
             }
-            try await Task.sleep(for: .milliseconds(50))
         }
         if let message = project.context.validationMessage, !project.context.isValid {
             throw SessionWaitError.projectInvalid(message: message)
@@ -379,6 +399,20 @@ private func inspectedStore<M: StateMachine>(
         id: id,
         options: ActorOptions(systemId: systemId),
         inspect: inspect
+    )
+    return MachineStore(actor: actor, initialContext: machine.context)
+}
+
+@MainActor
+private func nonInspectedStore<M: StateMachine>(
+    _ machine: M,
+    id: String,
+    systemId: String,
+) -> MachineStore<M> {
+    let actor = createActor(
+        machine,
+        id: id,
+        options: ActorOptions(systemId: systemId)
     )
     return MachineStore(actor: actor, initialContext: machine.context)
 }

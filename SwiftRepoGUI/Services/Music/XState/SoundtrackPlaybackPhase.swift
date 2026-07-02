@@ -1,9 +1,7 @@
-nonisolated enum SoundtrackAudioPhase: String, Sendable, Equatable {
+nonisolated enum SoundtrackPlaybackPhase: String, Sendable, Equatable {
     case stopped
     case loading
-    case ready
     case playing
     case paused
     case failed
 }
-

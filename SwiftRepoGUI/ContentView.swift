@@ -5,17 +5,12 @@ import SwiftXStateSwiftUI
 
 struct ContentView: View {
     let session: AppSession
-    @StateObject private var soundtrack: TrackerSoundtrackController
-    @AppStorage("SwiftBuilder.soundtrackMuted") private var soundtrackMuted = false
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openWindow) private var openWindow
     @FocusState private var keyboardFocus: Bool
 
     init(session: AppSession) {
         self.session = session
-        _soundtrack = StateObject(
-            wrappedValue: TrackerSoundtrackController(inspect: session.inspector.observe())
-        )
     }
 
     var body: some View {
@@ -23,19 +18,19 @@ struct ContentView: View {
             RetroTitleBar(
                 build: session.build,
                 soundtrackDeck: SoundtrackDeckConfiguration(
-                    nowPlaying: soundtrack.nowPlaying,
-                    isMuted: soundtrackMuted,
-                    isPaused: soundtrack.isPaused,
-                    volume: soundtrack.volume,
-                    effectsSettings: soundtrack.effectsSettings,
-                    audioError: soundtrack.lastError,
-                    onToggleMute: { soundtrackMuted.toggle() },
-                    onTogglePause: { soundtrack.togglePause() },
-                    onPreviousTrack: { soundtrack.playPreviousTrack() },
-                    onNextTrack: { soundtrack.playNextTrack() },
-                    onVolumeChange: { soundtrack.setVolume($0) },
-                    onEffectsChange: { soundtrack.setEffectsSettings($0) },
-                    onResetEffects: { soundtrack.resetEffectsSettings() }
+                    nowPlaying: session.soundtrack.context.nowPlaying,
+                    isMuted: session.soundtrack.context.isMuted,
+                    isPaused: session.soundtrack.matches(.paused),
+                    volume: session.soundtrack.context.volume,
+                    effectsSettings: session.soundtrack.context.effectsSettings,
+                    audioError: session.soundtrack.context.lastError,
+                    onToggleMute: { session.soundtrack.send(.toggleMute) },
+                    onTogglePause: { session.soundtrack.send(.togglePause) },
+                    onPreviousTrack: { session.soundtrack.send(.previousTrack) },
+                    onNextTrack: { session.soundtrack.send(.nextTrack) },
+                    onVolumeChange: { session.soundtrack.send(.setVolume($0)) },
+                    onEffectsChange: { session.soundtrack.send(.setEffects($0)) },
+                    onResetEffects: { session.soundtrack.send(.resetEffects) }
                 )
             )
 
@@ -70,19 +65,15 @@ struct ContentView: View {
         }
         .onAppear {
             session.attach(modelContext: modelContext)
-            soundtrack.setMuted(soundtrackMuted)
-            soundtrack.start()
-            soundtrack.update(for: session.build.context)
+            session.soundtrack.send(.launch)
+            session.soundtrack.send(.buildSnapshotChanged(SoundtrackBuildSnapshot(session.build.context)))
             keyboardFocus = true
-        }
-        .onChange(of: soundtrackMuted) {
-            soundtrack.setMuted(soundtrackMuted)
         }
         .onChange(of: session.settings.context) {
             session.persistLastUsedSettings()
         }
         .onChange(of: session.build.context) {
-            soundtrack.update(for: session.build.context)
+            session.soundtrack.send(.buildSnapshotChanged(SoundtrackBuildSnapshot(session.build.context)))
         }
     }
 }

@@ -1,4 +1,4 @@
-nonisolated struct TrackerStreamRequest: Sendable {
+nonisolated struct TrackerStreamRequest: Sendable, Equatable {
     let track: TrackerModuleTrack
     let purpose: SoundtrackPurpose
     let sampleRate: Double
