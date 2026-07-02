@@ -1,5 +1,15 @@
 import Foundation
 
+public struct SongRenderChunk: Sendable, Equatable {
+    public var buffer: PCMBuffer
+    public var isFinished: Bool
+
+    public init(buffer: PCMBuffer, isFinished: Bool) {
+        self.buffer = buffer
+        self.isFinished = isFinished
+    }
+}
+
 public final class ModuleRenderer {
     public let module: TrackerModule
     public let sampleRate: Int
@@ -18,6 +28,9 @@ public final class ModuleRenderer {
     private var pendingJump: Int?
     private var pendingBreakRow: Int?
     private var pendingPatternDelayRows = 0
+    private var songEnded = false
+    private var songVisitedRows = Set<PlaybackRowPosition>()
+    private var songTailFramesRemaining: Int?
 
     public init(
         module: TrackerModule,
@@ -50,6 +63,9 @@ public final class ModuleRenderer {
         pendingJump = nil
         pendingBreakRow = nil
         pendingPatternDelayRows = 0
+        songEnded = false
+        songVisitedRows = []
+        songTailFramesRemaining = nil
         voices = (0..<module.channelCount).map { Voice(defaultPan: Self.defaultPan(for: $0)) }
         spatialMixer = SpatialMixer(
             mode: options.spatialization,
@@ -63,6 +79,61 @@ public final class ModuleRenderer {
     }
 
     public func render(frameCount: Int) -> PCMBuffer {
+        songEnded = false
+        var visitedRows = Set<PlaybackRowPosition>()
+        var tailFramesRemaining: Int?
+        return render(
+            frameCount: frameCount,
+            wrapsAtEnd: true,
+            tracksVisitedRows: false,
+            visitedRows: &visitedRows,
+            tailFramesRemaining: &tailFramesRemaining
+        )
+    }
+
+    public func renderSong(maxSeconds: Double = 600, tailSeconds: Double = 2) -> PCMBuffer {
+        prepareSongRendering(tailSeconds: tailSeconds)
+        let maxFrames = max(0, Int((maxSeconds * Double(sampleRate)).rounded()))
+        let frames = renderSongFrames(frameCount: maxFrames)
+        return frames.buffer
+    }
+
+    public func prepareSongRendering(tailSeconds: Double = 2) {
+        reset()
+        songVisitedRows = []
+        songTailFramesRemaining = max(0, Int((tailSeconds * Double(sampleRate)).rounded()))
+    }
+
+    public func renderSongFrames(frameCount: Int) -> SongRenderChunk {
+        var visitedRows = songVisitedRows
+        var tailFramesRemaining = songTailFramesRemaining
+        let buffer = render(
+            frameCount: frameCount,
+            wrapsAtEnd: false,
+            tracksVisitedRows: true,
+            visitedRows: &visitedRows,
+            tailFramesRemaining: &tailFramesRemaining
+        )
+        songVisitedRows = visitedRows
+        songTailFramesRemaining = tailFramesRemaining
+        return SongRenderChunk(buffer: buffer, isFinished: isSongFinished(tailFramesRemaining: tailFramesRemaining))
+    }
+
+    public func renderSongChunk(frameCount: Int) -> SongRenderChunk {
+        renderSongFrames(frameCount: frameCount)
+    }
+
+    private func isSongFinished(tailFramesRemaining: Int?) -> Bool {
+        songEnded && ((tailFramesRemaining ?? 0) <= 0 || !voices.contains(where: \.active))
+    }
+
+    private func render(
+        frameCount: Int,
+        wrapsAtEnd: Bool,
+        tracksVisitedRows: Bool,
+        visitedRows: inout Set<PlaybackRowPosition>,
+        tailFramesRemaining: inout Int?
+    ) -> PCMBuffer {
         guard frameCount > 0 else {
             return PCMBuffer(sampleRate: sampleRate, channelCount: 2, interleavedSamples: [])
         }
@@ -71,10 +142,28 @@ public final class ModuleRenderer {
         var renderedFrames = 0
 
         while renderedFrames < frameCount {
-            if ticksRemainingInRow <= 0 {
+            if songEnded {
+                if let remaining = tailFramesRemaining {
+                    guard remaining > 0, voices.contains(where: \.active) else { break }
+                } else {
+                    break
+                }
+            }
+
+            if ticksRemainingInRow <= 0, !songEnded {
+                if tracksVisitedRows {
+                    let position = PlaybackRowPosition(orderIndex: orderIndex, rowIndex: rowIndex)
+                    guard visitedRows.insert(position).inserted else {
+                        songEnded = true
+                        continue
+                    }
+                }
                 processCurrentRow()
                 ticksRemainingInRow = max(1, speed * (1 + pendingPatternDelayRows))
                 pendingPatternDelayRows = 0
+                tickIndex = 0
+            } else if ticksRemainingInRow <= 0 {
+                ticksRemainingInRow = max(1, speed)
                 tickIndex = 0
             }
 
@@ -85,19 +174,33 @@ public final class ModuleRenderer {
                 framesRemainingInTick = tickFrameCount()
             }
 
-            let chunk = min(framesRemainingInTick, frameCount - renderedFrames)
+            var chunk = min(framesRemainingInTick, frameCount - renderedFrames)
+            if songEnded, let remaining = tailFramesRemaining {
+                chunk = min(chunk, remaining)
+            }
+            guard chunk > 0 else { break }
+
             renderFrames(count: chunk, into: &output, startingAt: renderedFrames)
             framesRemainingInTick -= chunk
             renderedFrames += chunk
+            if songEnded, let remaining = tailFramesRemaining {
+                tailFramesRemaining = remaining - chunk
+            }
 
             if framesRemainingInTick <= 0 {
                 tickIndex += 1
-                ticksRemainingInRow -= 1
+                if !songEnded {
+                    ticksRemainingInRow -= 1
 
-                if ticksRemainingInRow <= 0 {
-                    advanceRow()
+                    if ticksRemainingInRow <= 0 {
+                        advanceRow(wrapsAtEnd: wrapsAtEnd)
+                    }
                 }
             }
+        }
+
+        if renderedFrames < frameCount {
+            output.removeLast((frameCount - renderedFrames) * 2)
         }
 
         return PCMBuffer(sampleRate: sampleRate, channelCount: 2, interleavedSamples: output)
@@ -468,22 +571,22 @@ public final class ModuleRenderer {
         }
     }
 
-    private func advanceRow() {
+    private func advanceRow(wrapsAtEnd: Bool) {
         guard !module.orders.isEmpty else { return }
         if let jump = pendingJump {
-            orderIndex = normalizedOrderIndex(jump)
+            setOrderIndex(jump, wrapsAtEnd: wrapsAtEnd)
             rowIndex = pendingBreakRow ?? 0
             return
         }
 
         if let breakRow = pendingBreakRow {
-            orderIndex = normalizedOrderIndex(orderIndex + 1)
+            setOrderIndex(orderIndex + 1, wrapsAtEnd: wrapsAtEnd)
             rowIndex = breakRow
             return
         }
 
         guard let pattern = currentPattern() else {
-            orderIndex = normalizedOrderIndex(orderIndex + 1)
+            setOrderIndex(orderIndex + 1, wrapsAtEnd: wrapsAtEnd)
             rowIndex = 0
             return
         }
@@ -491,7 +594,23 @@ public final class ModuleRenderer {
         rowIndex += 1
         if rowIndex >= pattern.rowCount {
             rowIndex = 0
-            orderIndex = normalizedOrderIndex(orderIndex + 1)
+            setOrderIndex(orderIndex + 1, wrapsAtEnd: wrapsAtEnd)
+        }
+    }
+
+    private func setOrderIndex(_ index: Int, wrapsAtEnd: Bool) {
+        guard !module.orders.isEmpty else {
+            orderIndex = 0
+            return
+        }
+
+        if wrapsAtEnd {
+            orderIndex = normalizedOrderIndex(index)
+        } else if index >= module.orders.count {
+            orderIndex = module.orders.count - 1
+            songEnded = true
+        } else {
+            orderIndex = max(0, index)
         }
     }
 
@@ -624,6 +743,11 @@ private extension TrackerCommand {
             return false
         }
     }
+}
+
+private struct PlaybackRowPosition: Hashable {
+    var orderIndex: Int
+    var rowIndex: Int
 }
 
 private struct Voice {

@@ -7,9 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		73BADF0001BADF0000B6B024 /* Ox0badf00d in Frameworks */ = {isa = PBXBuildFile; productRef = 73BADF0002BADF0000B6B024 /* Ox0badf00d */; };
 		7362027C2FF2FB5400B6B024 /* SwiftXState in Frameworks */ = {isa = PBXBuildFile; productRef = 73A100012FF3000100B6B024 /* SwiftXState */; };
 		7362027D2FF2FB5400B6B024 /* SwiftXStateSwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = 73A100032FF3000100B6B024 /* SwiftXStateSwiftUI */; };
+		73BADF0001BADF0000B6B024 /* Ox0badf00d in Frameworks */ = {isa = PBXBuildFile; productRef = 73BADF0002BADF0000B6B024 /* Ox0badf00d */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -645,21 +645,17 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		73BADF0003BADF0000B6B024 /* XCLocalSwiftPackageReference "Ox0badf00d" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = Ox0badf00d;
-		};
 		73A100052FF3000100B6B024 /* XCLocalSwiftPackageReference "../../phy/SwiftXState" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../../phy/SwiftXState;
 		};
+		73BADF0003BADF0000B6B024 /* XCLocalSwiftPackageReference "Ox0badf00d" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Ox0badf00d;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		73BADF0002BADF0000B6B024 /* Ox0badf00d */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = Ox0badf00d;
-		};
 		73A100012FF3000100B6B024 /* SwiftXState */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SwiftXState;
@@ -667,6 +663,10 @@
 		73A100032FF3000100B6B024 /* SwiftXStateSwiftUI */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SwiftXStateSwiftUI;
+		};
+		73BADF0002BADF0000B6B024 /* Ox0badf00d */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Ox0badf00d;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -14,9 +14,21 @@ struct ContentView: View {
         VStack(spacing: 0) {
             RetroTitleBar(
                 build: session.build,
-                isSoundMuted: soundtrackMuted,
-                audioError: soundtrack.lastError,
-                onToggleMute: { soundtrackMuted.toggle() }
+                soundtrackDeck: SoundtrackDeckConfiguration(
+                    nowPlaying: soundtrack.nowPlaying,
+                    isMuted: soundtrackMuted,
+                    isPaused: soundtrack.isPaused,
+                    volume: soundtrack.volume,
+                    effectsSettings: soundtrack.effectsSettings,
+                    audioError: soundtrack.lastError,
+                    onToggleMute: { soundtrackMuted.toggle() },
+                    onTogglePause: { soundtrack.togglePause() },
+                    onPreviousTrack: { soundtrack.playPreviousTrack() },
+                    onNextTrack: { soundtrack.playNextTrack() },
+                    onVolumeChange: { soundtrack.setVolume($0) },
+                    onEffectsChange: { soundtrack.setEffectsSettings($0) },
+                    onResetEffects: { soundtrack.resetEffectsSettings() }
+                )
             )
 
             TerminalTabBar(
@@ -70,16 +82,13 @@ struct ContentView: View {
 struct DetachedSectionWindow: View {
     let session: AppSession
     let section: AppSectionID
-    @AppStorage("SwiftBuilder.soundtrackMuted") private var soundtrackMuted = false
     @Environment(\.modelContext) private var modelContext
 
     var body: some View {
         VStack(spacing: 0) {
             RetroTitleBar(
                 build: session.build,
-                isSoundMuted: soundtrackMuted,
-                audioError: nil,
-                onToggleMute: { soundtrackMuted.toggle() }
+                soundtrackDeck: nil
             )
             ZStack {
                 TerminalBackground()

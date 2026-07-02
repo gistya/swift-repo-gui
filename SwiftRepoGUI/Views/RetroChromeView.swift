@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import SwiftXStateSwiftUI
 
@@ -31,13 +32,12 @@ extension View {
 
 struct RetroTitleBar: View {
     let build: MachineStore<BuildOperationsMachine>
-    let isSoundMuted: Bool
-    let audioError: String?
-    let onToggleMute: () -> Void
+    let soundtrackDeck: SoundtrackDeckConfiguration?
     @State private var pulse = false
 
     private var stage: BuildStage { BuildStage.stage(for: build.context) }
     private var module: String { BuildStage.moduleDisplay(for: build.context) }
+    private var audioError: String? { soundtrackDeck?.audioError }
 
     var body: some View {
         ZStack {
@@ -51,7 +51,7 @@ struct RetroTitleBar: View {
 
             HStack(spacing: 18) {
                 brand
-                    .frame(minWidth: 230, alignment: .leading)
+                    .frame(width: 216, alignment: .leading)
 
                 Spacer(minLength: 10)
 
@@ -59,23 +59,28 @@ struct RetroTitleBar: View {
                     LcdModuleDisplay(text: module, stage: stage)
                     StageLEDStrip(stage: stage)
                 }
-                .frame(maxWidth: 430)
+                .frame(maxWidth: 390)
+                .layoutPriority(1)
 
                 Spacer(minLength: 10)
 
-                HStack(spacing: 10) {
-                    progressReadout
-                    if audioError != nil {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.monaco(size: 11, weight: .bold))
-                            .foregroundStyle(Color.terminalFailureRed)
-                            .help(audioError ?? "")
+                VStack(alignment: .trailing, spacing: 7) {
+                    HStack(spacing: 10) {
+                        progressReadout
+                        if audioError != nil {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.monaco(size: 11, weight: .bold))
+                                .foregroundStyle(Color.terminalFailureRed)
+                                .help(audioError ?? "")
+                        }
                     }
-                    soundButton
+                    if let soundtrackDeck {
+                        SoundtrackDeckView(deck: soundtrackDeck)
+                    }
                 }
-                .frame(minWidth: 260, alignment: .trailing)
+                .frame(width: soundtrackDeck == nil ? 260 : 318, alignment: .trailing)
             }
-            .padding(.horizontal, 18)
+            .padding(.horizontal, 14)
             .padding(.vertical, 10)
         }
         .frame(height: 104)
@@ -85,33 +90,6 @@ struct RetroTitleBar: View {
                 .frame(height: 1)
         }
         .onAppear { pulse = true }
-    }
-
-    private var soundButton: some View {
-        Button(action: onToggleMute) {
-            Image(systemName: isSoundMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(isSoundMuted ? Color.terminalDimGreen : Color.terminalGreen)
-                .frame(width: 32, height: 26)
-                .background {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.terminalButtonBottom.opacity(0.95))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(
-                                    isSoundMuted ? Color.terminalDimGreen.opacity(0.55) : Color.terminalGreen.opacity(0.55),
-                                    lineWidth: 1
-                                )
-                        )
-                        .shadow(
-                            color: isSoundMuted ? .clear : Color.terminalGreen.opacity(0.42),
-                            radius: isSoundMuted ? 0 : 6
-                        )
-                }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(isSoundMuted ? "Unmute soundtrack" : "Mute soundtrack")
-        .help(isSoundMuted ? "Unmute soundtrack" : "Mute soundtrack")
     }
 
     private var brand: some View {
@@ -169,6 +147,364 @@ struct RetroTitleBar: View {
                 .font(.monaco(size: 12, weight: .bold))
                 .foregroundStyle(Color.terminalGreen.opacity(0.72))
         }
+    }
+}
+
+struct SoundtrackDeckConfiguration {
+    let nowPlaying: SoundtrackNowPlaying
+    let isMuted: Bool
+    let isPaused: Bool
+    let volume: Double
+    let effectsSettings: SoundtrackEffectsSettings
+    let audioError: String?
+    let onToggleMute: () -> Void
+    let onTogglePause: () -> Void
+    let onPreviousTrack: () -> Void
+    let onNextTrack: () -> Void
+    let onVolumeChange: (Double) -> Void
+    let onEffectsChange: (SoundtrackEffectsSettings) -> Void
+    let onResetEffects: () -> Void
+}
+
+private struct SoundtrackDeckView: View {
+    let deck: SoundtrackDeckConfiguration
+    @State private var isShowingEffects = false
+
+    private var hasTrack: Bool {
+        !deck.nowPlaying.detail.isEmpty
+    }
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 5) {
+            HStack(spacing: 7) {
+                trackReadout
+
+                SoundtrackIconButton(
+                    systemName: "backward.fill",
+                    help: "Previous track",
+                    isActive: false,
+                    isDisabled: deck.isMuted || !hasTrack,
+                    action: deck.onPreviousTrack
+                )
+                SoundtrackIconButton(
+                    systemName: deck.isPaused ? "play.fill" : "pause.fill",
+                    help: deck.isPaused ? "Resume soundtrack" : "Pause soundtrack",
+                    isActive: deck.isPaused,
+                    isDisabled: deck.isMuted || !hasTrack,
+                    action: deck.onTogglePause
+                )
+                SoundtrackIconButton(
+                    systemName: "forward.fill",
+                    help: "Next track",
+                    isActive: false,
+                    isDisabled: deck.isMuted || !hasTrack,
+                    action: deck.onNextTrack
+                )
+                SoundtrackIconButton(
+                    systemName: "slider.horizontal.3",
+                    help: "Tube rack",
+                    isActive: deck.effectsSettings.isEnabled,
+                    isDisabled: false,
+                    action: { isShowingEffects.toggle() }
+                )
+                .popover(isPresented: $isShowingEffects, arrowEdge: .bottom) {
+                    TubeRackPopup(
+                        settings: deck.effectsSettings,
+                        onChange: deck.onEffectsChange,
+                        onReset: deck.onResetEffects
+                    )
+                }
+                SoundtrackIconButton(
+                    systemName: deck.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                    help: deck.isMuted ? "Unmute soundtrack" : "Mute soundtrack",
+                    isActive: !deck.isMuted,
+                    isDisabled: false,
+                    action: deck.onToggleMute
+                )
+            }
+
+            HStack(spacing: 8) {
+                Image(systemName: "speaker.wave.1.fill")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(deck.isMuted ? Color.terminalDimGreen : Color.terminalGreen)
+                Slider(
+                    value: Binding(
+                        get: { deck.volume },
+                        set: deck.onVolumeChange
+                    ),
+                    in: 0...1
+                )
+                .controlSize(.small)
+                .tint(deck.isMuted ? Color.terminalDimGreen : Color.terminalGreen)
+                .frame(width: 184)
+                Text("\(Int((deck.volume * 100).rounded()))")
+                    .font(.monaco(size: 9, weight: .bold))
+                    .foregroundStyle(deck.isMuted ? Color.terminalDimGreen : Color.terminalGreen)
+                    .frame(width: 28, alignment: .trailing)
+            }
+            .opacity(deck.isMuted ? 0.55 : 1)
+            .help("Soundtrack volume")
+        }
+    }
+
+    private var trackReadout: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(deck.nowPlaying.title.uppercased())
+                .font(.monaco(size: 10, weight: .black))
+                .foregroundStyle(deck.isMuted ? Color.terminalDimGreen : Color.lcdGreen)
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            HStack(spacing: 5) {
+                Text(deck.nowPlaying.artist.uppercased())
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                if !deck.nowPlaying.detail.isEmpty {
+                    Text(deck.nowPlaying.detail.uppercased())
+                        .foregroundStyle(deck.isMuted ? Color.terminalDimGreen : Color.swiftOrange)
+                }
+            }
+            .font(.monaco(size: 8, weight: .bold))
+            .foregroundStyle(deck.isMuted ? Color.terminalDimGreen : Color.terminalGreen.opacity(0.78))
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .frame(width: 150, height: 34, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 5)
+                .fill(Color.black.opacity(0.42))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5)
+                        .stroke((deck.isMuted ? Color.terminalDimGreen : Color.lcdGreen).opacity(0.45), lineWidth: 1)
+                )
+                .shadow(color: deck.isMuted ? .clear : Color.lcdGreen.opacity(0.25), radius: 4)
+        }
+        .accessibilityLabel("\(deck.nowPlaying.artist), \(deck.nowPlaying.title)")
+    }
+}
+
+private struct TubeRackPopup: View {
+    let settings: SoundtrackEffectsSettings
+    let onChange: (SoundtrackEffectsSettings) -> Void
+    let onReset: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 16, weight: .black))
+                    .foregroundStyle(settings.isEnabled ? Color.swiftOrange : Color.terminalDimGreen)
+                    .shadow(color: settings.isEnabled ? Color.swiftOrange.opacity(0.8) : .clear, radius: 6)
+
+                Text("TUBE RACK")
+                    .font(.monaco(size: 15, weight: .black))
+                    .foregroundStyle(Color.terminalGreen)
+
+                Spacer()
+
+                Toggle(isOn: boolBinding(\.isEnabled)) {
+                    Text(settings.isEnabled ? "ON" : "BYP")
+                        .font(.monaco(size: 10, weight: .black))
+                        .foregroundStyle(settings.isEnabled ? Color.swiftOrange : Color.terminalDimGreen)
+                }
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .tint(.swiftOrange)
+                .help(settings.isEnabled ? "Bypass tube rack" : "Enable tube rack")
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                TubeRackSlider(
+                    title: "DRIVE",
+                    value: doubleBinding(\.drive),
+                    range: 0...1,
+                    valueText: { "\(Int(($0 * 100).rounded()))%" }
+                )
+                TubeRackSlider(
+                    title: "LOW",
+                    value: doubleBinding(\.lowGainDB),
+                    range: -12...12,
+                    valueText: Self.formattedDB
+                )
+                TubeRackSlider(
+                    title: "MID",
+                    value: doubleBinding(\.midGainDB),
+                    range: -12...12,
+                    valueText: Self.formattedDB
+                )
+                TubeRackSlider(
+                    title: "AIR",
+                    value: doubleBinding(\.highGainDB),
+                    range: -12...12,
+                    valueText: Self.formattedDB
+                )
+                TubeRackSlider(
+                    title: "COMP",
+                    value: doubleBinding(\.compression),
+                    range: 0...1,
+                    valueText: { "\(Int(($0 * 100).rounded()))%" }
+                )
+                TubeRackSlider(
+                    title: "LIMIT",
+                    value: doubleBinding(\.limiterCeilingDB),
+                    range: -18...0,
+                    valueText: Self.formattedDB
+                )
+                TubeRackSlider(
+                    title: "OUT",
+                    value: doubleBinding(\.outputGainDB),
+                    range: -12...12,
+                    valueText: Self.formattedDB
+                )
+            }
+            .opacity(settings.isEnabled ? 1 : 0.56)
+
+            HStack {
+                Button(action: onReset) {
+                    Text("RESET")
+                        .font(.monaco(size: 10, weight: .black))
+                        .foregroundStyle(Color.terminalGreen)
+                        .frame(width: 68, height: 24)
+                        .background {
+                            RoundedRectangle(cornerRadius: 5)
+                                .fill(Color.terminalButtonBottom.opacity(0.95))
+                                .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.terminalGreen.opacity(0.35), lineWidth: 1))
+                        }
+                }
+                .buttonStyle(.plain)
+                .help("Reset tube rack")
+
+                Spacer()
+
+                Text("OX0BADF00D")
+                    .font(.monaco(size: 9, weight: .black))
+                    .foregroundStyle(Color.terminalDimGreen)
+            }
+        }
+        .padding(14)
+        .frame(width: 340)
+        .background {
+            ZStack {
+                Color.terminalBlack
+                LinearGradient(
+                    colors: [
+                        Color.swiftOrange.opacity(settings.isEnabled ? 0.16 : 0.04),
+                        Color.terminalGreen.opacity(0.07),
+                        Color.black.opacity(0.55)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                BrushedMetalLines()
+                    .opacity(0.07)
+            }
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke((settings.isEnabled ? Color.swiftOrange : Color.terminalDimGreen).opacity(0.55), lineWidth: 1)
+        }
+    }
+
+    private func boolBinding(_ keyPath: WritableKeyPath<SoundtrackEffectsSettings, Bool>) -> Binding<Bool> {
+        Binding(
+            get: { settings[keyPath: keyPath] },
+            set: { update(keyPath, to: $0) }
+        )
+    }
+
+    private func doubleBinding(_ keyPath: WritableKeyPath<SoundtrackEffectsSettings, Double>) -> Binding<Double> {
+        Binding(
+            get: { settings[keyPath: keyPath] },
+            set: { update(keyPath, to: $0) }
+        )
+    }
+
+    private func update<Value>(_ keyPath: WritableKeyPath<SoundtrackEffectsSettings, Value>, to value: Value) {
+        var next = settings
+        next[keyPath: keyPath] = value
+        onChange(next.normalized())
+    }
+
+    nonisolated private static func formattedDB(_ value: Double) -> String {
+        let rounded = (value * 10).rounded() / 10
+        if rounded > 0 {
+            return "+\(String(format: "%.1f", rounded)) dB"
+        }
+        return "\(String(format: "%.1f", rounded)) dB"
+    }
+}
+
+private struct TubeRackSlider: View {
+    let title: String
+    let value: Binding<Double>
+    let range: ClosedRange<Double>
+    let valueText: (Double) -> String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack {
+                Text(title)
+                    .font(.monaco(size: 10, weight: .black))
+                    .foregroundStyle(Color.terminalGreen)
+                    .frame(width: 46, alignment: .leading)
+
+                Slider(value: value, in: range)
+                    .tint(.swiftOrange)
+                    .controlSize(.small)
+
+                Text(valueText(value.wrappedValue))
+                    .font(.monaco(size: 9, weight: .bold))
+                    .foregroundStyle(Color.lcdGreen)
+                    .frame(width: 62, alignment: .trailing)
+            }
+
+            Rectangle()
+                .fill(Color.terminalGreen.opacity(0.12))
+                .frame(height: 1)
+        }
+    }
+}
+
+private struct SoundtrackIconButton: View {
+    let systemName: String
+    let help: String
+    let isActive: Bool
+    let isDisabled: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 11, weight: .black))
+                .foregroundStyle(foreground)
+                .frame(width: 24, height: 24)
+                .background {
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(Color.terminalButtonBottom.opacity(isDisabled ? 0.58 : 0.96))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 5)
+                                .stroke(border.opacity(isDisabled ? 0.34 : 0.72), lineWidth: 1)
+                        )
+                        .shadow(color: glow, radius: isActive && !isDisabled ? 6 : 0)
+                }
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .accessibilityLabel(help)
+        .help(help)
+    }
+
+    private var foreground: Color {
+        if isDisabled { return .terminalDimGreen }
+        return isActive ? .swiftOrange : .terminalGreen
+    }
+
+    private var border: Color {
+        isActive ? .swiftOrange : .terminalGreen
+    }
+
+    private var glow: Color {
+        isActive ? Color.swiftOrange.opacity(0.72) : Color.terminalGreen.opacity(0.36)
     }
 }
 

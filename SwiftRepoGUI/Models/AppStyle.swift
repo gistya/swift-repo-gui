@@ -45,6 +45,8 @@ nonisolated struct AppStyle: Codable, Equatable, Sendable {
             testingBPM: 168,
             measuringBPM: 104,
             deployingBPM: 128,
+            maxRenderedTrackDuration: 600,
+            trackEndTailDuration: 2,
             trackerModuleDirectory: "TrackerModules",
             trackerModuleExtensions: ["mod", "xm", "it"]
         )
@@ -93,6 +95,8 @@ nonisolated struct SoundPalette: Codable, Equatable, Sendable {
     var testingBPM: Double
     var measuringBPM: Double
     var deployingBPM: Double
+    var maxRenderedTrackDuration: Double
+    var trackEndTailDuration: Double
     var trackerModuleDirectory: String
     var trackerModuleExtensions: [String]
 }

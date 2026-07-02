@@ -77,7 +77,9 @@ nonisolated enum BuildCommandBuilder {
             let dirName = ProjectService.repoNinjaDirectoryName(repoName, platform: platform, arch: arch)
             ninjaBuildRoot = project.buildRoot.appendingPathComponent(buildSubdir, isDirectory: true).appendingPathComponent(dirName, isDirectory: true)
         } else {
-            ninjaBuildRoot = project.buildRoot.appendingPathComponent(buildSubdir, isDirectory: true)
+            ninjaBuildRoot = project.buildRoot
+                .appendingPathComponent(buildSubdir, isDirectory: true)
+                .appendingPathComponent(project.swiftBuildDirectoryName, isDirectory: true)
         }
 
         var args = ["-C", ninjaBuildRoot.path]
@@ -237,7 +239,7 @@ nonisolated enum BuildCommandBuilder {
         if let repoName {
             dirName = ProjectService.repoNinjaDirectoryName(repoName, platform: platform, arch: arch)
         } else {
-            dirName = "swift-\(platform)-\(arch)"
+            dirName = project.swiftBuildDirectoryName
         }
         let path = project.buildRoot.appendingPathComponent(buildSubdir).appendingPathComponent(dirName).path
         let ninja = resolveNinja(in: project)

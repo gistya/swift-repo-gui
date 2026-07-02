@@ -34,6 +34,73 @@ final class Ox0badf00dTests: XCTestCase {
         XCTAssertTrue(buffer.interleavedSamples.allSatisfy { $0.isFinite })
     }
 
+    func testRenderSongStopsAtNaturalSongEnd() {
+        let sample = TrackerSample(
+            name: "Tone",
+            pcm: Array(repeating: 0.5, count: 64),
+            volume: 0.8,
+            loopStart: 0,
+            loopLength: 64,
+            loopMode: .forward
+        )
+        let pattern = TrackerPattern(
+            rowCount: 2,
+            channelCount: 1,
+            events: [
+                TrackerEvent(pitch: .midi(60), instrument: 1),
+                .empty,
+            ]
+        )
+        let module = TrackerModule(
+            format: .xm,
+            title: "Finite",
+            channelCount: 1,
+            orders: [0],
+            patterns: [pattern],
+            samples: [sample],
+            initialSpeed: 6,
+            initialTempo: 125
+        )
+
+        let fullSong = ModuleRenderer(module: module, sampleRate: 1_000).renderSong(maxSeconds: 2, tailSeconds: 0)
+        let fixedLoop = ModuleRenderer(module: module, sampleRate: 1_000).render(seconds: 1)
+
+        XCTAssertEqual(fullSong.frameCount, 240)
+        XCTAssertEqual(fixedLoop.frameCount, 1_000)
+    }
+
+    func testRenderSongStopsAtDetectedOrderLoop() {
+        let sample = TrackerSample(
+            name: "Tone",
+            pcm: Array(repeating: 0.5, count: 64),
+            volume: 0.8,
+            loopStart: 0,
+            loopLength: 64,
+            loopMode: .forward
+        )
+        let pattern = TrackerPattern(
+            rowCount: 1,
+            channelCount: 1,
+            events: [
+                TrackerEvent(pitch: .midi(60), instrument: 1, command: .positionJump(0)),
+            ]
+        )
+        let module = TrackerModule(
+            format: .xm,
+            title: "Loop",
+            channelCount: 1,
+            orders: [0],
+            patterns: [pattern],
+            samples: [sample],
+            initialSpeed: 6,
+            initialTempo: 125
+        )
+
+        let fullSong = ModuleRenderer(module: module, sampleRate: 1_000).renderSong(maxSeconds: 2, tailSeconds: 0)
+
+        XCTAssertEqual(fullSong.frameCount, 120)
+    }
+
     func testVolumeSlideRunsOnTicksInsideARow() {
         let sample = TrackerSample(
             name: "Constant",

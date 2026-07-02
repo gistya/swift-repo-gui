@@ -20,7 +20,7 @@ import Ox0badf00d
 let data = try Data(contentsOf: moduleURL)
 let module = try ModuleLoader.load(data: data)
 let renderer = ModuleRenderer(module: module, sampleRate: 44_100)
-let pcm = renderer.render(seconds: 8)
+let pcm = renderer.renderSong(maxSeconds: 600, tailSeconds: 2)
 ```
 
 `PCMBuffer.interleavedSamples` contains stereo samples in left/right order.

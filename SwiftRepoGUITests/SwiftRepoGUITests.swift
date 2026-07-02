@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import Ox0badf00d
 import SwiftXStateSwiftUI
 @testable import SwiftRepoGUI
 
@@ -90,6 +91,82 @@ struct SwiftRepoGUITests {
         #expect(BuildStage.moduleDisplay(for: context) == "ERROR")
     }
 
+    @Test func trackerTrackDisplayDerivesArtistAndTitleFromFilename() throws {
+        let track = TrackerModuleTrack(
+            url: URL(fileURLWithPath: "/tmp/drozerix_-_bubble_machine.xm"),
+            fileName: "drozerix_-_bubble_machine.xm",
+            title: "drozerix_-_bubble_machine",
+            format: "XM"
+        )
+
+        let display = track.nowPlaying(moduleTitle: nil)
+
+        #expect(display.artist == "DROZERIX")
+        #expect(display.title == "BUBBLE MACHINE")
+        #expect(display.detail == "XM")
+    }
+
+    @Test func trackerTrackDisplayPrefersParsedModuleTitle() throws {
+        let track = TrackerModuleTrack(
+            url: URL(fileURLWithPath: "/tmp/drozerix_-_bubble_machine.xm"),
+            fileName: "drozerix_-_bubble_machine.xm",
+            title: "drozerix_-_bubble_machine",
+            format: "XM"
+        )
+
+        let display = track.nowPlaying(moduleTitle: "Bubble Machine!")
+
+        #expect(display.artist == "DROZERIX")
+        #expect(display.title == "Bubble Machine!")
+    }
+
+    @Test func soundtrackEffectsSettingsClampRackControls() throws {
+        let settings = SoundtrackEffectsSettings(
+            isEnabled: true,
+            drive: 4,
+            lowGainDB: -50,
+            midGainDB: 16,
+            highGainDB: 20,
+            compression: -2,
+            limiterCeilingDB: -40,
+            outputGainDB: 30
+        ).normalized()
+
+        #expect(settings.drive == 1)
+        #expect(settings.lowGainDB == -12)
+        #expect(settings.midGainDB == 12)
+        #expect(settings.highGainDB == 12)
+        #expect(settings.compression == 0)
+        #expect(settings.limiterCeilingDB == -18)
+        #expect(settings.outputGainDB == 12)
+    }
+
+    @Test func disabledSoundtrackEffectsLeaveSamplesUnchanged() throws {
+        var settings = SoundtrackEffectsSettings.default
+        settings.isEnabled = false
+        let samples: [Float] = [0.1, -0.1, 0.35, -0.35, -0.7, 0.7, 0, 0.25]
+        let buffer = PCMBuffer(sampleRate: 44_100, channelCount: 2, interleavedSamples: samples)
+
+        let processed = SoundtrackEffectsProcessor(sampleRate: 44_100).process(buffer, settings: settings)
+
+        #expect(processed == buffer)
+    }
+
+    @Test func soundtrackEffectsSettingsStoreRoundTripsNormalizedSettings() throws {
+        let (defaults, suiteName) = try makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        var settings = SoundtrackEffectsSettings.default
+        settings.isEnabled = false
+        settings.drive = 0.74
+        settings.lowGainDB = -3.5
+        settings.limiterCeilingDB = -25
+
+        SoundtrackEffectsSettingsStore.save(settings, to: defaults)
+        let normalized = settings.normalized()
+
+        #expect(SoundtrackEffectsSettingsStore.load(from: defaults) == normalized)
+    }
+
     @Test func appSectionsNavigateLeftAndRightWithWraparound() throws {
         #expect(AppSectionID.build.next == .settings)
         #expect(AppSectionID.logs.next == .build)
@@ -171,6 +248,25 @@ struct SwiftRepoGUITests {
             #expect(command.arguments.first == "ninja")
         }
         #expect(command.arguments.contains("bin/swift-frontend"))
+    }
+
+    @Test func incrementalEverythingUsesSwiftNinjaDirectory() throws {
+        let project = makeProjectInfo()
+        let command = BuildCommandBuilder.command(
+            kind: .incrementalEverything,
+            project: project,
+            buildSubdir: "debug",
+            options: .default
+        )
+        let buildDirectory = try #require(command.arguments.dropLast().firstIndex(of: "-C"))
+        let ninjaPath = command.arguments[command.arguments.index(after: buildDirectory)]
+
+        #expect(ninjaPath == project.buildRoot
+            .appendingPathComponent("debug", isDirectory: true)
+            .appendingPathComponent(project.swiftBuildDirectoryName, isDirectory: true)
+            .path)
+        #expect(ninjaPath != project.buildRoot.appendingPathComponent("debug", isDirectory: true).path)
+        #expect(!command.arguments.contains("bin/swift-frontend"))
     }
 
     @Test func buildScriptCommandIncludesToolchainPackageAndDeploymentOptions() throws {
