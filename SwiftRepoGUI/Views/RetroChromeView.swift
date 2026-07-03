@@ -200,28 +200,28 @@ private struct SoundtrackDeckView: View {
                 SoundtrackIconButton(
                     systemName: "backward.fill",
                     help: "Previous track",
-                    isActive: false,
+                    isNotEngaged: false,
                     isDisabled: deck.isMuted || !hasTrack,
                     action: deck.onPreviousTrack
                 )
                 SoundtrackIconButton(
                     systemName: deck.isPaused ? "play.fill" : "pause.fill",
                     help: deck.isPaused ? "Resume soundtrack" : "Pause soundtrack",
-                    isActive: deck.isPaused,
+                    isNotEngaged: deck.isPaused,
                     isDisabled: deck.isMuted || !hasTrack,
                     action: deck.onTogglePause
                 )
                 SoundtrackIconButton(
                     systemName: "forward.fill",
                     help: "Next track",
-                    isActive: false,
+                    isNotEngaged: false,
                     isDisabled: deck.isMuted || !hasTrack,
                     action: deck.onNextTrack
                 )
                 SoundtrackIconButton(
                     systemName: "pianokeys",
                     help: "Effect inserts",
-                    isActive: deck.insertSlots.contains { !$0.isEmpty && !$0.isBypassed },
+                    isNotEngaged: !(deck.insertSlots.contains { !$0.isEmpty && !$0.isBypassed }),
                     isDisabled: false,
                     action: {
                         // Kick off AU enumeration on first open (idempotent) — never at launch.
@@ -241,7 +241,7 @@ private struct SoundtrackDeckView: View {
                 SoundtrackIconButton(
                     systemName: deck.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill",
                     help: deck.isMuted ? "Unmute soundtrack" : "Mute soundtrack",
-                    isActive: !deck.isMuted,
+                    isNotEngaged: deck.isMuted,
                     isDisabled: false,
                     action: deck.onToggleMute
                 )
@@ -408,14 +408,14 @@ private struct InsertRackPopup: View {
             SoundtrackIconButton(
                 systemName: slot.isBypassed ? "circle.slash" : "circle.fill",
                 help: slot.isBypassed ? "Enable insert" : "Bypass insert",
-                isActive: !slot.isBypassed && !slot.isEmpty,
+                isNotEngaged: !(!slot.isBypassed && !slot.isEmpty),
                 isDisabled: slot.isEmpty,
                 action: { onToggleBypass(index) }
             )
             SoundtrackIconButton(
                 systemName: "slider.horizontal.below.rectangle",
                 help: "Open plugin editor",
-                isActive: false,
+                isNotEngaged: false,
                 isDisabled: slot.isEmpty,
                 action: { editing = EditingSlot(id: index) }
             )
@@ -427,7 +427,7 @@ private struct InsertRackPopup: View {
 private struct SoundtrackIconButton: View {
     let systemName: String
     let help: String
-    let isActive: Bool
+    let isNotEngaged: Bool
     let isDisabled: Bool
     let action: () -> Void
 
@@ -444,7 +444,7 @@ private struct SoundtrackIconButton: View {
                             RoundedRectangle(cornerRadius: 5)
                                 .stroke(border.opacity(isDisabled ? 0.34 : 0.72), lineWidth: 1)
                         )
-                        .shadow(color: glow, radius: isActive && !isDisabled ? 6 : 0)
+                        .shadow(color: glow, radius: isNotEngaged && !isDisabled ? 6 : 0)
                 }
         }
         .buttonStyle(.plain)
@@ -452,18 +452,18 @@ private struct SoundtrackIconButton: View {
         .accessibilityLabel(help)
         .help(help)
     }
-
+    
     private var foreground: Color {
         if isDisabled { return .terminalDimGreen }
-        return isActive ? .swiftOrange : .terminalGreen
+        return isNotEngaged ? .swiftOrange : .terminalGreen
     }
 
     private var border: Color {
-        isActive ? .swiftOrange : .terminalGreen
+        isNotEngaged ? .swiftOrange : .terminalGreen
     }
 
     private var glow: Color {
-        isActive ? Color.swiftOrange.opacity(0.72) : Color.terminalGreen.opacity(0.36)
+        isNotEngaged ? Color.swiftOrange.opacity(0.72) : Color.terminalGreen.opacity(0.36)
     }
 }
 

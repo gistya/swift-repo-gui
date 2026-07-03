@@ -44,6 +44,20 @@ public struct TrackerModule: Sendable, Equatable {
             )
         }
     }
+
+    /// Whether this module can actually produce sound. A module can parse structurally yet decode to
+    /// pure silence — e.g. an IT file whose samples use compression this decoder doesn't implement
+    /// (the sample PCM comes back empty), or a file whose patterns carry no note triggers. Such a
+    /// module would "play" as an inaudible track. Hosts should filter on this so playback never lands
+    /// on a silent module. Renderable = at least one sample carries PCM AND at least one pattern
+    /// triggers a note.
+    public var isRenderable: Bool {
+        let hasSampleData = samples.contains { !$0.pcm.isEmpty }
+        guard hasSampleData else { return false }
+        return patterns.contains { pattern in
+            pattern.events.contains { $0.pitch != nil }
+        }
+    }
 }
 
 public struct TrackerPattern: Sendable, Equatable {

@@ -41,9 +41,16 @@ This is a real parser, tick scheduler, effect engine, and PCM renderer. The goal
 
 Still to do for that bar:
 
-- IT instrument envelope playback and New Note Actions.
+- Full Impulse Tracker (`IT`) playback. Only uncompressed IT samples decode today; a module can parse
+  structurally yet render pure silence (see `TrackerModule.isRenderable`). Needed:
+  - IT 2.14 compressed sample decoding — `ITParser.parseSample` currently returns an empty sample for
+    the `flags & 0x08` (compressed) path, so any IT relying on compression comes back silent.
+  - Verify/repair IT packed-pattern decoding — a 982-byte size-coded `1kb.it` decoded to *zero* note
+    events, so patterns need a second look, not just samples.
+  - Confirm the IT note range maps correctly: values are 0–119 (0 = C-0), but `pitch(fromITNote:)`
+    starts its note case at 1, dropping C-0.
+  - IT instrument envelope playback and New Note Actions.
 - More exact XM envelope edge cases and fadeout behavior.
 - More exact per-format effect memory and edge-case compatibility.
-- IT compressed sample decoding.
 - Filter/resonance commands where formats provide them.
 - Golden-file render tests against known-good tracker engines.
