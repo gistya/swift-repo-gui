@@ -180,6 +180,7 @@ struct SoundtrackDeckConfiguration {
     let onVolumeChange: (Double) -> Void
     let onSetInsert: (Int, AudioComponentRef?) -> Void
     let onToggleBypass: (Int) -> Void
+    let onOpenEffects: () -> Void
     let makeInsertEditor: (Int) async -> NSViewController?
 }
 
@@ -222,7 +223,11 @@ private struct SoundtrackDeckView: View {
                     help: "Effect inserts",
                     isActive: deck.insertSlots.contains { !$0.isEmpty && !$0.isBypassed },
                     isDisabled: false,
-                    action: { isShowingEffects.toggle() }
+                    action: {
+                        // Kick off AU enumeration on first open (idempotent) — never at launch.
+                        deck.onOpenEffects()
+                        isShowingEffects.toggle()
+                    }
                 )
                 .popover(isPresented: $isShowingEffects, arrowEdge: .bottom) {
                     InsertRackPopup(

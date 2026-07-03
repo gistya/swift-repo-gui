@@ -36,6 +36,7 @@ struct ContentView: View {
                     onToggleBypass: { index in
                         session.soundtrack.send(.toggleInsertBypass(index: index))
                     },
+                    onOpenEffects: { session.ensureAudioEffectsLoaded() },
                     makeInsertEditor: { slot in await session.makeSoundtrackInsertEditor(slot: slot) }
                 )
             )

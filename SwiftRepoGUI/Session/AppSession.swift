@@ -56,10 +56,12 @@ final class AppSession {
     @ObservationIgnored private let settingsDefaults: UserDefaults
     @ObservationIgnored private var soundtrackDriver: SoundtrackEffectDriver?
     @ObservationIgnored private var trackedRecords: [UUID: BuildOperationRecord] = [:]
+    @ObservationIgnored private var didStartEffectsLoad = false
     @ObservationIgnored private(set) var lastErrorMessage: String?
 
-    /// Installed AudioUnit effects the user can drop into a soundtrack insert slot. Loaded off the
-    /// main actor once at startup; observed so the deck's slot picker fills in when ready.
+    /// Installed AudioUnit effects the user can drop into a soundtrack insert slot. Populated lazily
+    /// by `ensureAudioEffectsLoaded()` the first time the effects rack is opened — never at launch.
+    /// Observed, so the deck's slot picker fills in when the (off-main) enumeration completes.
     private(set) var availableAudioEffects: [AudioComponentRef] = []
 
     var selectedSection: AppSectionID { navigation.context.section }
@@ -118,7 +120,19 @@ final class AppSession {
             settings.send(.restore(lastUsedSettings.options, lastUsedSettings.selectedRepository))
         }
         project.send(.restore)
+    }
 
+    /// Enumerate installed AudioUnit effects the first time the user actually opens the insert-slot
+    /// picker. Deliberately *not* called at launch: macOS caches AU *validation* system-wide
+    /// (`~/Library/Caches/AudioUnitCache`), so this is a cheap metadata read rather than a per-launch
+    /// re-scan — but the first `AVAudioUnitComponentManager` access still spins up the whole
+    /// component-registry machinery (and emits benign CoreAudio init logging like the
+    /// `AddInstanceForFactory` / `SetPropertyData 'nope'` lines). Deferring it keeps that entirely out
+    /// of the launch path, and off the table completely for the common case where nobody touches the
+    /// effects rack. Idempotent: the guard means repeat opens are no-ops.
+    func ensureAudioEffectsLoaded() {
+        guard !didStartEffectsLoad else { return }
+        didStartEffectsLoad = true
         Task { [weak self] in
             let effects = await Task.detached(priority: .utility) { AudioUnitCatalog.effects() }.value
             self?.availableAudioEffects = effects
