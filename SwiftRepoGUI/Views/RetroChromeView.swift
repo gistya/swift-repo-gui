@@ -1,6 +1,10 @@
 import Foundation
+import Ox0badf00d
 import SwiftUI
 import SwiftXStateSwiftUI
+#if canImport(AppKit)
+import AppKit
+#endif
 
 extension Color {
     static let swiftOrange = Color(SwiftBuilderStyle.current.colors.swiftOrange)
@@ -166,15 +170,17 @@ struct SoundtrackDeckConfiguration {
     let isMuted: Bool
     let isPaused: Bool
     let volume: Double
-    let effectsSettings: SoundtrackEffectsSettings
+    let insertSlots: [SoundtrackInsertSlot]
+    let availableEffects: [AudioComponentRef]
     let audioError: String?
     let onToggleMute: () -> Void
     let onTogglePause: () -> Void
     let onPreviousTrack: () -> Void
     let onNextTrack: () -> Void
     let onVolumeChange: (Double) -> Void
-    let onEffectsChange: (SoundtrackEffectsSettings) -> Void
-    let onResetEffects: () -> Void
+    let onSetInsert: (Int, AudioComponentRef?) -> Void
+    let onToggleBypass: (Int) -> Void
+    let makeInsertEditor: (Int) async -> NSViewController?
 }
 
 private struct SoundtrackDeckView: View {
@@ -212,17 +218,19 @@ private struct SoundtrackDeckView: View {
                     action: deck.onNextTrack
                 )
                 SoundtrackIconButton(
-                    systemName: "slider.horizontal.3",
-                    help: "Tube rack",
-                    isActive: deck.effectsSettings.isEnabled,
+                    systemName: "pianokeys",
+                    help: "Effect inserts",
+                    isActive: deck.insertSlots.contains { !$0.isEmpty && !$0.isBypassed },
                     isDisabled: false,
                     action: { isShowingEffects.toggle() }
                 )
                 .popover(isPresented: $isShowingEffects, arrowEdge: .bottom) {
-                    TubeRackPopup(
-                        settings: deck.effectsSettings,
-                        onChange: deck.onEffectsChange,
-                        onReset: deck.onResetEffects
+                    InsertRackPopup(
+                        slots: deck.insertSlots,
+                        availableEffects: deck.availableEffects,
+                        onSetInsert: deck.onSetInsert,
+                        onToggleBypass: deck.onToggleBypass,
+                        makeInsertEditor: deck.makeInsertEditor
                     )
                 }
                 SoundtrackIconButton(
@@ -294,112 +302,54 @@ private struct SoundtrackDeckView: View {
     }
 }
 
-private struct TubeRackPopup: View {
-    let settings: SoundtrackEffectsSettings
-    let onChange: (SoundtrackEffectsSettings) -> Void
-    let onReset: () -> Void
+private struct InsertRackPopup: View {
+    let slots: [SoundtrackInsertSlot]
+    let availableEffects: [AudioComponentRef]
+    let onSetInsert: (Int, AudioComponentRef?) -> Void
+    let onToggleBypass: (Int) -> Void
+    let makeInsertEditor: (Int) async -> NSViewController?
+
+    @State private var editing: EditingSlot?
+
+    private struct EditingSlot: Identifiable { let id: Int }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
-                Image(systemName: "slider.horizontal.3")
+                Image(systemName: "pianokeys")
                     .font(.system(size: 16, weight: .black))
-                    .foregroundStyle(settings.isEnabled ? Color.swiftOrange : Color.terminalDimGreen)
-                    .shadow(color: settings.isEnabled ? Color.swiftOrange.opacity(0.8) : .clear, radius: 6)
-
-                Text("TUBE RACK")
+                    .foregroundStyle(Color.swiftOrange)
+                    .shadow(color: Color.swiftOrange.opacity(0.7), radius: 6)
+                Text("EFFECT INSERTS")
                     .font(.monaco(size: 15, weight: .black))
                     .foregroundStyle(Color.terminalGreen)
-
                 Spacer()
+            }
 
-                Toggle(isOn: boolBinding(\.isEnabled)) {
-                    Text(settings.isEnabled ? "ON" : "BYP")
-                        .font(.monaco(size: 10, weight: .black))
-                        .foregroundStyle(settings.isEnabled ? Color.swiftOrange : Color.terminalDimGreen)
+            VStack(spacing: 10) {
+                ForEach(slots.indices, id: \.self) { index in
+                    slotRow(index)
                 }
-                .toggleStyle(.switch)
-                .controlSize(.small)
-                .tint(.swiftOrange)
-                .help(settings.isEnabled ? "Bypass tube rack" : "Enable tube rack")
             }
-
-            VStack(alignment: .leading, spacing: 10) {
-                TubeRackSlider(
-                    title: "DRIVE",
-                    value: doubleBinding(\.drive),
-                    range: 0...1,
-                    valueText: { "\(Int(($0 * 100).rounded()))%" }
-                )
-                TubeRackSlider(
-                    title: "LOW",
-                    value: doubleBinding(\.lowGainDB),
-                    range: -12...12,
-                    valueText: Self.formattedDB
-                )
-                TubeRackSlider(
-                    title: "MID",
-                    value: doubleBinding(\.midGainDB),
-                    range: -12...12,
-                    valueText: Self.formattedDB
-                )
-                TubeRackSlider(
-                    title: "AIR",
-                    value: doubleBinding(\.highGainDB),
-                    range: -12...12,
-                    valueText: Self.formattedDB
-                )
-                TubeRackSlider(
-                    title: "COMP",
-                    value: doubleBinding(\.compression),
-                    range: 0...1,
-                    valueText: { "\(Int(($0 * 100).rounded()))%" }
-                )
-                TubeRackSlider(
-                    title: "LIMIT",
-                    value: doubleBinding(\.limiterCeilingDB),
-                    range: -18...0,
-                    valueText: Self.formattedDB
-                )
-                TubeRackSlider(
-                    title: "OUT",
-                    value: doubleBinding(\.outputGainDB),
-                    range: -12...12,
-                    valueText: Self.formattedDB
-                )
-            }
-            .opacity(settings.isEnabled ? 1 : 0.56)
 
             HStack {
-                Button(action: onReset) {
-                    Text("RESET")
-                        .font(.monaco(size: 10, weight: .black))
-                        .foregroundStyle(Color.terminalGreen)
-                        .frame(width: 68, height: 24)
-                        .background {
-                            RoundedRectangle(cornerRadius: 5)
-                                .fill(Color.terminalButtonBottom.opacity(0.95))
-                                .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.terminalGreen.opacity(0.35), lineWidth: 1))
-                        }
-                }
-                .buttonStyle(.plain)
-                .help("Reset tube rack")
-
+                Text(availableEffects.isEmpty ? "Scanning AudioUnits…" : "\(availableEffects.count) effects available")
+                    .font(.monaco(size: 9, weight: .bold))
+                    .foregroundStyle(Color.terminalDimGreen)
                 Spacer()
-
-                Text("OX0BADF00D")
+                Text("OX0BADF00D → LIMITER")
                     .font(.monaco(size: 9, weight: .black))
                     .foregroundStyle(Color.terminalDimGreen)
             }
         }
         .padding(14)
-        .frame(width: 340)
+        .frame(width: 380)
         .background {
             ZStack {
                 Color.terminalBlack
                 LinearGradient(
                     colors: [
-                        Color.swiftOrange.opacity(settings.isEnabled ? 0.16 : 0.04),
+                        Color.swiftOrange.opacity(0.14),
                         Color.terminalGreen.opacity(0.07),
                         Color.black.opacity(0.55)
                     ],
@@ -412,67 +362,60 @@ private struct TubeRackPopup: View {
         }
         .overlay {
             RoundedRectangle(cornerRadius: 8)
-                .stroke((settings.isEnabled ? Color.swiftOrange : Color.terminalDimGreen).opacity(0.55), lineWidth: 1)
+                .stroke(Color.swiftOrange.opacity(0.5), lineWidth: 1)
+        }
+        .sheet(item: $editing) { slot in
+            AudioUnitEditorSheet(
+                slotIndex: slot.id,
+                title: slots.indices.contains(slot.id) ? (slots[slot.id].component?.name ?? "Plugin") : "Plugin",
+                makeController: makeInsertEditor
+            )
         }
     }
 
-    private func boolBinding(_ keyPath: WritableKeyPath<SoundtrackEffectsSettings, Bool>) -> Binding<Bool> {
-        Binding(
-            get: { settings[keyPath: keyPath] },
-            set: { update(keyPath, to: $0) }
-        )
-    }
+    private func slotRow(_ index: Int) -> some View {
+        let slot = slots[index]
+        return HStack(spacing: 8) {
+            Text("INS \(index + 1)")
+                .font(.monaco(size: 10, weight: .black))
+                .foregroundStyle(Color.terminalGreen)
+                .frame(width: 40, alignment: .leading)
 
-    private func doubleBinding(_ keyPath: WritableKeyPath<SoundtrackEffectsSettings, Double>) -> Binding<Double> {
-        Binding(
-            get: { settings[keyPath: keyPath] },
-            set: { update(keyPath, to: $0) }
-        )
-    }
-
-    private func update<Value>(_ keyPath: WritableKeyPath<SoundtrackEffectsSettings, Value>, to value: Value) {
-        var next = settings
-        next[keyPath: keyPath] = value
-        onChange(next.normalized())
-    }
-
-    nonisolated private static func formattedDB(_ value: Double) -> String {
-        let rounded = (value * 10).rounded() / 10
-        if rounded > 0 {
-            return "+\(String(format: "%.1f", rounded)) dB"
-        }
-        return "\(String(format: "%.1f", rounded)) dB"
-    }
-}
-
-private struct TubeRackSlider: View {
-    let title: String
-    let value: Binding<Double>
-    let range: ClosedRange<Double>
-    let valueText: (Double) -> String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack {
-                Text(title)
-                    .font(.monaco(size: 10, weight: .black))
-                    .foregroundStyle(Color.terminalGreen)
-                    .frame(width: 46, alignment: .leading)
-
-                Slider(value: value, in: range)
-                    .tint(.swiftOrange)
-                    .controlSize(.small)
-
-                Text(valueText(value.wrappedValue))
-                    .font(.monaco(size: 9, weight: .bold))
-                    .foregroundStyle(Color.lcdGreen)
-                    .frame(width: 62, alignment: .trailing)
+            Menu {
+                Button("— None —") { onSetInsert(index, nil) }
+                if !availableEffects.isEmpty {
+                    Divider()
+                    ForEach(availableEffects) { effect in
+                        Button(effect.name) { onSetInsert(index, effect) }
+                    }
+                }
+            } label: {
+                Text(slot.component?.name ?? "— empty —")
+                    .font(.monaco(size: 10, weight: .bold))
+                    .foregroundStyle(slot.isEmpty ? Color.terminalDimGreen : Color.lcdGreen)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .menuStyle(.borderlessButton)
+            .frame(maxWidth: .infinity)
 
-            Rectangle()
-                .fill(Color.terminalGreen.opacity(0.12))
-                .frame(height: 1)
+            SoundtrackIconButton(
+                systemName: slot.isBypassed ? "circle.slash" : "circle.fill",
+                help: slot.isBypassed ? "Enable insert" : "Bypass insert",
+                isActive: !slot.isBypassed && !slot.isEmpty,
+                isDisabled: slot.isEmpty,
+                action: { onToggleBypass(index) }
+            )
+            SoundtrackIconButton(
+                systemName: "slider.horizontal.below.rectangle",
+                help: "Open plugin editor",
+                isActive: false,
+                isDisabled: slot.isEmpty,
+                action: { editing = EditingSlot(id: index) }
+            )
         }
+        .opacity(slot.isBypassed ? 0.6 : 1)
     }
 }
 

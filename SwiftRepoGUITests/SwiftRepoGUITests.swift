@@ -122,53 +122,6 @@ struct SwiftRepoGUITests {
         #expect(display.title == "Bubble Machine!")
     }
 
-    @Test func soundtrackEffectsSettingsClampRackControls() throws {
-        let settings = SoundtrackEffectsSettings(
-            isEnabled: true,
-            drive: 4,
-            lowGainDB: -50,
-            midGainDB: 16,
-            highGainDB: 20,
-            compression: -2,
-            limiterCeilingDB: -40,
-            outputGainDB: 30
-        ).normalized()
-
-        #expect(settings.drive == 1)
-        #expect(settings.lowGainDB == -12)
-        #expect(settings.midGainDB == 12)
-        #expect(settings.highGainDB == 12)
-        #expect(settings.compression == 0)
-        #expect(settings.limiterCeilingDB == -18)
-        #expect(settings.outputGainDB == 12)
-    }
-
-    @Test func disabledSoundtrackEffectsLeaveSamplesUnchanged() throws {
-        var settings = SoundtrackEffectsSettings.default
-        settings.isEnabled = false
-        let samples: [Float] = [0.1, -0.1, 0.35, -0.35, -0.7, 0.7, 0, 0.25]
-        let buffer = PCMBuffer(sampleRate: 44_100, channelCount: 2, interleavedSamples: samples)
-
-        let processed = SoundtrackEffectsProcessor(sampleRate: 44_100).process(buffer, settings: settings)
-
-        #expect(processed == buffer)
-    }
-
-    @Test func soundtrackEffectsSettingsStoreRoundTripsNormalizedSettings() throws {
-        let (defaults, suiteName) = try makeIsolatedDefaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        var settings = SoundtrackEffectsSettings.default
-        settings.isEnabled = false
-        settings.drive = 0.74
-        settings.lowGainDB = -3.5
-        settings.limiterCeilingDB = -25
-
-        SoundtrackEffectsSettingsStore.save(settings, to: defaults)
-        let normalized = settings.normalized()
-
-        #expect(SoundtrackEffectsSettingsStore.load(from: defaults) == normalized)
-    }
-
     @Test func soundtrackMachineQueuesAudioCommandsBeforeConfirmedPlaybackStateChanges() throws {
         let track = TrackerModuleTrack(
             url: URL(fileURLWithPath: "/tmp/drozerix_-_bubble_machine.xm"),
@@ -181,7 +134,6 @@ struct SwiftRepoGUITests {
             isMuted: false,
             tracks: [track],
             volume: Double(soundStyle.masterVolume),
-            effectsSettings: .default,
             soundStyle: soundStyle
         )
         let machine = SoundtrackMachine(context: context)
@@ -242,7 +194,7 @@ struct SwiftRepoGUITests {
         #expect(AppSectionID.history.previous == .settings)
     }
 
-    @Test func checkoutSchemeResolverUsesUnmatchedCurrentSwiftBranch() throws {
+    @Test func checkoutSchemeResolverUsesUnmatchedCurrentSwiftBranch() async throws {
         let swiftDirectory = try makeSwiftDirectory(
             branch: "feature/current-branch",
             checkoutConfig: """
@@ -258,15 +210,16 @@ struct SwiftRepoGUITests {
             """
         )
 
-        let resolution = CheckoutSchemeResolver.resolve(swiftDirectory: swiftDirectory)
+        let resolution = await CheckoutSchemeResolver.resolve(swiftDirectory: swiftDirectory)
 
         #expect(resolution.scheme == "feature/current-branch")
         #expect(resolution.branch == "feature/current-branch")
         #expect(resolution.source == .branchFallback)
-        #expect(CheckoutSchemeResolver.availableSchemes(swiftDirectory: swiftDirectory).contains("feature/current-branch"))
+        let schemes = await CheckoutSchemeResolver.availableSchemes(swiftDirectory: swiftDirectory)
+        #expect(schemes.contains("feature/current-branch"))
     }
 
-    @Test func checkoutSchemeResolverUsesBranchPointingAtDetachedHead() throws {
+    @Test func checkoutSchemeResolverUsesBranchPointingAtDetachedHead() async throws {
         let swiftDirectory = try makeSwiftDirectory(
             branch: "release/6.4.x",
             checkoutConfig: """
@@ -293,7 +246,7 @@ struct SwiftRepoGUITests {
         )
         try runGit(["checkout", "--detach", "HEAD"], in: swiftDirectory)
 
-        let resolution = CheckoutSchemeResolver.resolve(swiftDirectory: swiftDirectory)
+        let resolution = await CheckoutSchemeResolver.resolve(swiftDirectory: swiftDirectory)
 
         #expect(resolution.scheme == "release/6.4.x")
         #expect(resolution.branch == "release/6.4.x")
@@ -536,7 +489,13 @@ struct SwiftRepoGUITests {
             }
         }
 
-        try await Task.sleep(for: .milliseconds(300))
+        // Wait until the first carriage-return line has actually been drained to disk (proving the
+        // log is written incrementally), instead of assuming a fixed delay — deterministic under load.
+        let firstLineDeadline = ContinuousClock.now + .seconds(3)
+        while ContinuousClock.now < firstLineDeadline {
+            if (try? String(contentsOf: logURL, encoding: .utf8))?.contains("[1/2] first") == true { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
         let partialLog = try String(contentsOf: logURL, encoding: .utf8)
         #expect(partialLog.contains("[1/2] first"))
 

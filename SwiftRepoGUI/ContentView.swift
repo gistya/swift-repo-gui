@@ -22,15 +22,21 @@ struct ContentView: View {
                     isMuted: session.soundtrack.context.isMuted,
                     isPaused: session.soundtrack.matches(.paused),
                     volume: session.soundtrack.context.volume,
-                    effectsSettings: session.soundtrack.context.effectsSettings,
+                    insertSlots: session.soundtrack.context.insertSlots,
+                    availableEffects: session.availableAudioEffects,
                     audioError: session.soundtrack.context.lastError,
                     onToggleMute: { session.soundtrack.send(.toggleMute) },
                     onTogglePause: { session.soundtrack.send(.togglePause) },
                     onPreviousTrack: { session.soundtrack.send(.previousTrack) },
                     onNextTrack: { session.soundtrack.send(.nextTrack) },
                     onVolumeChange: { session.soundtrack.send(.setVolume($0)) },
-                    onEffectsChange: { session.soundtrack.send(.setEffects($0)) },
-                    onResetEffects: { session.soundtrack.send(.resetEffects) }
+                    onSetInsert: { index, component in
+                        session.soundtrack.send(.setInsertSlot(index: index, component: component))
+                    },
+                    onToggleBypass: { index in
+                        session.soundtrack.send(.toggleInsertBypass(index: index))
+                    },
+                    makeInsertEditor: { slot in await session.makeSoundtrackInsertEditor(slot: slot) }
                 )
             )
 
@@ -72,8 +78,10 @@ struct ContentView: View {
         .onChange(of: session.settings.context) {
             session.persistLastUsedSettings()
         }
-        .onChange(of: session.build.context) {
-            session.soundtrack.send(.buildSnapshotChanged(SoundtrackBuildSnapshot(session.build.context)))
+        // Bridge build → soundtrack on a narrow derived value, so this only fires when the stage /
+        // running / exit actually changes — not on every unrelated BuildOperationsContext mutation.
+        .onChange(of: SoundtrackBuildSnapshot(session.build.context)) { _, snapshot in
+            session.soundtrack.send(.buildSnapshotChanged(snapshot))
         }
     }
 }

@@ -79,7 +79,7 @@ struct ProjectMachine: StateMachine {
 
                         switch input.mode {
                         case .fullInspect:
-                            let snapshot = try ProjectService.validateProject(
+                            let snapshot = try await ProjectService.validateProject(
                                 projectPath: input.projectPath,
                                 checkoutSchemeOverride: input.checkoutSchemeOverride
                             )

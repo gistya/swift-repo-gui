@@ -1,16 +1,26 @@
 import Foundation
 
 nonisolated enum CheckoutSchemeResolver {
+    /// Reads the swift repo's current branch once (async, non-blocking) and resolves the scheme.
     static func resolve(
         swiftDirectory: URL,
         overrideScheme: String? = nil
+    ) async -> (scheme: String, branch: String, source: SchemeResolutionSource) {
+        let branch = await currentBranch(in: swiftDirectory)
+        return resolve(swiftDirectory: swiftDirectory, currentBranch: branch, overrideScheme: overrideScheme)
+    }
+
+    /// Pure resolution given an already-read branch (no git spawn) — lets a caller read the branch
+    /// once and share it with `availableSchemes(_:currentBranch:)`.
+    static func resolve(
+        swiftDirectory: URL,
+        currentBranch branch: String?,
+        overrideScheme: String? = nil
     ) -> (scheme: String, branch: String, source: SchemeResolutionSource) {
         if let override = overrideScheme?.trimmingCharacters(in: .whitespacesAndNewlines), !override.isEmpty {
-            let branch = currentBranch(in: swiftDirectory) ?? override
-            return (override, branch, .manualOverride)
+            return (override, branch ?? override, .manualOverride)
         }
 
-        let branch = currentBranch(in: swiftDirectory)
         let configURL = swiftDirectory
             .appendingPathComponent("utils/update_checkout/update-checkout-config.json")
 
@@ -39,27 +49,32 @@ nonisolated enum CheckoutSchemeResolver {
         return (branch, branch, .branchFallback)
     }
 
-    static func availableSchemes(swiftDirectory: URL) -> [String] {
+    static func availableSchemes(swiftDirectory: URL) async -> [String] {
+        let branch = await currentBranch(in: swiftDirectory)
+        return availableSchemes(swiftDirectory: swiftDirectory, currentBranch: branch)
+    }
+
+    static func availableSchemes(swiftDirectory: URL, currentBranch branch: String?) -> [String] {
         let configURL = swiftDirectory
             .appendingPathComponent("utils/update_checkout/update-checkout-config.json")
         var schemes = loadConfig(at: configURL)?.schemes.map(\.name) ?? []
-        if let branch = currentBranch(in: swiftDirectory), !schemes.contains(branch) {
+        if let branch, !schemes.contains(branch) {
             schemes.append(branch)
         }
         if schemes.isEmpty { schemes.append("main") }
         return schemes.sorted()
     }
 
-    private static func currentBranch(in swiftDirectory: URL) -> String? {
-        if let branch = gitOutput(["rev-parse", "--abbrev-ref", "HEAD"], in: swiftDirectory),
+    static func currentBranch(in swiftDirectory: URL) async -> String? {
+        if let branch = await gitOutput(["rev-parse", "--abbrev-ref", "HEAD"], in: swiftDirectory),
            branch != "HEAD" {
             return branch
         }
-        return branchPointingAtHead(in: swiftDirectory)
+        return await branchPointingAtHead(in: swiftDirectory)
     }
 
-    private static func branchPointingAtHead(in swiftDirectory: URL) -> String? {
-        guard let refs = gitOutput(
+    private static func branchPointingAtHead(in swiftDirectory: URL) async -> String? {
+        guard let refs = await gitOutput(
             ["for-each-ref", "--points-at", "HEAD", "--format=%(refname)", "refs/heads", "refs/remotes"],
             in: swiftDirectory
         ) else {
@@ -108,24 +123,8 @@ nonisolated enum CheckoutSchemeResolver {
         return 1
     }
 
-    private static func gitOutput(_ arguments: [String], in directory: URL) -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["-C", directory.path] + arguments
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = Pipe()
-        do {
-            try process.run()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else { return nil }
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let output, !output.isEmpty else { return nil }
-            return output
-        } catch {
-            return nil
-        }
+    private static func gitOutput(_ arguments: [String], in directory: URL) async -> String? {
+        await AsyncProcess.gitOutput(["-C", directory.path] + arguments)
     }
 
     private static func loadConfig(at url: URL) -> ParsedCheckoutConfig? {

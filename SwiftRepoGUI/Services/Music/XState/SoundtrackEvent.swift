@@ -1,3 +1,4 @@
+import Ox0badf00d
 import SwiftXState
 
 nonisolated enum SoundtrackEvent: EventIdentifying {
@@ -9,8 +10,8 @@ nonisolated enum SoundtrackEvent: EventIdentifying {
     case nextTrack
     case playTestCue
     case setVolume(Double)
-    case setEffects(SoundtrackEffectsSettings)
-    case resetEffects
+    case setInsertSlot(index: Int, component: AudioComponentRef?)
+    case toggleInsertBypass(index: Int)
     case playbackPrepared(moduleTitle: String?, generation: Int, started: Bool)
     case playbackPaused(generation: Int)
     case playbackResumed(generation: Int)

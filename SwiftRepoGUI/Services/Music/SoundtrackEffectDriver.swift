@@ -1,137 +1,173 @@
 import Foundation
+import Ox0badf00d
 import SwiftXStateSwiftUI
+#if canImport(AppKit)
+import AppKit
+#endif
 
+/// The membrane between the `SoundtrackMachine` and the `TrackerAudioEngine`.
+///
+/// - Machine → engine: observes the machine's snapshot stream, drains the single pending audio
+///   command from context, and feeds commands through a **serial** consumer so they reach the engine
+///   in production order (the actor serializes execution; this serializes issuance).
+/// - Engine → machine: forwards `TrackerAudioEvent`s back as machine events, keeping the whole loop
+///   unidirectional (intent in context → effect in the actor → result as an event).
+///
+/// It also mirrors user preferences (mute/volume/insert slots) to `UserDefaults`.
 @MainActor
 final class SoundtrackEffectDriver {
     private struct PreferenceSnapshot: Equatable {
         var isMuted: Bool
         var volume: Double
-        var effectsSettings: SoundtrackEffectsSettings
+        var insertSlots: [SoundtrackInsertSlot]
     }
 
     private let store: MachineStore<SoundtrackMachine>
-    private let audioActor: SoundtrackAudioActor
+    private let engine: TrackerAudioEngine
     private let defaults: UserDefaults
 
+    private var eventsTask: Task<Void, Never>?
     private var snapshotTask: Task<Void, Never>?
-    private var finishedTask: Task<Void, Never>?
+    private var commandTask: Task<Void, Never>?
+    private let commandStream: AsyncStream<SoundtrackAudioRequest>
+    private let commandContinuation: AsyncStream<SoundtrackAudioRequest>.Continuation
+
     private var lastHandledRequestID = 0
     private var lastPersistedPreferences: PreferenceSnapshot?
 
     init(
         store: MachineStore<SoundtrackMachine>,
-        style: SoundPalette,
+        config: AudioSessionConfig,
         defaults: UserDefaults = .standard
     ) {
         self.store = store
         self.defaults = defaults
-        audioActor = SoundtrackAudioActor(
-            style: style,
-            volume: Float(store.context.volume),
-            effectsSettings: store.context.effectsSettings
-        )
+        self.engine = TrackerAudioEngine(config: config)
 
+        let commands = AsyncStream<SoundtrackAudioRequest>.makeStream(bufferingPolicy: .unbounded)
+        self.commandStream = commands.stream
+        self.commandContinuation = commands.continuation
+
+        // Restore initial volume + any persisted insert slots into the live engine.
+        let initialContext = store.context
+        let engine = self.engine
+        let store = self.store
+        Task { await engine.setVolume(initialContext.volume) }
+        for (index, slot) in initialContext.insertSlots.enumerated() where slot.component != nil {
+            let component = slot.component
+            let bypassed = slot.isBypassed
+            Task { @MainActor in
+                do {
+                    try await engine.setInsert(slot: index, component: component)
+                    await engine.setInsertBypass(slot: index, bypassed: bypassed)
+                } catch {
+                    // Persisted plugin can't be hosted here (missing / incompatible format). Clear
+                    // it so it isn't retried every launch and the UI reflects the real state.
+                    store.send(.setInsertSlot(index: index, component: nil))
+                }
+            }
+        }
+
+        // Engine outcomes → machine events.
+        let events = engine.events
+        eventsTask = Task { @MainActor [weak self] in
+            for await event in events {
+                self?.forward(event)
+            }
+        }
+
+        // Serial command execution: preserves issue order, and lets deinit cancel outstanding work.
+        commandTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            for await request in commandStream {
+                await perform(request.command)
+                store.send(.audioRequestHandled(request.id))
+            }
+        }
+
+        // Snapshot stream → drain the pending request + persist preferences.
         let snapshots = store.snapshots
         snapshotTask = Task { @MainActor [weak self] in
             for await snapshot in snapshots {
                 self?.handle(snapshot.context)
             }
         }
-
-        let finishedGenerations = audioActor.finishedGenerations
-        finishedTask = Task { @MainActor [weak self] in
-            for await generation in finishedGenerations {
-                self?.store.send(.trackFinished(generation: generation))
-            }
-        }
     }
 
     deinit {
+        eventsTask?.cancel()
         snapshotTask?.cancel()
-        finishedTask?.cancel()
+        commandTask?.cancel()
+        commandContinuation.finish()
     }
 
     private func handle(_ context: SoundtrackContext) {
         persistPreferencesIfNeeded(context)
-
-        guard let request = context.pendingAudioRequest,
-              request.id > lastHandledRequestID else { return }
+        guard let request = context.pendingAudioRequest, request.id > lastHandledRequestID else { return }
         lastHandledRequestID = request.id
-        execute(request)
+        commandContinuation.yield(request)
+    }
+
+    private func forward(_ event: TrackerAudioEvent) {
+        switch event {
+        case let .prepared(title, generation, started):
+            store.send(.playbackPrepared(moduleTitle: title, generation: generation, started: started))
+        case let .paused(generation):
+            store.send(.playbackPaused(generation: generation))
+        case let .resumed(generation):
+            store.send(.playbackResumed(generation: generation))
+        case let .stopped(generation):
+            store.send(.playbackStopped(generation: generation))
+        case let .finished(generation):
+            store.send(.trackFinished(generation: generation))
+        case let .failed(message, generation):
+            store.send(.audioFailed(message, generation: generation))
+        }
+    }
+
+    private func perform(_ command: SoundtrackAudioCommand) async {
+        switch command {
+        case let .play(url, generation, startImmediately):
+            await engine.play(moduleURL: url, generation: generation, startImmediately: startImmediately)
+        case let .pause(generation):
+            await engine.pause(generation: generation)
+        case let .resume(generation):
+            await engine.resume(generation: generation)
+        case let .stop(generation):
+            await engine.stop(generation: generation)
+        case let .setVolume(volume):
+            await engine.setVolume(volume)
+        case let .setInsert(index, component):
+            do {
+                try await engine.setInsert(slot: index, component: component)
+            } catch {
+                // The chosen plugin can't be hosted (e.g. mono-only AU on a stereo bus): clear it.
+                if component != nil {
+                    store.send(.setInsertSlot(index: index, component: nil))
+                }
+            }
+        case let .setInsertBypass(index, bypassed):
+            await engine.setInsertBypass(slot: index, bypassed: bypassed)
+        }
     }
 
     private func persistPreferencesIfNeeded(_ context: SoundtrackContext) {
         let snapshot = PreferenceSnapshot(
             isMuted: context.isMuted,
             volume: context.volume,
-            effectsSettings: context.effectsSettings
+            insertSlots: context.insertSlots
         )
         guard snapshot != lastPersistedPreferences else { return }
         lastPersistedPreferences = snapshot
         defaults.set(snapshot.isMuted, forKey: SoundtrackDefaults.mutedKey)
         defaults.set(snapshot.volume, forKey: SoundtrackDefaults.volumeKey)
-        SoundtrackEffectsSettingsStore.save(snapshot.effectsSettings, to: defaults)
+        SoundtrackInsertSlotsStore.save(snapshot.insertSlots, to: defaults)
     }
 
-    private func execute(_ request: SoundtrackAudioRequest) {
-        switch request.command {
-        case let .play(streamRequest, generation, startImmediately):
-            Task { [weak self] in
-                guard let self else { return }
-                let prepared = await audioActor.play(
-                    request: streamRequest,
-                    generation: generation,
-                    startImmediately: startImmediately
-                )
-                if prepared.succeeded {
-                    store.send(.playbackPrepared(
-                        moduleTitle: prepared.moduleTitle,
-                        generation: generation,
-                        started: startImmediately
-                    ))
-                } else {
-                    store.send(.audioFailed(
-                        "Could not stream \(prepared.track.fileName): \(prepared.errorMessage ?? "Unknown error")",
-                        generation: generation
-                    ))
-                }
-            }
-        case let .pause(generation):
-            Task { [weak self] in
-                guard let self else { return }
-                if let message = await audioActor.pause() {
-                    store.send(.audioFailed(message, generation: generation))
-                } else {
-                    store.send(.playbackPaused(generation: generation))
-                }
-            }
-        case let .resume(generation):
-            Task { [weak self] in
-                guard let self else { return }
-                if let message = await audioActor.resume() {
-                    store.send(.audioFailed(message, generation: generation))
-                } else {
-                    store.send(.playbackResumed(generation: generation))
-                }
-            }
-        case let .stop(generation):
-            Task { [weak self] in
-                guard let self else { return }
-                await audioActor.stop()
-                store.send(.playbackStopped(generation: generation))
-            }
-        case let .setVolume(volume):
-            Task { [weak self] in
-                guard let self else { return }
-                await audioActor.setVolume(volume)
-                store.send(.audioRequestHandled(request.id))
-            }
-        case let .setEffects(settings):
-            Task { [weak self] in
-                guard let self else { return }
-                await audioActor.setEffectsSettings(settings)
-                store.send(.audioRequestHandled(request.id))
-            }
-        }
+    #if canImport(AppKit)
+    /// The chosen AU's own editor view controller for `slot`, for the host to present in a sheet.
+    func makeInsertEditor(slot: Int) async -> NSViewController? {
+        await engine.makeInsertViewController(slot: slot)
     }
+    #endif
 }

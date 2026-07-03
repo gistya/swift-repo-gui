@@ -1,3 +1,4 @@
+import Ox0badf00d
 import SwiftXState
 
 struct SoundtrackMachine: StateMachine {
@@ -15,54 +16,40 @@ struct SoundtrackMachine: StateMachine {
     }
 
     var context: SoundtrackContext { initialContext }
-    var isParallel: Bool { true }
 
+    // A flat statechart: the active position is a single playback leaf. Effect enablement is plain
+    // context data (`effectsSettings.isEnabled` / the insert-slot config), NOT a parallel machine
+    // region — so `matches(.paused)` etc. resolve correctly and the chart maps cleanly onto the
+    // AudioUnit-slot model.
     var machine: some XStateMachine {
-        XState(.playback) {
-            XState(.stopped) {
-                for transition in Self.stoppedTransitions() {
-                    transition
-                }
+        XState(.stopped) {
+            for transition in Self.stoppedTransitions() {
+                transition
             }
-            .initial()
+        }
+        .initial()
 
-            XState(.loading) {
-                for transition in Self.loadingTransitions() {
-                    transition
-                }
-            }
-
-            XState(.playing) {
-                for transition in Self.playingTransitions() {
-                    transition
-                }
-            }
-
-            XState(.paused) {
-                for transition in Self.pausedTransitions() {
-                    transition
-                }
-            }
-
-            XState(.failed) {
-                for transition in Self.failedTransitions() {
-                    transition
-                }
+        XState(.loading) {
+            for transition in Self.loadingTransitions() {
+                transition
             }
         }
 
-        XState(.tubeRack) {
-            XState(.tubeRackOff) {
-                for transition in Self.tubeRackTransitions() {
-                    transition
-                }
+        XState(.playing) {
+            for transition in Self.playingTransitions() {
+                transition
             }
-            .initial()
+        }
 
-            XState(.tubeRackOn) {
-                for transition in Self.tubeRackTransitions() {
-                    transition
-                }
+        XState(.paused) {
+            for transition in Self.pausedTransitions() {
+                transition
+            }
+        }
+
+        XState(.failed) {
+            for transition in Self.failedTransitions() {
+                transition
             }
         }
     }
@@ -76,6 +63,12 @@ struct SoundtrackMachine: StateMachine {
             .when(Self.launchNeedsMissingTracksFailure)
             .action { args, _ in Self.applyFailure("No tracker modules were found in the app bundle.", to: args.context) })
         transitions.append(XTransition(on: .launch, to: .stopped)
+            .when { context, event in
+                // Deterministic catch-all: only when neither guarded `.launch` transition applies.
+                // Multiple transitions on one event must be mutually exclusive so selection never
+                // depends on declaration/iteration order.
+                !Self.canLaunchPlayback(context, event) && !Self.launchNeedsMissingTracksFailure(context, event)
+            }
             .action { args, _ in Self.applyLaunch(args.context, shouldPlay: false) })
         transitions.append(XTransition(on: .togglePause, to: .loading)
             .when(Self.canStartFromStopped)
@@ -93,6 +86,7 @@ struct SoundtrackMachine: StateMachine {
             .when(Self.buildChangeNeedsTrack)
             .action { args, _ in Self.applyBuildContextAndQueueTrack(args.event, to: args.context) })
         transitions.append(XTransition(on: SoundtrackEvent.buildSnapshotChanged, to: .stopped)
+            .when { context, event in !Self.buildChangeNeedsTrack(context, event) }
             .action { args, _ in Self.applyBuildContext(args.event, to: args.context) })
         transitions.append(XTransition(on: SoundtrackEvent.playbackStopped, to: .stopped)
             .action { args, _ in Self.applyStopped(args.event, to: args.context) })
@@ -145,11 +139,13 @@ struct SoundtrackMachine: StateMachine {
             .when(Self.buildChangeNeedsTrack)
             .action { args, _ in Self.applyBuildContextAndQueueTrack(args.event, to: args.context) })
         transitions.append(XTransition(on: SoundtrackEvent.buildSnapshotChanged, to: .playing)
+            .when { context, event in !Self.buildChangeNeedsTrack(context, event) }
             .action { args, _ in Self.applyBuildContext(args.event, to: args.context) })
         transitions.append(XTransition(on: SoundtrackEvent.trackFinished, to: .loading)
             .when(Self.shouldAutoAdvanceFinishedTrack)
             .action { args, _ in Self.applyTrackFinishedAndQueueNext(args.event, to: args.context) })
         transitions.append(XTransition(on: SoundtrackEvent.trackFinished, to: .stopped)
+            .when { context, event in !Self.shouldAutoAdvanceFinishedTrack(context, event) }
             .action { args, _ in Self.applyTrackFinished(args.event, to: args.context) })
         transitions.append(XTransition(on: SoundtrackEvent.audioFailed, to: .failed)
             .action { args, _ in Self.applyFailure(args.event, to: args.context) })
@@ -199,6 +195,7 @@ struct SoundtrackMachine: StateMachine {
             .when(Self.buildChangeNeedsTrack)
             .action { args, _ in Self.applyBuildContextAndQueueTrack(args.event, to: args.context) })
         transitions.append(XTransition(on: SoundtrackEvent.buildSnapshotChanged, to: .failed)
+            .when { context, event in !Self.buildChangeNeedsTrack(context, event) }
             .action { args, _ in Self.applyBuildContext(args.event, to: args.context) })
         return transitions
     }
@@ -209,10 +206,10 @@ struct SoundtrackMachine: StateMachine {
         [
             XTransition(on: SoundtrackEvent.setVolume, to: state)
                 .action { args, _ in Self.applyVolume(args.event, to: args.context) },
-            XTransition(on: SoundtrackEvent.setEffects, to: state)
-                .action { args, _ in Self.applyEffects(args.event, to: args.context) },
-            XTransition(on: .resetEffects, to: state)
-                .action { args, _ in Self.applyEffects(.setEffects(.default), to: args.context) },
+            XTransition(on: SoundtrackEvent.setInsertSlot, to: state)
+                .action { args, _ in Self.applyInsertSlot(args.event, to: args.context) },
+            XTransition(on: SoundtrackEvent.toggleInsertBypass, to: state)
+                .action { args, _ in Self.applyInsertBypass(args.event, to: args.context) },
             XTransition(on: SoundtrackEvent.audioRequestHandled, to: state)
                 .action { args, _ in Self.clearHandledRequest(args.event, from: args.context) },
             XTransition(on: .toggleMute, to: .stopped)
@@ -222,26 +219,13 @@ struct SoundtrackMachine: StateMachine {
                 .when(Self.unmuteCanStartPlayback)
                 .action { args, _ in Self.applyUnmute(args.context, shouldPlay: true) },
             XTransition(on: .toggleMute, to: .stopped)
+                .when { context, event in context.isMuted && !Self.unmuteCanStartPlayback(context, event) }
                 .action { args, _ in Self.applyUnmute(args.context, shouldPlay: false) },
             XTransition(on: SoundtrackEvent.playbackStopped, to: .stopped)
                 .action { args, _ in Self.applyStopped(args.event, to: args.context) },
         ]
     }
 
-    private static func tubeRackTransitions() -> [XTransition<SoundtrackContext, SoundtrackEvent, SoundtrackState>] {
-        [
-            XTransition(on: SoundtrackEvent.setEffects, to: .tubeRackOn)
-                .when { _, event in Self.effectsEnabled(event) }
-                .action { args, _ in Self.applyEffects(args.event, to: args.context) },
-            XTransition(on: .resetEffects, to: .tubeRackOn)
-                .when { _ in SoundtrackEffectsSettings.default.normalized().isEnabled }
-                .action { args, _ in Self.applyEffects(.setEffects(.default), to: args.context) },
-            XTransition(on: SoundtrackEvent.setEffects, to: .tubeRackOff)
-                .action { args, _ in Self.applyEffects(args.event, to: args.context) },
-            XTransition(on: .resetEffects, to: .tubeRackOff)
-                .action { args, _ in Self.applyEffects(.setEffects(.default), to: args.context) },
-        ]
-    }
 }
 
 private extension SoundtrackMachine {
@@ -298,10 +282,6 @@ private extension SoundtrackMachine {
         return generation == context.generation && !context.isMuted && context.playbackPhase != .paused && !context.tracks.isEmpty
     }
 
-    static func effectsEnabled(_ event: SoundtrackEvent?) -> Bool {
-        guard case let .setEffects(settings)? = event else { return false }
-        return settings.normalized().isEnabled
-    }
 }
 
 private extension SoundtrackMachine {
@@ -346,12 +326,22 @@ private extension SoundtrackMachine {
         return ctx
     }
 
-    static func applyEffects(_ event: SoundtrackEvent?, to context: SoundtrackContext) -> SoundtrackContext {
+    static func applyInsertSlot(_ event: SoundtrackEvent?, to context: SoundtrackContext) -> SoundtrackContext {
         var ctx = context
-        guard case let .setEffects(settings)? = event else { return ctx }
-        let normalized = settings.normalized()
-        ctx.effectsSettings = normalized
-        ctx.enqueue(.setEffects(normalized))
+        guard case let .setInsertSlot(index, component)? = event,
+              ctx.insertSlots.indices.contains(index) else { return ctx }
+        ctx.insertSlots[index].component = component
+        ctx.insertSlots[index].isBypassed = false
+        ctx.enqueue(.setInsert(index: index, component: component))
+        return ctx
+    }
+
+    static func applyInsertBypass(_ event: SoundtrackEvent?, to context: SoundtrackContext) -> SoundtrackContext {
+        var ctx = context
+        guard case let .toggleInsertBypass(index)? = event,
+              ctx.insertSlots.indices.contains(index) else { return ctx }
+        ctx.insertSlots[index].isBypassed.toggle()
+        ctx.enqueue(.setInsertBypass(index: index, bypassed: ctx.insertSlots[index].isBypassed))
         return ctx
     }
 
@@ -518,17 +508,7 @@ private extension SoundtrackMachine {
         ctx.activePurpose = purpose
         ctx.moduleTitle = nil
         ctx.lastError = nil
-        let request = TrackerStreamRequest(
-            track: track,
-            purpose: purpose,
-            sampleRate: ctx.soundStyle.sampleRate,
-            streamBufferFrames: ctx.soundStyle.streamBufferFrames,
-            streamPrerollFrames: ctx.soundStyle.streamPrerollFrames,
-            streamRenderChunkFrames: ctx.soundStyle.streamRenderChunkFrames,
-            maxDuration: ctx.soundStyle.maxRenderedTrackDuration,
-            tailDuration: ctx.soundStyle.trackEndTailDuration
-        )
-        ctx.enqueue(.play(request, generation: ctx.generation, startImmediately: startImmediately))
+        ctx.enqueue(.play(url: track.url, generation: ctx.generation, startImmediately: startImmediately))
         return ctx
     }
 }

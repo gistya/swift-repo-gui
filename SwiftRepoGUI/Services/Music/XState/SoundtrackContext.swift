@@ -24,6 +24,8 @@ nonisolated struct SoundtrackBuildSnapshot: Sendable, Equatable, Hashable {
 }
 
 nonisolated struct SoundtrackContext: Sendable, Equatable {
+    static let insertSlotCount = 2
+
     var playbackPhase: SoundtrackPlaybackPhase = .stopped
     var isMuted: Bool
     var tracks: [TrackerModuleTrack]
@@ -32,7 +34,7 @@ nonisolated struct SoundtrackContext: Sendable, Equatable {
     var moduleTitle: String?
     var generation = 0
     var volume: Double
-    var effectsSettings: SoundtrackEffectsSettings
+    var insertSlots: [SoundtrackInsertSlot] = []
     var lastError: String?
     var currentStage: BuildStage = .off
     var wasBuildRunning = false
@@ -51,7 +53,7 @@ nonisolated struct SoundtrackContext: Sendable, Equatable {
             isMuted: defaults.bool(forKey: SoundtrackDefaults.mutedKey),
             tracks: tracks,
             volume: Self.clampedVolume(savedVolume ?? Double(style.masterVolume)),
-            effectsSettings: SoundtrackEffectsSettingsStore.load(from: defaults),
+            insertSlots: SoundtrackInsertSlotsStore.load(slotCount: Self.insertSlotCount, from: defaults),
             soundStyle: style
         )
     }

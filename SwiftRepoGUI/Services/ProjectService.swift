@@ -66,25 +66,10 @@ nonisolated enum SwiftProjectError: LocalizedError, Sendable {
 }
 
 nonisolated enum ProjectService {
-    static func inspect(projectPath: String, checkoutSchemeOverride: String = "") throws -> SwiftProjectInfo {
-        let snapshot = try validateProject(
-            projectPath: projectPath,
-            checkoutSchemeOverride: checkoutSchemeOverride
-        )
-        let repositories = snapshot.candidates.map { candidate in
-            SwiftRepository(
-                name: candidate.name,
-                path: candidate.path,
-                currentRevision: currentRevision(at: candidate.path)
-            )
-        }
-        return makeProjectInfo(snapshot: snapshot, repositories: sortRepositories(repositories))
-    }
-
     static func validateProject(
         projectPath: String,
         checkoutSchemeOverride: String = ""
-    ) throws -> ValidatedProjectSnapshot {
+    ) async throws -> ValidatedProjectSnapshot {
         let root = URL(fileURLWithPath: (projectPath as NSString).expandingTildeInPath, isDirectory: true)
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: root.path, isDirectory: &isDirectory), isDirectory.boolValue else {
@@ -112,11 +97,17 @@ nonisolated enum ProjectService {
         let arch = machineArch
         let swiftBuildDirectoryName = "swift-\(platform)-\(arch)"
         let candidates = try listRepositoryCandidates(in: root)
+        // One non-blocking git read for the branch, shared by both resolvers (previously two spawns).
+        let branch = await CheckoutSchemeResolver.currentBranch(in: swiftDirectory)
         let schemeResolution = CheckoutSchemeResolver.resolve(
             swiftDirectory: swiftDirectory,
+            currentBranch: branch,
             overrideScheme: checkoutSchemeOverride.isEmpty ? nil : checkoutSchemeOverride
         )
-        let availableSchemes = CheckoutSchemeResolver.availableSchemes(swiftDirectory: swiftDirectory)
+        let availableSchemes = CheckoutSchemeResolver.availableSchemes(
+            swiftDirectory: swiftDirectory,
+            currentBranch: branch
+        )
 
         return ValidatedProjectSnapshot(
             root: root,
@@ -154,14 +145,6 @@ nonisolated enum ProjectService {
         )
     }
 
-    static func repositoryRevisions(for project: SwiftProjectInfo) -> [String: String] {
-        var revisions: [String: String] = [:]
-        for repo in project.repositories {
-            revisions[repo.name] = currentRevision(at: repo.path)
-        }
-        return revisions
-    }
-
     static func changedRepositories(
         in project: SwiftProjectInfo,
         since revisions: [String: String]
@@ -169,11 +152,8 @@ nonisolated enum ProjectService {
         await withTaskGroup(of: SwiftRepository.self) { group in
             for repo in project.repositories {
                 group.addTask {
-                    SwiftRepository(
-                        name: repo.name,
-                        path: repo.path,
-                        currentRevision: currentRevision(at: repo.path)
-                    )
+                    let revision = await currentRevision(at: repo.path)
+                    return SwiftRepository(name: repo.name, path: repo.path, currentRevision: revision)
                 }
             }
 
@@ -194,11 +174,8 @@ nonisolated enum ProjectService {
         await withTaskGroup(of: SwiftRepository.self) { group in
             for candidate in candidates {
                 group.addTask {
-                    SwiftRepository(
-                        name: candidate.name,
-                        path: candidate.path,
-                        currentRevision: currentRevision(at: candidate.path)
-                    )
+                    let revision = await currentRevision(at: candidate.path)
+                    return SwiftRepository(name: candidate.name, path: candidate.path, currentRevision: revision)
                 }
             }
 
@@ -249,48 +226,11 @@ nonisolated enum ProjectService {
         }
     }
 
-    static func discoverRepositories(in root: URL) throws -> [SwiftRepository] {
-        try listRepositoryCandidates(in: root).map { candidate in
-            SwiftRepository(
-                name: candidate.name,
-                path: candidate.path,
-                currentRevision: currentRevision(at: candidate.path)
-            )
-        }
-    }
-
-    static func currentRevision(at repoPath: URL, timeout: TimeInterval = 2) -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["-C", repoPath.path, "rev-parse", "--short", "HEAD"]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = Pipe()
-        do {
-            try process.run()
-            guard waitForProcessExit(process, timeout: timeout) else { return nil }
-            guard process.terminationStatus == 0 else { return nil }
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        } catch {
-            return nil
-        }
-    }
-
-    private static func waitForProcessExit(_ process: Process, timeout: TimeInterval) -> Bool {
-        let deadline = Date(timeIntervalSinceNow: timeout)
-        while process.isRunning {
-            if Date() >= deadline {
-                process.terminate()
-                let terminationDeadline = Date(timeIntervalSinceNow: 0.25)
-                while process.isRunning && Date() < terminationDeadline {
-                    Thread.sleep(forTimeInterval: 0.01)
-                }
-                return !process.isRunning
-            }
-            Thread.sleep(forTimeInterval: 0.01)
-        }
-        return true
+    static func currentRevision(at repoPath: URL, timeout: TimeInterval = 2) async -> String? {
+        await AsyncProcess.gitOutput(
+            ["-C", repoPath.path, "rev-parse", "--short", "HEAD"],
+            timeout: .seconds(timeout)
+        )
     }
 
     static func detectBuildSubdirs(in buildRoot: URL) throws -> [String] {

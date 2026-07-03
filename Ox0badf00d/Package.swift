@@ -15,7 +15,12 @@ let package = Package(
         ),
     ],
     targets: [
-        .target(name: "Ox0badf00d"),
+        // Objective-C shim that turns AVAudioEngine's uncatchable NSExceptions into Swift errors.
+        .target(name: "Ox0badf00dObjC"),
+        .target(
+            name: "Ox0badf00d",
+            dependencies: ["Ox0badf00dObjC"]
+        ),
         .testTarget(
             name: "Ox0badf00dTests",
             dependencies: ["Ox0badf00d"]

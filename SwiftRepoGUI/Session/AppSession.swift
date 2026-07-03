@@ -1,9 +1,13 @@
 import Foundation
 import Observation
+import Ox0badf00d
 import SwiftData
 import SwiftXState
 import SwiftXStateInspectorUI
 import SwiftXStateSwiftUI
+#if canImport(AppKit)
+import AppKit
+#endif
 
 nonisolated enum SessionWaitError: Error, LocalizedError, Sendable {
     case projectLoadTimedOut(seconds: Int)
@@ -44,6 +48,10 @@ final class AppSession {
     @ObservationIgnored private var soundtrackDriver: SoundtrackEffectDriver?
     @ObservationIgnored private var trackedRecords: [UUID: BuildOperationRecord] = [:]
     @ObservationIgnored private(set) var lastErrorMessage: String?
+
+    /// Installed AudioUnit effects the user can drop into a soundtrack insert slot. Loaded off the
+    /// main actor once at startup; observed so the deck's slot picker fills in when ready.
+    private(set) var availableAudioEffects: [AudioComponentRef] = []
 
     var selectedSection: AppSectionID { navigation.context.section }
 
@@ -86,7 +94,7 @@ final class AppSession {
         soundtrack = soundtrackStore
         soundtrackDriver = SoundtrackEffectDriver(
             store: soundtrackStore,
-            style: soundStyle,
+            config: Self.audioConfig(for: soundStyle),
             defaults: settingsDefaults
         )
         build = mainStore.track(inspectedStore(
@@ -100,7 +108,34 @@ final class AppSession {
             settings.send(.restore(lastUsedSettings.options, lastUsedSettings.selectedRepository))
         }
         project.send(.restore)
+
+        Task { [weak self] in
+            let effects = await Task.detached(priority: .utility) { AudioUnitCatalog.effects() }.value
+            self?.availableAudioEffects = effects
+        }
     }
+
+    private static func audioConfig(for style: SoundPalette) -> AudioSessionConfig {
+        AudioSessionConfig(
+            sampleRate: style.sampleRate,
+            maximumFramesToRender: 4_096,
+            renderChunkFrames: style.streamRenderChunkFrames,
+            scheduleAheadBuffers: 3,
+            insertSlotCount: SoundtrackContext.insertSlotCount,
+            enableMasterLimiter: true,
+            maxTrackDuration: style.maxRenderedTrackDuration,
+            tailDuration: style.trackEndTailDuration,
+            gain: 1,
+            spatialization: .psychoacoustic3D(.spacious)
+        )
+    }
+
+    #if canImport(AppKit)
+    /// The native editor view controller for the AU currently in soundtrack insert `slot`.
+    func makeSoundtrackInsertEditor(slot: Int) async -> NSViewController? {
+        await soundtrackDriver?.makeInsertEditor(slot: slot)
+    }
+    #endif
 
     func attach(modelContext: ModelContext) {
         self.modelContext = modelContext

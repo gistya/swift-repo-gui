@@ -152,11 +152,16 @@ struct DashboardView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Label(title, systemImage: symbol)
                     .font(.monaco(size: 13, weight: .bold))
+                    .lineLimit(1)
                 Text(subtitle)
                     .font(.monaco(size: 11))
                     .foregroundStyle(Color.terminalGreen.opacity(0.75))
                     .multilineTextAlignment(.leading)
+                    // Reserve two lines for every subtitle so buttons keep a uniform height
+                    // regardless of how far each caption wraps.
+                    .lineLimit(2, reservesSpace: true)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .buttonStyle(RetroActionButtonStyle())
         .disabled(!project.context.isValid || project.matches(.loading) || build.matches(.running))
