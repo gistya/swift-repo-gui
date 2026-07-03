@@ -139,6 +139,25 @@ private final class ProcessPipeReader: @unchecked Sendable {
             var progress = BuildProgressSnapshot.zero
             var buffer = ""
 
+            // Coalesce progress to ~10 Hz. A compiler build emits thousands of `[x/y]` lines per
+            // second; forwarding every one drove O(build-lines) machine transitions + SwiftData
+            // writes. Every complete record is still parsed (the log and the step counter stay
+            // exact), but the latest snapshot is pushed onward at most once per 100 ms, with a final
+            // flush so the terminal state is never lost.
+            let minInterval: Duration = .milliseconds(100)
+            var lastEmittedAt: ContinuousClock.Instant?
+            var hasPendingEmit = false
+
+            func flushProgress(force: Bool) {
+                if !force, let last = lastEmittedAt, ContinuousClock.now - last < minInterval {
+                    hasPendingEmit = true
+                    return
+                }
+                onProgress(progress)
+                lastEmittedAt = ContinuousClock.now
+                hasPendingEmit = false
+            }
+
             while !Task.isCancelled {
                 let data = readHandle.availableData
                 if data.isEmpty { break }
@@ -148,20 +167,16 @@ private final class ProcessPipeReader: @unchecked Sendable {
                 outputTail.append(normalizedChunk)
                 buffer += chunk
 
+                // Parse only COMPLETE records; a trailing partial line stays in `buffer` for the next
+                // chunk (parsing it produced half-formed messages that flashed in the UI).
                 while let record = Self.popRecord(from: &buffer) {
                     progress = ProgressParser.parse(line: record, startedAt: startedAt, previous: progress)
-                    onProgress(progress)
                 }
-
-                if !buffer.isEmpty {
-                    progress = ProgressParser.parse(line: buffer, startedAt: startedAt, previous: progress)
-                    onProgress(progress)
-                }
+                flushProgress(force: false)
             }
 
-            if !buffer.isEmpty {
-                progress = ProgressParser.parse(line: buffer, startedAt: startedAt, previous: progress)
-                onProgress(progress)
+            if hasPendingEmit {
+                flushProgress(force: true)
             }
         } catch {
             logWriter.closeAfterFailure()

@@ -263,6 +263,6 @@ struct TerminalTabButton: View {
 }
 
 #Preview {
-    ContentView(session: AppSession())
+    ContentView(session: .shared)
         .modelContainer(for: [BuildOperationRecord.self, SavedBuildProfile.self], inMemory: true)
 }

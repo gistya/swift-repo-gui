@@ -31,6 +31,15 @@ nonisolated enum SessionWaitError: Error, LocalizedError, Sendable {
 @MainActor
 @Observable
 final class AppSession {
+    /// The one app-lifetime session. `@State private var session = AppSession()` re-evaluates its
+    /// default expression every time the `App` (or a view) struct is re-initialized — unlike
+    /// `@StateObject`, whose initializer is autoclosured and runs once. Each re-eval would spin up
+    /// another `SoundtrackEffectDriver` + `TrackerAudioEngine` (+ `AVAudioEngine`), and multiple live
+    /// engines fighting over the audio HAL is what floods CoreAudio. Referencing this `static let`
+    /// (created exactly once, lazily, on first access) guarantees a single session/engine no matter
+    /// how many times SwiftUI re-creates the App struct.
+    static let shared = AppSession()
+
     static let projectLoadTimeout: Duration = .seconds(120)
     static let buildTimeout: Duration = .seconds(86_400)
 
@@ -56,6 +65,7 @@ final class AppSession {
     var selectedSection: AppSectionID { navigation.context.section }
 
     init(modelContext: ModelContext? = nil, settingsDefaults: UserDefaults = .standard) {
+        //NSLog("%@", "[OxAudio] AppSession.init")
         self.modelContext = modelContext
         self.settingsDefaults = settingsDefaults
         let mainStore = MainStore()

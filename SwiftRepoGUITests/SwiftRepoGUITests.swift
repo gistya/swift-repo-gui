@@ -122,6 +122,63 @@ struct SwiftRepoGUITests {
         #expect(display.title == "Bubble Machine!")
     }
 
+    @Test func buildEventsDoNotRecueSoundtrack() throws {
+        let track = TrackerModuleTrack(
+            url: URL(fileURLWithPath: "/tmp/flicker.xm"),
+            fileName: "flicker.xm",
+            title: "flicker",
+            format: "XM"
+        )
+        let soundStyle = SwiftBuilderStyle.current.sound
+        let context = SoundtrackContext(
+            isMuted: false,
+            tracks: [track],
+            volume: Double(soundStyle.masterVolume),
+            soundStyle: soundStyle
+        )
+        let machine = SoundtrackMachine(context: context)
+        let schema = machine.buildSchema()
+        let resolved = schema.resolve(id: "soundtrack-build-\(UUID().uuidString)", context: context)
+        var snapshot = initialTransition(resolved).snapshot
+
+        // Launch cues a startup track and we confirm it's playing.
+        snapshot = transition(resolved, snapshot: snapshot, event: SoundtrackEvent.launch.event).snapshot
+        guard case let .play(_, generation, _)? = snapshot.context.pendingAudioRequest?.command else {
+            Issue.record("Launch should cue a startup track.")
+            return
+        }
+        snapshot = transition(
+            resolved,
+            snapshot: snapshot,
+            event: SoundtrackEvent.playbackPrepared(moduleTitle: "flicker", generation: generation, started: true).event
+        ).snapshot
+        #expect(schema.configuration(from: snapshot.value)?.matches(.playing) == true)
+        let stableGeneration = snapshot.context.generation
+
+        // A whole build lifecycle — start, noisy sub-stage flicker, then success — must NOT change
+        // the track. Track changes are wired only to natural track-end for now; the build-transition
+        // signalling hooks are deliberately dormant. (This is also the regression guard for the
+        // CoreAudio flood: re-cueing on stage flicker drove rapid engine.play() calls.)
+        let buildEvents: [SoundtrackBuildSnapshot] = [
+            SoundtrackBuildSnapshot(stage: .building, isRunning: true, succeeded: false),
+            SoundtrackBuildSnapshot(stage: .testing, isRunning: true, succeeded: false),
+            SoundtrackBuildSnapshot(stage: .deploying, isRunning: true, succeeded: false),
+            SoundtrackBuildSnapshot(stage: .building, isRunning: true, succeeded: false),
+            SoundtrackBuildSnapshot(stage: .testing, isRunning: true, succeeded: false),
+            SoundtrackBuildSnapshot(stage: .off, isRunning: false, succeeded: true),
+        ]
+        for build in buildEvents {
+            snapshot = transition(
+                resolved,
+                snapshot: snapshot,
+                event: SoundtrackEvent.buildSnapshotChanged(build).event
+            ).snapshot
+        }
+
+        #expect(snapshot.context.generation == stableGeneration)
+        #expect(schema.configuration(from: snapshot.value)?.matches(.playing) == true)
+    }
+
     @Test func soundtrackMachineQueuesAudioCommandsBeforeConfirmedPlaybackStateChanges() throws {
         let track = TrackerModuleTrack(
             url: URL(fileURLWithPath: "/tmp/drozerix_-_bubble_machine.xm"),
@@ -506,7 +563,9 @@ struct SwiftRepoGUITests {
         #expect(result.succeeded)
         #expect(finalLog.contains("[2/2] second"))
         #expect(finalLog.contains("Process exited with code 0."))
-        #expect(snapshots.contains { $0.completedSteps == 1 && $0.totalSteps == 2 })
+        // Progress is coalesced to ~10 Hz, so the intermediate [1/2] step may be merged into the
+        // final emit when both steps arrive in a single read; the terminal [2/2] snapshot is always
+        // flushed, and the log itself (asserted above) retains every line verbatim.
         #expect(snapshots.contains { $0.completedSteps == 2 && $0.totalSteps == 2 })
     }
 

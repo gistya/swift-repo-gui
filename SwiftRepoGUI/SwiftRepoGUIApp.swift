@@ -1,10 +1,18 @@
 import AppKit
 import SwiftUI
 import SwiftData
+import OSLog
 
 @main
 struct SwiftRepoGUIApp: App {
-    @State private var session = AppSession()
+    // `AppSession.shared` (a lazily-created `static let`) is constructed exactly once, so re-inits of
+    // this App struct can't spin up extra audio engines. See `AppSession.shared`.
+    @State private var session = AppSession.shared
+    private var log: Logger = .init(subsystem: "app", category: "log")
+    
+    init() {
+        log.debug("initializing app")
+    }
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([

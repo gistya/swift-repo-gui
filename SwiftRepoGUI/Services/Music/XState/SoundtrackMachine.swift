@@ -518,23 +518,26 @@ private extension SoundtrackMachine {
         for event: SoundtrackEvent?,
         previous context: SoundtrackContext
     ) -> SoundtrackPurpose? {
-        guard case let .buildSnapshotChanged(buildSnapshot)? = event,
-              !context.isMuted,
-              context.playbackPhase != .paused,
-              !context.tracks.isEmpty else { return nil }
-
-        if buildSnapshot.isRunning, !context.wasBuildRunning {
-            return .stage(buildSnapshot.stage)
-        }
-        if buildSnapshot.stage == .failed, context.currentStage != .failed {
-            return .failure
-        }
-        if !buildSnapshot.isRunning, context.wasBuildRunning, buildSnapshot.succeeded {
-            return .success
-        }
-        if buildSnapshot.stage.isActive, buildSnapshot.stage != context.currentStage {
-            return .stage(buildSnapshot.stage)
-        }
+        // DORMANT HOOK — build events never re-cue the soundtrack yet. For now the track changes
+        // ONLY when the current one ends (natural auto-advance). All the wiring stays live
+        // (`.buildSnapshotChanged` still updates the displayed stage via `applyBuildContext`);
+        // this is just the one decision point, deliberately turned off.
+        //
+        // Intended future behavior: change the track to SIGNAL A MAJOR BUILD TRANSITION —
+        // BUILDING → TESTING → MEASURING → DEPLOYING → ERROR/IDLE — plus distinct success/failure
+        // cues. It can't simply key off `buildSnapshot.stage != currentStage`: `BuildStage.runningStage`
+        // classifies from keywords in each progress line, so the raw stage flickers many times per
+        // second during a compiler build, and re-cueing on that flood the audio engine with rapid
+        // engine.play() calls. Enabling this needs COARSE, DEBOUNCED transition detection (only act
+        // once a new stage has held steady). The shape it will take:
+        //
+        //   guard case let .buildSnapshotChanged(build)? = event,
+        //         !context.isMuted, context.playbackPhase != .paused, !context.tracks.isEmpty
+        //   else { return nil }
+        //   if build.isRunning, !context.wasBuildRunning { return .stage(build.stage) }       // started
+        //   if build.stage == .failed, context.currentStage != .failed { return .failure }    // failed
+        //   if !build.isRunning, context.wasBuildRunning, build.succeeded { return .success }  // finished
+        //   if <debounced stage change> { return .stage(build.stage) }                         // phase change
         return nil
     }
 

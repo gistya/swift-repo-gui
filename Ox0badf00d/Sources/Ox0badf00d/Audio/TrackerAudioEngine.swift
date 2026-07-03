@@ -48,6 +48,7 @@ public actor TrackerAudioEngine {
     private var ticksContinuation: AsyncStream<Void>.Continuation?
 
     public init(config: AudioSessionConfig = AudioSessionConfig()) {
+        //NSLog("%@", "[OxAudio] TrackerAudioEngine.init")
         self.config = config
         self.renderFormat = AVAudioFormat(
             standardFormatWithSampleRate: config.sampleRate,
@@ -75,8 +76,12 @@ public actor TrackerAudioEngine {
         // Engine wiring uses only stored properties, so it is legal directly in the actor initializer.
         engine.attach(player)
         if let master { engine.attach(master) }
-        // The macOS analog of an IO buffer size: bound the output render quantum before starting.
-        engine.outputNode.auAudioUnit.maximumFramesToRender = config.maximumFramesToRender
+        // We intentionally do NOT force `outputNode.auAudioUnit.maximumFramesToRender` here. On macOS
+        // that write pushes a device buffer-size change down to the HAL, which some output devices
+        // reject with a benign-but-noisy `HALC_ShellObject::SetPropertyData … 'nope'` (visible under
+        // the Xcode debugger) — and it buys nothing for completion-driven `scheduleBuffer` streaming,
+        // where the engine already feeds buffers at the device's own IO quantum. `AudioSessionConfig`
+        // still carries the value for callers that adopt a manual-render / AVAudioSourceNode path.
         var previous: AVAudioNode = player
         if let master {
             engine.connect(player, to: master, format: renderFormat)
@@ -379,10 +384,14 @@ public actor TrackerAudioEngine {
     }
 
     private func instantiate(_ ref: AudioComponentRef) async throws -> AVAudioUnit {
-        // Load user plugins OUT OF PROCESS: an arbitrary third-party AU (including copy-protected
-        // ones whose PACE/iLok initializers can crash on load) then runs in a separate extension
-        // process, so a failure surfaces as a thrown error instead of taking down the host app.
-        try await AVAudioUnit.instantiate(with: ref.audioComponentDescription, options: .loadOutOfProcess)
+        // Apple's built-in AudioUnits are trusted and lightweight: host them IN-PROCESS for lowest
+        // latency and no cross-process IPC overload. Third-party plugins load OUT OF PROCESS so an
+        // arbitrary AU — including copy-protected ones whose PACE/iLok initializers crash on load —
+        // fails as a thrown error instead of taking down the host (at the cost of some latency; a
+        // heavyweight modeling plugin may still be too slow to host in a lightweight background player).
+        let options: AudioComponentInstantiationOptions =
+            ref.manufacturer == kAudioUnitManufacturer_Apple ? [] : .loadOutOfProcess
+        return try await AVAudioUnit.instantiate(with: ref.audioComponentDescription, options: options)
     }
 
     // MARK: - Helpers
