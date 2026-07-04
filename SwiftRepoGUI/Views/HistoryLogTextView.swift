@@ -44,6 +44,7 @@ struct HistoryLogFileView: View {
         VStack(spacing: 12) {
             ProgressView()
                 .controlSize(.large)
+                .frame(width: 32, height: 32)
             Text("Loading Log...")
                 .font(.monaco(size: 13, weight: .bold))
                 .foregroundStyle(Color.terminalGreen)

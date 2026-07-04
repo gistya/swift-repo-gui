@@ -24,7 +24,7 @@ struct ToolchainView: View {
                     banner(store.context.lastError ?? "build-presets.ini could not be read.", isError: true)
                 } else if store.matches(.loading) {
                     HStack(spacing: 8) {
-                        ProgressView().controlSize(.small)
+                        ProgressView().controlSize(.small).frame(width: 16, height: 16)
                         Text("Parsing build-presets.ini…").foregroundStyle(Color.terminalGreen.opacity(0.75))
                     }
                 }

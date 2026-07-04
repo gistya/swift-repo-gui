@@ -59,6 +59,7 @@ struct DashboardView: View {
                     HStack(spacing: 8) {
                         ProgressView()
                             .controlSize(.small)
+                            .frame(width: 16, height: 16)
                         Text("Discovering repositories…")
                             .font(.monaco(size: 13))
                             .foregroundStyle(Color.terminalGreen.opacity(0.75))
@@ -189,6 +190,7 @@ struct DashboardView: View {
                 HStack(spacing: 8) {
                     ProgressView()
                         .controlSize(.small)
+                        .frame(width: 16, height: 16)
                     Text("Loading repository list…")
                         .foregroundStyle(Color.terminalGreen.opacity(0.75))
                 }

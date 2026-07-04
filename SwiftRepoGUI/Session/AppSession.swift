@@ -73,7 +73,14 @@ final class AppSession {
         self.settingsDefaults = settingsDefaults
         let mainStore = MainStore()
         let inspectorStore = InspectorStore()
-        let inspect = inspectorStore.observe()
+        // Hide the one-shot background invoke children from the inspector — they're internal
+        // async plumbing (`Invoke(id: "parse")` in ToolchainMachine, `Invoke(id: "inspect")` in
+        // ProjectMachine), not app-level state machines worth showing as actor rows. An invoked
+        // child inherits its parent's inspect sink and registers with `systemId == invoke.id`.
+        let inspect = AppSession.filteredInspect(
+            inspectorStore.observe(),
+            hidingSystemIds: ["parse", "inspect"]
+        )
         store = mainStore
         inspector = inspectorStore
         navigation = mainStore.track(nonInspectedStore(
@@ -518,6 +525,22 @@ final class AppSession {
             selectedRepository: settings.context.selectedRepository,
             to: settingsDefaults
         )
+    }
+}
+
+extension AppSession {
+    /// Wrap an inspect sink so events originating from actors whose `systemId` is in `hidingSystemIds`
+    /// are dropped before they reach the inspector. Used to keep transient background invoke children
+    /// (the "parse"/"inspect" helpers) out of the actor list; events where a hidden actor is merely
+    /// the `source` (e.g. its done-event delivered to the parent) still pass through under the parent.
+    nonisolated static func filteredInspect(
+        _ sink: @escaping @Sendable (InspectionEvent) -> Void,
+        hidingSystemIds hidden: Set<String>
+    ) -> @Sendable (InspectionEvent) -> Void {
+        { event in
+            if let systemId = event.actor.systemId, hidden.contains(systemId) { return }
+            sink(event)
+        }
     }
 }
 
