@@ -142,7 +142,7 @@ final class Ox0badf00dTests: XCTestCase {
         let sample = TrackerSample(
             name: "Left",
             pcm: Array(repeating: 1, count: 256),
-            volume: 0.7,
+            volume: 1,
             panning: 0,
             loopStart: 0,
             loopLength: 256,

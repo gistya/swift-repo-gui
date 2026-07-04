@@ -146,10 +146,10 @@ final class AppSession {
             renderChunkFrames: style.streamRenderChunkFrames,
             scheduleAheadBuffers: 3,
             insertSlotCount: SoundtrackContext.insertSlotCount,
-            enableMasterLimiter: true,
+            enableMasterLimiter: false,
             maxTrackDuration: style.maxRenderedTrackDuration,
             tailDuration: style.trackEndTailDuration,
-            gain: 1,
+            gain: 0.2,
             spatialization: .psychoacoustic3D(.spacious)
         )
     }
