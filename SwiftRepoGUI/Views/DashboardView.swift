@@ -18,7 +18,6 @@ struct DashboardView: View {
                 projectHeader
                 quickActions
                 BuildProgressPanel(build: build)
-                repositorySection
             }
             .padding()
         }
@@ -68,33 +67,48 @@ struct DashboardView: View {
                         .foregroundStyle(project.matches(.error) ? Color.terminalFailureRed : Color.terminalGreen)
                         .font(.monaco(size: 13))
                 } else if let info = project.context.projectInfo {
-                    HStack(spacing: 16) {
-                        Label("\(info.repositories.count) repos", systemImage: "folder")
-                        if let swift = info.repositories.first(where: \.isPrimary)?.currentRevision {
-                            Label("swift @ \(swift)", systemImage: "swift")
-                        }
-                    }
-                    .font(.monaco(size: 11))
-                    .foregroundStyle(Color.terminalGreen.opacity(0.75))
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(spacing: 16) {
+                                Label("\(info.repositories.count) repos", systemImage: "folder")
+                                if let swift = info.repositories.first(where: \.isPrimary)?.currentRevision {
+                                    Label("swift @ \(swift)", systemImage: "swift")
+                                }
+                            }
+                            .font(.monaco(size: 11))
+                            .foregroundStyle(Color.terminalGreen.opacity(0.75))
 
-                    if !info.detectedBuildSubdirs.isEmpty {
-                        HStack {
-                            Text("Build directory")
-                                .font(.monaco(size: 11, weight: .semibold))
-                                .foregroundStyle(Color.terminalGreen.opacity(0.8))
-                            Spacer()
-                            TerminalMenu(
-                                selection: project.context.selectedBuildSubdir,
-                                options: info.detectedBuildSubdirs.map { TerminalMenuOption($0, $0) },
-                                onSelect: { project.send(.setBuildSubdir($0)) },
-                                width: 260
-                            )
+                            if !info.detectedBuildSubdirs.isEmpty {
+                                HStack {
+                                    Text("Build directory")
+                                        .font(.monaco(size: 11, weight: .semibold))
+                                        .foregroundStyle(Color.terminalGreen.opacity(0.8))
+                                    TerminalMenu(
+                                        selection: project.context.selectedBuildSubdir,
+                                        options: info.detectedBuildSubdirs.map { TerminalMenuOption($0, $0) },
+                                        onSelect: { project.send(.setBuildSubdir($0)) },
+                                        width: 260
+                                    )
+                                }
+                                checkoutSchemeSection(info: info)
+                                    .frame(alignment: .init(horizontal: .trailing, vertical: .top))
+                            }
                         }
+                        Spacer()
+                        repositorySection
                     }
+                    
+                    Text("Branch `\(info.swiftBranch)` → scheme `\(info.checkoutScheme)` for update-checkout.")
+                        .font(.monaco(size: 11))
+                        .foregroundStyle(Color.terminalGreen.opacity(0.75))
 
-                    checkoutSchemeSection(info: info)
+                    Text(info.schemeResolutionSource.explanation)
+                        .font(.monaco(size: 11))
+                        .foregroundStyle(Color.terminalGreen.opacity(0.75))
+
                 }
             }
+            .frame(width: .infinity)
         }
     }
 
@@ -105,7 +119,6 @@ struct DashboardView: View {
                 Text("Checkout scheme")
                     .font(.monaco(size: 11, weight: .semibold))
                     .foregroundStyle(Color.terminalGreen.opacity(0.8))
-                Spacer()
                 TerminalMenu(
                     selection: project.context.checkoutSchemeOverride,
                     options: [TerminalMenuOption("", "Auto (\(info.checkoutScheme))")]
@@ -114,14 +127,6 @@ struct DashboardView: View {
                     width: 260
                 )
             }
-
-            Text("Branch `\(info.swiftBranch)` → scheme `\(info.checkoutScheme)` for update-checkout.")
-                .font(.monaco(size: 11))
-                .foregroundStyle(Color.terminalGreen.opacity(0.75))
-
-            Text(info.schemeResolutionSource.explanation)
-                .font(.monaco(size: 11))
-                .foregroundStyle(Color.terminalGreen.opacity(0.75))
         }
     }
 
@@ -196,7 +201,6 @@ struct DashboardView: View {
                     Text("Repository")
                         .font(.monaco(size: 11, weight: .semibold))
                         .foregroundStyle(Color.terminalGreen.opacity(0.8))
-                    Spacer()
                     TerminalMenu(
                         selection: settings.context.selectedRepository,
                         options: repos.map { TerminalMenuOption($0.name, $0.name) },
