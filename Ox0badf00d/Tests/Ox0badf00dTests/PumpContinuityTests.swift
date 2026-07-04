@@ -133,4 +133,55 @@ final class PumpContinuityTests: XCTestCase {
         XCTAssertTrue(resumedPlaying, "watchdog did not resume the player")
         XCTAssertTrue(afterRMS.contains { $0 > 0.001 }, "no audio after watchdog recovery: \(afterRMS)")
     }
+
+    /// The watchdog must NOT start a disconnected player — doing so raises an uncaught NSException that
+    /// terminates the process (the crash seen when changing plugins during playback). If the guard
+    /// works, the process survives the watchdog interval and the engine stays up.
+    func testWatchdogDoesNotStartDisconnectedPlayer() async throws {
+        let url = URL(fileURLWithPath: "/Users/shad/dev/originalPublic/swift-repo-gui/SwiftRepoGUI/Resources/TrackerModules/drozerix_-_stardust_jam.mod")
+        let engine = TrackerAudioEngine(config: AudioSessionConfig(gain: 1))
+        await engine.play(moduleURL: url, generation: 1, startImmediately: true)
+        try await Task.sleep(for: .milliseconds(300))
+
+        // Player detached + stopped, as during a setInsert rewire. isPlayingIntent is still true.
+        await engine._disconnectPlayerForTest()
+        let connected = await engine._playerConnected()
+        XCTAssertFalse(connected, "player should be disconnected")
+
+        // Let the watchdog tick several times. Pre-fix this crashed the process here.
+        try await Task.sleep(for: .milliseconds(800))
+        let running = await engine._engineRunning()
+        await engine.stop(generation: 1)
+        XCTAssertTrue(running, "engine died — watchdog started a disconnected player")
+    }
+
+    /// Smoke test: swapping an insert plugin in and out repeatedly while the watchdog runs must not
+    /// crash and must keep audio flowing.
+    func testChangingInsertDuringPlaybackDoesNotCrash() async throws {
+        let url = URL(fileURLWithPath: "/Users/shad/dev/originalPublic/swift-repo-gui/SwiftRepoGUI/Resources/TrackerModules/drozerix_-_stardust_jam.mod")
+        let engine = TrackerAudioEngine(config: AudioSessionConfig(gain: 1))
+        let probe = WindowProbe()
+        await engine._installOutputTap { probe.add($0) }
+        await engine.play(moduleURL: url, generation: 1, startImmediately: true)
+        try await Task.sleep(for: .milliseconds(300))
+
+        let limiter = AudioComponentRef(
+            type: kAudioUnitType_Effect,
+            subType: kAudioUnitSubType_PeakLimiter,
+            manufacturer: kAudioUnitManufacturer_Apple,
+            name: "PeakLimiter"
+        )
+        for _ in 0..<3 {
+            try await engine.setInsert(slot: 0, component: limiter)
+            try await Task.sleep(for: .milliseconds(200))
+            try await engine.setInsert(slot: 0, component: nil)
+            try await Task.sleep(for: .milliseconds(200))
+        }
+        let rms = probe.drainRMS()
+        let running = await engine._engineRunning()
+        print("### insert-change smoke: running=\(running) rms=\(String(format: "%.4f", rms))")
+        await engine.stop(generation: 1)
+        XCTAssertTrue(running, "engine died during insert changes")
+        XCTAssertGreaterThan(rms, 0.001, "audio died after insert changes")
+    }
 }

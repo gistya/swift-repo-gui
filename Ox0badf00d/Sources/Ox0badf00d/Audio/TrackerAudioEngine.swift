@@ -172,7 +172,9 @@ public actor TrackerAudioEngine {
 
     private func watchdogTick(generation: Int) -> Bool {
         guard generation == playGeneration, renderer != nil, !didRenderFinalChunk else { return false }
-        if isPlayingIntent, engine.isRunning, !player.isPlaying {
+        // Only recover when the player is genuinely stranded — NOT while it is momentarily detached
+        // during `setInsert` graph rewiring, where re-priming would start a disconnected node (crash).
+        if isPlayingIntent, engine.isRunning, !player.isPlaying, playerIsConnected {
             Self.log.info("Playback watchdog: player stopped unexpectedly — re-priming to resume.")
             teardownPump()
             primePlayback(generation: generation, startImmediately: true)
@@ -194,11 +196,19 @@ public actor TrackerAudioEngine {
             if didRenderFinalChunk { break }
             scheduleNextChunk(generation: generation)
         }
-        if startImmediately { player.play() }
+        // Starting a node whose output isn't connected throws an uncaught NSException that terminates
+        // the process, so never do it — e.g. mid `setInsert` graph rewiring.
+        if startImmediately, playerIsConnected { player.play() }
 
         pumpTask = Task { [weak self] in
             await self?.runPump(stream: ticks.stream, generation: generation)
         }
+    }
+
+    /// Whether the player node's output is wired into the graph. `AVAudioPlayerNode.play()` raises a
+    /// fatal `NSException` ("player started when in a disconnected state") if called while detached.
+    private var playerIsConnected: Bool {
+        !engine.outputConnectionPoints(for: player, outputBus: 0).isEmpty
     }
 
     public func pause(generation: Int) {
@@ -342,21 +352,32 @@ public actor TrackerAudioEngine {
     public func setInsert(slot: Int, component: AudioComponentRef?, fullStateData: Data? = nil) async throws {
         guard slot >= 0, slot < insertUnits.count else { throw TrackerAudioError.invalidSlot }
 
-        if let existing = insertUnits[slot] {
-            engine.disconnectNodeOutput(existing)
-            engine.detach(existing)
-            insertUnits[slot] = nil
-        }
-
+        // Clearing the slot has no async work — reconfigure the graph synchronously.
         guard let component else {
+            if let existing = insertUnits[slot] {
+                engine.disconnectNodeOutput(existing)
+                engine.detach(existing)
+                insertUnits[slot] = nil
+            }
             try rebuildInsertChain()
             return
         }
 
+        // Instantiate the new AU BEFORE touching the graph. This is the ONLY suspension point in this
+        // method; leaving the existing chain intact across it keeps the player connected, so the
+        // playback watchdog can't re-prime into a disconnected graph and crash the process with
+        // "player started when in a disconnected state". Everything after this await is synchronous,
+        // so the graph swap is atomic on the actor.
         let unit = try await instantiate(component)
         if let fullStateData,
            let plist = (try? PropertyListSerialization.propertyList(from: fullStateData, options: [], format: nil)) as? [String: Any] {
             unit.auAudioUnit.fullState = plist
+        }
+
+        if let existing = insertUnits[slot] {
+            engine.disconnectNodeOutput(existing)
+            engine.detach(existing)
+            insertUnits[slot] = nil
         }
         engine.attach(unit)
         insertUnits[slot] = unit
@@ -499,9 +520,18 @@ public actor TrackerAudioEngine {
     /// watchdog exists to recover from.
     func _stopPlayerForTest() { player.stop() }
 
+    /// Detaches the player's output + stops it — mimics the window during `setInsert` where the graph
+    /// is being rewired and the player is momentarily disconnected.
+    func _disconnectPlayerForTest() {
+        player.stop()
+        engine.disconnectNodeOutput(player)
+    }
+
     func _engineRunning() -> Bool { engine.isRunning }
 
     func _playerPlaying() -> Bool { player.isPlaying }
+
+    func _playerConnected() -> Bool { playerIsConnected }
 
     private func emit(_ event: TrackerAudioEvent) {
         eventContinuation.yield(event)
