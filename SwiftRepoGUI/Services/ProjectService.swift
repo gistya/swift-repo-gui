@@ -1,4 +1,5 @@
 import Foundation
+import SwiftXState
 
 nonisolated struct SwiftRepository: Identifiable, Hashable, Sendable, Equatable {
     let name: String

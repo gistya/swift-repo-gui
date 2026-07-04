@@ -12,6 +12,7 @@ struct SwiftRepoGUIApp: App {
     
     init() {
         log.debug("initializing app")
+        FontLoader.registerFonts()
     }
 
     var sharedModelContainer: ModelContainer = {

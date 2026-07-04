@@ -24,6 +24,13 @@ extension Font {
     ) -> Font {
         .custom(SwiftBuilderStyle.current.fonts.monospaceName, size: size).weight(weight)
     }
+    
+    static func lcd(
+        size: CGFloat = CGFloat(SwiftBuilderStyle.current.fonts.defaultSize),
+        weight: Font.Weight = .regular
+    ) -> Font {
+        .custom(SwiftBuilderStyle.current.fonts.lcdName, size: size).weight(weight)
+    }
 }
 
 extension View {
@@ -55,18 +62,15 @@ struct RetroTitleBar: View {
 
             HStack(spacing: 18) {
                 brand
-                    .frame(width: 240, alignment: .leading)
-
-                Spacer(minLength: 10)
+                    .frame(minWidth: 250, alignment: .leading)
+                    .layoutPriority(2)
 
                 VStack(spacing: 6) {
                     LcdModuleDisplay(text: module, stage: stage)
                     StageLEDStrip(stage: stage)
                 }
-                .frame(maxWidth: 390)
+                //.frame(maxWidth: 390)
                 .layoutPriority(1)
-
-                Spacer(minLength: 10)
 
                 VStack(alignment: .trailing, spacing: 7) {
                     HStack(spacing: 10) {
@@ -89,7 +93,8 @@ struct RetroTitleBar: View {
                         SoundtrackDeckView(deck: soundtrackDeck)
                     }
                 }
-                .frame(width: soundtrackDeck == nil ? 260 : 318, alignment: .trailing)
+                .frame(minWidth: soundtrackDeck == nil ? 260 : 318, alignment: .trailing)
+                .layoutPriority(2)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
@@ -104,19 +109,22 @@ struct RetroTitleBar: View {
     }
 
     private var brand: some View {
-        HStack(spacing: 10) {
+        HStack() {
             ZStack {
                 Image(nsImage: NSImage(named: "AppIcon") ?? NSApp.applicationIconImage)
                     .resizable()
-                    .frame(width: 64, height: 64)
+                    .frame(width: 100, height: 100)
+                    .rotationEffect(.degrees(-20.0))
             }
 
             VStack(alignment: .leading, spacing: 0) {
                 Text("SwiftBuild")
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
                     .font(.monaco(size: 24, weight: .bold))
                     .foregroundStyle(Color.terminalGreen)
                     .shadow(color: Color.terminalGreen.opacity(0.75), radius: 4)
-                    .shadow(color: .black.opacity(0.9), radius: 1, x: 1, y: 1)
+                    .shadow(color: .black.opacity(0.9), radius: 3, x: 3, y: 3)
 
                 Text("swift-project control surface")
                     .font(.monaco(size: 10, weight: .semibold))
@@ -494,20 +502,19 @@ struct LcdModuleDisplay: View {
 
             ZStack {
                 Text(text)
-                    .font(.monaco(size: 29, weight: .heavy))
+                    .font(.lcd(size: 29, weight: .heavy))
                     .minimumScaleFactor(0.45)
                     .lineLimit(1)
                     .tracking(0)
-                    .foregroundStyle(.black.opacity(stage == .off ? 0.18 : 0.28))
-                    .offset(x: 1.6, y: 1.8)
+                    .foregroundStyle(.black.opacity(0.3))
+                    .offset(x: 3.5, y: 3.5)
 
                 Text(text)
-                    .font(.monaco(size: 29, weight: .heavy))
+                    .font(.lcd(size: 29, weight: .heavy))
                     .minimumScaleFactor(0.45)
                     .lineLimit(1)
                     .tracking(0)
-                    .foregroundStyle(.black.opacity(stage == .off ? 0.32 : 0.88))
-                    .shadow(color: .white.opacity(0.18), radius: 0, x: -0.8, y: -0.8)
+                    .foregroundStyle(.black.opacity(1.0))
             }
             .padding(.horizontal, 18)
         }

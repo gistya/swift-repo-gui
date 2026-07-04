@@ -11,6 +11,7 @@ nonisolated struct AppStyle: Codable, Equatable, Sendable {
     static let `default` = AppStyle(
         fonts: FontPalette(
             monospaceName: "Monaco",
+            lcdName: "12SegmentDisplay",
             defaultSize: 13,
             smallSize: 11,
             titleSize: 24
@@ -62,6 +63,7 @@ nonisolated enum SwiftBuilderStyle {
 
 nonisolated struct FontPalette: Codable, Equatable, Sendable {
     var monospaceName: String
+    var lcdName: String
     var defaultSize: Double
     var smallSize: Double
     var titleSize: Double

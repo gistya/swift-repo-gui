@@ -72,7 +72,9 @@ struct ContentView: View {
         }
         .onAppear {
             session.attach(modelContext: modelContext)
-            session.soundtrack.send(.launch)
+            // `.launch` is owned by SoundtrackEffectDriver, which fires it only after the persisted
+            // audio settings (volume / inserts) are live on the engine — so default playback can't
+            // start before the saved volume lands. We only seed the current build stage here.
             session.soundtrack.send(.buildSnapshotChanged(SoundtrackBuildSnapshot(session.build.context)))
             keyboardFocus = true
         }

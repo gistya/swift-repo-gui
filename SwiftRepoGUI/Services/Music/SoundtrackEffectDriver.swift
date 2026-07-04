@@ -29,6 +29,7 @@ final class SoundtrackEffectDriver {
     private var eventsTask: Task<Void, Never>?
     private var snapshotTask: Task<Void, Never>?
     private var commandTask: Task<Void, Never>?
+    private var startupTask: Task<Void, Never>?
     private let commandStream: AsyncStream<SoundtrackAudioRequest>
     private let commandContinuation: AsyncStream<SoundtrackAudioRequest>.Continuation
 
@@ -48,25 +49,9 @@ final class SoundtrackEffectDriver {
         self.commandStream = commands.stream
         self.commandContinuation = commands.continuation
 
-        // Restore initial volume + any persisted insert slots into the live engine.
         let initialContext = store.context
         let engine = self.engine
         let store = self.store
-        Task { await engine.setVolume(initialContext.volume) }
-        for (index, slot) in initialContext.insertSlots.enumerated() where slot.component != nil {
-            let component = slot.component
-            let bypassed = slot.isBypassed
-            Task { @MainActor in
-                do {
-                    try await engine.setInsert(slot: index, component: component)
-                    await engine.setInsertBypass(slot: index, bypassed: bypassed)
-                } catch {
-                    // Persisted plugin can't be hosted here (missing / incompatible format). Clear
-                    // it so it isn't retried every launch and the UI reflects the real state.
-                    store.send(.setInsertSlot(index: index, component: nil))
-                }
-            }
-        }
 
         // Engine outcomes → machine events.
         let events = engine.events
@@ -92,12 +77,35 @@ final class SoundtrackEffectDriver {
                 self?.handle(snapshot.context)
             }
         }
+
+        // Ordered startup: apply the persisted audio settings (master volume, THEN insert slots) to
+        // the live engine, and only then kick the machine's default `.launch` behavior. Auto-play
+        // therefore never begins until the saved state is fully loaded — so the startup track can't
+        // play a fraction of a second at the wrong volume (or without its effect chain) before those
+        // settings land. Owning `.launch` here rather than in the view's `.onAppear` is what
+        // guarantees the ordering; `.launch` is idempotent (`startupPlayed`) so nothing can double it.
+        startupTask = Task { @MainActor [weak self] in
+            guard self != nil else { return }
+            await engine.setVolume(initialContext.volume)
+            for (index, slot) in initialContext.insertSlots.enumerated() where slot.component != nil {
+                do {
+                    try await engine.setInsert(slot: index, component: slot.component)
+                    await engine.setInsertBypass(slot: index, bypassed: slot.isBypassed)
+                } catch {
+                    // Persisted plugin can't be hosted here (missing / incompatible format). Clear it
+                    // so it isn't retried every launch and the UI reflects the real state.
+                    store.send(.setInsertSlot(index: index, component: nil))
+                }
+            }
+            store.send(.launch)
+        }
     }
 
     deinit {
         eventsTask?.cancel()
         snapshotTask?.cancel()
         commandTask?.cancel()
+        startupTask?.cancel()
         commandContinuation.finish()
     }
 
