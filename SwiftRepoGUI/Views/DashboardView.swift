@@ -108,7 +108,7 @@ struct DashboardView: View {
 
                 }
             }
-            .frame(width: .infinity)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
