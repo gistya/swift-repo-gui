@@ -55,7 +55,7 @@ struct RetroTitleBar: View {
 
             HStack(spacing: 18) {
                 brand
-                    .frame(width: 216, alignment: .leading)
+                    .frame(width: 240, alignment: .leading)
 
                 Spacer(minLength: 10)
 
@@ -70,6 +70,13 @@ struct RetroTitleBar: View {
 
                 VStack(alignment: .trailing, spacing: 7) {
                     HStack(spacing: 10) {
+                        Text("Ox0badf00d MOD tracker")
+                            .font(.monaco(size: 10, weight: .semibold))
+                            .foregroundStyle(Color.terminalGreen.opacity(0.65))
+                            .alignmentGuide(HorizontalAlignment.leading) { _ in 0.5 }
+                        
+                        Spacer(minLength: 0)
+
                         progressReadout
                         if audioError != nil {
                             Image(systemName: "exclamationmark.triangle.fill")
@@ -99,34 +106,23 @@ struct RetroTitleBar: View {
     private var brand: some View {
         HStack(spacing: 10) {
             ZStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(
-                        LinearGradient(
-                            colors: [.white.opacity(0.55), .black.opacity(0.18)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.55), lineWidth: 1))
-                    .shadow(color: .white.opacity(0.65), radius: 1, x: -1, y: -1)
-                    .shadow(color: .black.opacity(0.45), radius: 2, x: 1, y: 1)
-
-                Image(systemName: "swift")
-                    .font(.system(size: 25, weight: .black))
-                    .foregroundStyle(Color.swiftOrange)
-                    .shadow(color: .white.opacity(0.7), radius: 0.5, x: -1, y: -1)
-                    .shadow(color: .black.opacity(0.65), radius: 1, x: 1, y: 1)
+                Image(nsImage: NSImage(named: "AppIcon") ?? NSApp.applicationIconImage)
+                    .resizable()
+                    .frame(width: 64, height: 64)
             }
-            .frame(width: 42, height: 42)
 
             VStack(alignment: .leading, spacing: 0) {
-                Text("SwiftBuilder")
+                Text("SwiftBuild")
                     .font(.monaco(size: 24, weight: .bold))
                     .foregroundStyle(Color.terminalGreen)
                     .shadow(color: Color.terminalGreen.opacity(0.75), radius: 4)
                     .shadow(color: .black.opacity(0.9), radius: 1, x: 1, y: 1)
 
                 Text("swift-project control surface")
+                    .font(.monaco(size: 10, weight: .semibold))
+                    .foregroundStyle(Color.terminalGreen.opacity(0.65))
+                
+                Text("made with SwiftXState")
                     .font(.monaco(size: 10, weight: .semibold))
                     .foregroundStyle(Color.terminalGreen.opacity(0.65))
             }
@@ -196,6 +192,8 @@ private struct SoundtrackDeckView: View {
         VStack(alignment: .trailing, spacing: 5) {
             HStack(spacing: 7) {
                 trackReadout
+                
+                Spacer(minLength: 0)
 
                 SoundtrackIconButton(
                     systemName: "backward.fill",
@@ -251,6 +249,7 @@ private struct SoundtrackDeckView: View {
                 Image(systemName: "speaker.wave.1.fill")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(deck.isMuted ? Color.terminalDimGreen : Color.terminalGreen)
+                
                 Slider(
                     value: Binding(
                         get: { deck.volume },
@@ -260,7 +259,8 @@ private struct SoundtrackDeckView: View {
                 )
                 .controlSize(.small)
                 .tint(deck.isMuted ? Color.terminalDimGreen : Color.terminalGreen)
-                .frame(width: 184)
+                .frame(maxWidth: .infinity)
+                
                 Text("\(Int((deck.volume * 100).rounded()))")
                     .font(.monaco(size: 9, weight: .bold))
                     .foregroundStyle(deck.isMuted ? Color.terminalDimGreen : Color.terminalGreen)
@@ -535,8 +535,11 @@ struct StageLEDStrip: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            ForEach([BuildStage.building, .testing, .measuring, .deploying, .failed], id: \.self) { item in
+            ForEach([BuildStage.off, .building, .testing, .measuring, .deploying, .failed], id: \.self) { item in
                 LEDIndicator(title: item.title, color: color(for: item), isOn: stage == item)
+                    .background(alignment: .leading) {
+                        Rectangle().fill(Color(.black))
+                    }
             }
         }
     }
@@ -548,7 +551,7 @@ struct StageLEDStrip: View {
         case .measuring: .blue
         case .deploying: .cyan
         case .failed: .red
-        case .off: .gray
+        case .off: .terminalGreen
         }
     }
 }

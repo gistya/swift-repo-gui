@@ -1,4 +1,5 @@
 import AppKit
+import Matrix
 import SwiftUI
 import SwiftData
 import SwiftXStateSwiftUI
@@ -57,9 +58,7 @@ struct DashboardView: View {
 
                 if project.matches(.loading) {
                     HStack(spacing: 8) {
-                        ProgressView()
-                            .controlSize(.small)
-                            .frame(width: 16, height: 16)
+                        MatrixLoader(.fun(.snake), size: 30, color: .terminalGreen, speed: 10.0, bloom: true, halo: 4.0)
                         Text("Discovering repositories…")
                             .font(.monaco(size: 13))
                             .foregroundStyle(Color.terminalGreen.opacity(0.75))
@@ -188,9 +187,7 @@ struct DashboardView: View {
         GroupBox("Target Repository") {
             if project.matches(.loading) {
                 HStack(spacing: 8) {
-                    ProgressView()
-                        .controlSize(.small)
-                        .frame(width: 16, height: 16)
+                    MatrixLoader(.fun(.snake), size: 30.0, color: .terminalGreen, speed: 10.0, bloom: true, halo: 4.0)
                     Text("Loading repository list…")
                         .foregroundStyle(Color.terminalGreen.opacity(0.75))
                 }

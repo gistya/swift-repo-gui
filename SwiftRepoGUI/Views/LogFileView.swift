@@ -19,42 +19,13 @@ struct LogFileView: View {
 
     var body: some View {
         GroupBox("Build Log") {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 8) {
-                        if let setupError {
-                            Label(setupError, systemImage: "exclamationmark.triangle")
-                                .foregroundStyle(Color.terminalGreen)
-                                .font(.monaco(size: 13))
-                        }
-                        if let readError = reader.readError {
-                            Label(readError, systemImage: "exclamationmark.triangle")
-                                .foregroundStyle(Color.terminalGreen)
-                                .font(.monaco(size: 13))
-                        }
-                        if reader.isWaitingForFile {
-                            Label("Waiting for log file \(logDisplayName).", systemImage: "clock")
-                                .foregroundStyle(Color.terminalGreen.opacity(0.75))
-                                .font(.monaco(size: 13))
-                        }
-                        if !reader.visibleByteDescription.isEmpty {
-                            Label(reader.visibleByteDescription, systemImage: reader.isShowingTail ? "text.append" : "doc.text")
-                                .foregroundStyle(Color.terminalGreen.opacity(reader.isShowingTail ? 1 : 0.75))
-                                .font(.monaco(size: 13))
-                        }
-                        Text(displayText)
-                            .font(.monaco(size: 11))
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .id("log-bottom")
-                    }
-                }
-                .frame(minHeight: 240)
-                .onChange(of: reader.text) {
-                    if autoScroll {
-                        proxy.scrollTo("log-bottom", anchor: .bottom)
-                    }
-                }
+            VStack(alignment: .leading, spacing: 8) {
+                statusHeader
+                // NSTextView-backed so large logs don't stall the main thread laying out one
+                // giant SwiftUI `Text`. Auto-scroll follows the tail; otherwise the reader's
+                // 256 KB front-trim would yank a stationary reader around, so we hold position.
+                LogTextView(text: displayText, scroll: autoScroll ? .tail : .preserve)
+                    .frame(minHeight: 240, maxHeight: .infinity)
             }
             HStack {
                 Toggle("Auto-scroll", isOn: $autoScroll)
@@ -78,6 +49,30 @@ struct LogFileView: View {
         if !reader.text.isEmpty { return reader.text }
         if setupError != nil || reader.readError != nil { return fallback }
         return reader.text.isEmpty ? fallback : reader.text
+    }
+
+    @ViewBuilder
+    private var statusHeader: some View {
+        if let setupError {
+            Label(setupError, systemImage: "exclamationmark.triangle")
+                .foregroundStyle(Color.terminalGreen)
+                .font(.monaco(size: 13))
+        }
+        if let readError = reader.readError {
+            Label(readError, systemImage: "exclamationmark.triangle")
+                .foregroundStyle(Color.terminalGreen)
+                .font(.monaco(size: 13))
+        }
+        if reader.isWaitingForFile {
+            Label("Waiting for log file \(logDisplayName).", systemImage: "clock")
+                .foregroundStyle(Color.terminalGreen.opacity(0.75))
+                .font(.monaco(size: 13))
+        }
+        if !reader.visibleByteDescription.isEmpty {
+            Label(reader.visibleByteDescription, systemImage: reader.isShowingTail ? "text.append" : "doc.text")
+                .foregroundStyle(Color.terminalGreen.opacity(reader.isShowingTail ? 1 : 0.75))
+                .font(.monaco(size: 13))
+        }
     }
 
     private func startTracking() {

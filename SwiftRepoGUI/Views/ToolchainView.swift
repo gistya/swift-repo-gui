@@ -1,3 +1,4 @@
+import Matrix
 import SwiftUI
 import SwiftData
 import SwiftXStateSwiftUI
@@ -24,7 +25,7 @@ struct ToolchainView: View {
                     banner(store.context.lastError ?? "build-presets.ini could not be read.", isError: true)
                 } else if store.matches(.loading) {
                     HStack(spacing: 8) {
-                        ProgressView().controlSize(.small).frame(width: 16, height: 16)
+                        MatrixLoader(.fun(.snake), size: 30.0, color: .terminalGreen, speed: 10.0, bloom: true, halo: 4.0)
                         Text("Parsing build-presets.ini…").foregroundStyle(Color.terminalGreen.opacity(0.75))
                     }
                 }

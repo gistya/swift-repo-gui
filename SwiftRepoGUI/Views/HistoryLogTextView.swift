@@ -1,4 +1,5 @@
 import AppKit
+import Matrix
 import Observation
 import SwiftUI
 
@@ -23,7 +24,7 @@ struct HistoryLogFileView: View {
                     loadingView
                         .transition(.opacity.combined(with: .scale(scale: 0.98)))
                 } else {
-                    HistoryScrollingTextView(text: loader.displayText)
+                    LogTextView(text: loader.displayText, scroll: .top)
                         .transition(.opacity.combined(with: .scale(scale: 0.985)))
                 }
             }
@@ -42,9 +43,7 @@ struct HistoryLogFileView: View {
 
     private var loadingView: some View {
         VStack(spacing: 12) {
-            ProgressView()
-                .controlSize(.large)
-                .frame(width: 32, height: 32)
+            MatrixLoader(.fun(.snake), size: 32.0, color: .terminalGreen, speed: 10.0, bloom: true, halo: 4.0)
             Text("Loading Log...")
                 .font(.monaco(size: 13, weight: .bold))
                 .foregroundStyle(Color.terminalGreen)
@@ -176,76 +175,5 @@ actor HistoryLogCache {
         return chunks.joined()
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
-    }
-}
-
-private struct HistoryScrollingTextView: NSViewRepresentable {
-    let text: String
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSScrollView()
-        scrollView.hasVerticalScroller = true
-        scrollView.hasHorizontalScroller = false
-        scrollView.autohidesScrollers = true
-        scrollView.borderType = .lineBorder
-        scrollView.drawsBackground = true
-        scrollView.backgroundColor = NSColor(SwiftBuilderStyle.current.colors.terminalBlack)
-
-        let textView = NSTextView(frame: .zero)
-        textView.isEditable = false
-        textView.isSelectable = true
-        textView.isRichText = false
-        textView.importsGraphics = false
-        textView.allowsUndo = false
-        textView.usesFindBar = true
-        textView.drawsBackground = true
-        textView.backgroundColor = NSColor(SwiftBuilderStyle.current.colors.terminalBlack)
-        textView.textColor = NSColor(SwiftBuilderStyle.current.colors.terminalGreen)
-        textView.insertionPointColor = NSColor(SwiftBuilderStyle.current.colors.terminalGreen)
-        textView.font = NSFont(name: SwiftBuilderStyle.current.fonts.monospaceName, size: 11)
-            ?? .monospacedSystemFont(ofSize: 11, weight: .regular)
-        textView.textContainerInset = NSSize(width: 10, height: 10)
-        textView.minSize = .zero
-        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-        textView.isVerticallyResizable = true
-        textView.isHorizontallyResizable = false
-        textView.autoresizingMask = [.width]
-        textView.textContainer?.containerSize = NSSize(
-            width: scrollView.contentSize.width,
-            height: CGFloat.greatestFiniteMagnitude
-        )
-        textView.textContainer?.widthTracksTextView = true
-
-        scrollView.documentView = textView
-        context.coordinator.textView = textView
-        return scrollView
-    }
-
-    func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        guard context.coordinator.currentText != text else { return }
-        context.coordinator.currentText = text
-        context.coordinator.textView?.string = text
-        scrollView.contentView.scroll(to: .zero)
-        scrollView.reflectScrolledClipView(scrollView.contentView)
-    }
-
-    final class Coordinator {
-        weak var textView: NSTextView?
-        var currentText = ""
-    }
-}
-
-private extension NSColor {
-    convenience init(_ styleColor: StyleColor) {
-        self.init(
-            calibratedRed: styleColor.red,
-            green: styleColor.green,
-            blue: styleColor.blue,
-            alpha: styleColor.opacity
-        )
     }
 }
