@@ -1,6 +1,7 @@
 import AVFoundation
 import CoreAudioKit
 import Foundation
+import os
 import Ox0badf00dObjC
 #if os(macOS)
 import AppKit
@@ -42,10 +43,15 @@ public actor TrackerAudioEngine {
     private var renderedFrames = 0
     private var inFlightBuffers = 0
     private var didRenderFinalChunk = false
+    private var isPlayingIntent = false
     private var lastEngineError: String?
 
     private var pumpTask: Task<Void, Never>?
     private var ticksContinuation: AsyncStream<Void>.Continuation?
+    private var configObserver: (any NSObjectProtocol)?
+
+    nonisolated private static let log = Logger(subsystem: "Ox0badf00d", category: "engine")
+    private var watchdogTask: Task<Void, Never>?
 
     public init(config: AudioSessionConfig = AudioSessionConfig()) {
         //NSLog("%@", "[OxAudio] TrackerAudioEngine.init")
@@ -91,6 +97,22 @@ public actor TrackerAudioEngine {
         engine.prepare()
     }
 
+    /// Recover from configuration changes. When the output device or its format changes — which can
+    /// happen shortly after launch as the audio environment settles, or when a device is added /
+    /// removed — AVAudioEngine STOPS and invalidates node connections. Without this the graph goes
+    /// permanently silent after a fraction of a second while the host still thinks it is playing.
+    /// Installed lazily on first `play` (actor-isolated) since an actor's `init` can't register it.
+    private func installConfigObserverIfNeeded() {
+        guard configObserver == nil else { return }
+        configObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: engine,
+            queue: nil
+        ) { [weak self] _ in
+            Task { await self?.handleConfigurationChange() }
+        }
+    }
+
     // MARK: - Session
 
     public func setVolume(_ volume: Double) {
@@ -100,6 +122,7 @@ public actor TrackerAudioEngine {
     // MARK: - Transport
 
     public func play(moduleURL: URL, generation: Int, startImmediately: Bool) {
+        installConfigObserverIfNeeded()
         teardownPlayback()
         playGeneration = generation
         renderedFrames = 0
@@ -126,17 +149,52 @@ public actor TrackerAudioEngine {
             return
         }
 
-        // A fresh tick stream per track: completion callbacks from a superseded track yield into a
-        // finished stream and are ignored, so tracks never cross-contaminate the refill counter.
+        isPlayingIntent = startImmediately
+        primePlayback(generation: generation, startImmediately: startImmediately)
+        emit(.prepared(moduleTitle: moduleTitle, generation: generation, started: startImmediately))
+        startPlaybackWatchdog(generation: generation)
+    }
+
+    /// Watchdog: an `AVAudioPlayerNode` that drains its scheduled buffers (a startup completion-refill
+    /// race, a device glitch, etc.) stops and does NOT auto-resume when new buffers are scheduled — the
+    /// engine keeps running but goes silent while the host still believes it is playing. So while a
+    /// track is meant to be playing, poll a few times a second and, if the player has stopped out from
+    /// under us, re-prime from the current position to resume.
+    private func startPlaybackWatchdog(generation: Int) {
+        watchdogTask?.cancel()
+        watchdogTask = Task { [weak self] in
+            while true {
+                try? await Task.sleep(for: .milliseconds(250))
+                guard let self, await self.watchdogTick(generation: generation) else { return }
+            }
+        }
+    }
+
+    private func watchdogTick(generation: Int) -> Bool {
+        guard generation == playGeneration, renderer != nil, !didRenderFinalChunk else { return false }
+        if isPlayingIntent, engine.isRunning, !player.isPlaying {
+            Self.log.info("Playback watchdog: player stopped unexpectedly — re-priming to resume.")
+            teardownPump()
+            primePlayback(generation: generation, startImmediately: true)
+        }
+        return true
+    }
+
+    /// Builds a fresh completion-tick stream, pre-rolls `scheduleAheadBuffers` chunks from the
+    /// renderer's *current* position, starts the player if requested, and (re)launches the refill
+    /// pump. Factored out of `play` so configuration-change recovery can re-prime an already-loaded
+    /// renderer without reloading the module. A fresh tick stream per prime means completion callbacks
+    /// from a superseded run yield into a finished stream and are ignored.
+    private func primePlayback(generation: Int, startImmediately: Bool) {
         let ticks = AsyncStream<Void>.makeStream(bufferingPolicy: .bufferingNewest(8))
         ticksContinuation = ticks.continuation
+        inFlightBuffers = 0
 
         for _ in 0..<config.scheduleAheadBuffers {
             if didRenderFinalChunk { break }
             scheduleNextChunk(generation: generation)
         }
         if startImmediately { player.play() }
-        emit(.prepared(moduleTitle: moduleTitle, generation: generation, started: startImmediately))
 
         pumpTask = Task { [weak self] in
             await self?.runPump(stream: ticks.stream, generation: generation)
@@ -144,6 +202,7 @@ public actor TrackerAudioEngine {
     }
 
     public func pause(generation: Int) {
+        isPlayingIntent = false
         player.pause()
         if engine.isRunning { engine.pause() }
         emit(.paused(generation: generation))
@@ -158,14 +217,32 @@ public actor TrackerAudioEngine {
             emit(.failed(message: lastEngineError ?? "Audio engine unavailable.", generation: generation))
             return
         }
+        isPlayingIntent = true
         player.play()
         emit(.resumed(generation: generation))
     }
 
     public func stop(generation: Int) {
+        isPlayingIntent = false
         teardownPlayback()
         if engine.isRunning { engine.pause() }
         emit(.stopped(generation: generation))
+    }
+
+    /// A configuration change stops the engine and invalidates node connections. If a track is still
+    /// loaded and not finished, rebuild the graph, restart the engine, and re-prime the pump from the
+    /// renderer's current position so playback resumes rather than silently dying.
+    private func handleConfigurationChange() {
+        guard renderer != nil, !didRenderFinalChunk else { return }
+        Self.log.info("Audio configuration changed — rebuilding graph and resuming playback.")
+        let resume = isPlayingIntent
+        teardownPump()
+        try? rebuildInsertChain()
+        guard startEngineIfNeeded() else {
+            emit(.failed(message: lastEngineError ?? "Audio engine unavailable.", generation: playGeneration))
+            return
+        }
+        primePlayback(generation: playGeneration, startImmediately: resume)
     }
 
     private func runPump(stream: AsyncStream<Void>, generation: Int) async {
@@ -227,14 +304,22 @@ public actor TrackerAudioEngine {
         return buffer
     }
 
-    private func teardownPlayback() {
+    /// Tears down only the streaming pump (tick stream, pump task, player queue) while KEEPING the
+    /// loaded renderer and its position — the basis for configuration-change recovery.
+    private func teardownPump() {
         ticksContinuation?.finish()
         ticksContinuation = nil
         pumpTask?.cancel()
         pumpTask = nil
         player.stop()
-        renderer = nil
         inFlightBuffers = 0
+    }
+
+    private func teardownPlayback() {
+        watchdogTask?.cancel()
+        watchdogTask = nil
+        teardownPump()
+        renderer = nil
         didRenderFinalChunk = false
         renderedFrames = 0
     }
@@ -395,6 +480,28 @@ public actor TrackerAudioEngine {
     }
 
     // MARK: - Helpers
+
+    func _installOutputTap(_ tap: @escaping @Sendable (AVAudioPCMBuffer) -> Void) {
+        engine.mainMixerNode.installTap(onBus: 0, bufferSize: 4_096, format: nil) { buffer, _ in tap(buffer) }
+    }
+
+    func _pumpState() -> (rendered: Int, inFlight: Int, final: Bool, running: Bool, playing: Bool) {
+        (renderedFrames, inFlightBuffers, didRenderFinalChunk, engine.isRunning, player.isPlaying)
+    }
+
+    func _simulateConfigurationChange() { handleConfigurationChange() }
+
+    /// Stops the underlying AVAudioEngine WITHOUT touching our playback state — mimics what a real
+    /// configuration change does to the engine (engine stops, our renderer/intent untouched).
+    func _stopEngineForTest() { engine.stop() }
+
+    /// Stops just the player node (engine keeps running) — mimics the AVAudioPlayerNode drain-stop the
+    /// watchdog exists to recover from.
+    func _stopPlayerForTest() { player.stop() }
+
+    func _engineRunning() -> Bool { engine.isRunning }
+
+    func _playerPlaying() -> Bool { player.isPlaying }
 
     private func emit(_ event: TrackerAudioEvent) {
         eventContinuation.yield(event)

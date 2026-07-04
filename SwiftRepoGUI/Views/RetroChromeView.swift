@@ -314,10 +314,6 @@ private struct InsertRackPopup: View {
     let onToggleBypass: (Int) -> Void
     let makeInsertEditor: (Int) async -> NSViewController?
 
-    @State private var editing: EditingSlot?
-
-    private struct EditingSlot: Identifiable { let id: Int }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
@@ -369,12 +365,18 @@ private struct InsertRackPopup: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.swiftOrange.opacity(0.5), lineWidth: 1)
         }
-        .sheet(item: $editing) { slot in
-            AudioUnitEditorSheet(
-                slotIndex: slot.id,
-                title: slots.indices.contains(slot.id) ? (slots[slot.id].component?.name ?? "Plugin") : "Plugin",
-                makeController: makeInsertEditor
-            )
+    }
+
+    /// Opens the AU's own editor in a real floating macOS window. Re-opening a slot reveals the window
+    /// already up; a slot with no assigned insert does nothing.
+    private func openEditor(_ index: Int) {
+        guard slots.indices.contains(index), let component = slots[index].component else { return }
+        let title = component.name
+        if AudioUnitEditorWindowManager.shared.reveal(slot: index) { return }
+        Task {
+            let controller: NSViewController = await makeInsertEditor(index)
+                ?? NSHostingController(rootView: NoPluginInterfaceView(title: title))
+            AudioUnitEditorWindowManager.shared.show(slot: index, title: title, controller: controller)
         }
     }
 
@@ -387,11 +389,17 @@ private struct InsertRackPopup: View {
                 .frame(width: 40, alignment: .leading)
 
             Menu {
-                Button("— None —") { onSetInsert(index, nil) }
+                Button("— None —") {
+                    onSetInsert(index, nil)
+                    AudioUnitEditorWindowManager.shared.close(slot: index)
+                }
                 if !availableEffects.isEmpty {
                     Divider()
                     ForEach(availableEffects) { effect in
-                        Button(effect.name) { onSetInsert(index, effect) }
+                        Button(effect.name) {
+                            onSetInsert(index, effect)
+                            AudioUnitEditorWindowManager.shared.close(slot: index)
+                        }
                     }
                 }
             } label: {
@@ -417,7 +425,7 @@ private struct InsertRackPopup: View {
                 help: "Open plugin editor",
                 isNotEngaged: false,
                 isDisabled: slot.isEmpty,
-                action: { editing = EditingSlot(id: index) }
+                action: { openEditor(index) }
             )
         }
         .opacity(slot.isBypassed ? 0.6 : 1)
