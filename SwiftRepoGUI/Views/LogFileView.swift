@@ -60,8 +60,11 @@ struct LogFileView: View {
                 Toggle("Auto-scroll", isOn: $autoScroll)
                 Spacer()
                 Button("Open Log") { openLog() }
+                ActionHelpButton("action.openLog")
                 Button("Reveal in Finder") { revealLog() }
+                ActionHelpButton("action.revealLog")
                 Button("Refresh") { reader.reload() }
+                ActionHelpButton("action.refreshLog")
             }
             .font(.monaco(size: 11))
             .foregroundStyle(Color.terminalGreen)

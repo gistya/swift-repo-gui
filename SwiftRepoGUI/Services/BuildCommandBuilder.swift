@@ -61,6 +61,15 @@ nonisolated enum BuildCommandBuilder {
                 target: nil,
                 repoName: repo
             )
+        case .buildToolchain:
+            // Toolchain builds carry a `ToolchainRecipeDraft` (not `BuildOptions`); AppSession
+            // assembles the full command and injects it via `.start(job)`, so this path is unused.
+            return (
+                executable: project.swiftDirectory.appendingPathComponent("utils/build-toolchain").path,
+                arguments: [],
+                display: "build-toolchain",
+                workingDirectory: project.swiftDirectory
+            )
         }
     }
 

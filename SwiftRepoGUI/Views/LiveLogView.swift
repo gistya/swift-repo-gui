@@ -25,7 +25,9 @@ struct LiveLogView: View {
         .toolbar {
             ToolbarItemGroup {
                 Button("Open Logs Folder") { AppFolderActions.openLogsFolder() }
+                ActionHelpButton("action.openLogsFolder")
                 Button("Open Exports Folder") { AppFolderActions.openExportsFolder() }
+                ActionHelpButton("action.openExportsFolder")
             }
         }
     }

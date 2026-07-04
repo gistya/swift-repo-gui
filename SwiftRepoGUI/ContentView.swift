@@ -130,6 +130,8 @@ struct AppSectionContent: View {
             )
         case .settings:
             BuildSettingsView(settings: session.settings)
+        case .toolchain:
+            ToolchainView(session: session)
         case .history:
             HistoryView(session: session)
         case .logs:

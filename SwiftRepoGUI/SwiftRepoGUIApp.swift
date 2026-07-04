@@ -18,6 +18,8 @@ struct SwiftRepoGUIApp: App {
         let schema = Schema([
             BuildOperationRecord.self,
             SavedBuildProfile.self,
+            ToolchainRecipe.self,
+            CustomPreset.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

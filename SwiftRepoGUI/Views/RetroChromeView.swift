@@ -388,29 +388,16 @@ private struct InsertRackPopup: View {
                 .foregroundStyle(Color.terminalGreen)
                 .frame(width: 40, alignment: .leading)
 
-            Menu {
-                Button("— None —") {
-                    onSetInsert(index, nil)
+            TerminalMenu<AudioComponentRef?>(
+                selection: slot.component,
+                options: [TerminalMenuOption<AudioComponentRef?>(nil, "— None —")]
+                    + availableEffects.map { TerminalMenuOption<AudioComponentRef?>($0, $0.name) },
+                onSelect: { component in
+                    onSetInsert(index, component)
                     AudioUnitEditorWindowManager.shared.close(slot: index)
-                }
-                if !availableEffects.isEmpty {
-                    Divider()
-                    ForEach(availableEffects) { effect in
-                        Button(effect.name) {
-                            onSetInsert(index, effect)
-                            AudioUnitEditorWindowManager.shared.close(slot: index)
-                        }
-                    }
-                }
-            } label: {
-                Text(slot.component?.name ?? "— empty —")
-                    .font(.monaco(size: 10, weight: .bold))
-                    .foregroundStyle(slot.isEmpty ? Color.terminalDimGreen : Color.lcdGreen)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .menuStyle(.borderlessButton)
+                },
+                placeholder: "— empty —"
+            )
             .frame(maxWidth: .infinity)
 
             SoundtrackIconButton(

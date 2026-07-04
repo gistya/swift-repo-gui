@@ -45,6 +45,7 @@ struct DashboardView: View {
                         .font(.monaco(size: 13, weight: .bold))
                     Spacer()
                     Button("Choose…") { chooseProjectDirectory() }
+                    ActionHelpButton("action.chooseProject")
                 }
 
                 TextField(
@@ -77,13 +78,17 @@ struct DashboardView: View {
                     .foregroundStyle(Color.terminalGreen.opacity(0.75))
 
                     if !info.detectedBuildSubdirs.isEmpty {
-                        Picker(
-                            "Build directory",
-                            selection: project.bind(\.selectedBuildSubdir, send: ProjectEvent.setBuildSubdir)
-                        ) {
-                            ForEach(info.detectedBuildSubdirs, id: \.self) { subdir in
-                                Text(subdir).tag(subdir)
-                            }
+                        HStack {
+                            Text("Build directory")
+                                .font(.monaco(size: 11, weight: .semibold))
+                                .foregroundStyle(Color.terminalGreen.opacity(0.8))
+                            Spacer()
+                            TerminalMenu(
+                                selection: project.context.selectedBuildSubdir,
+                                options: info.detectedBuildSubdirs.map { TerminalMenuOption($0, $0) },
+                                onSelect: { project.send(.setBuildSubdir($0)) },
+                                width: 260
+                            )
                         }
                     }
 
@@ -96,14 +101,18 @@ struct DashboardView: View {
     @ViewBuilder
     private func checkoutSchemeSection(info: SwiftProjectInfo) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Picker(
-                "Checkout scheme",
-                selection: project.bind(\.checkoutSchemeOverride, send: ProjectEvent.setCheckoutSchemeOverride)
-            ) {
-                Text("Auto (\(info.checkoutScheme))").tag("")
-                ForEach(info.availableCheckoutSchemes, id: \.self) { scheme in
-                    Text(scheme).tag(scheme)
-                }
+            HStack {
+                Text("Checkout scheme")
+                    .font(.monaco(size: 11, weight: .semibold))
+                    .foregroundStyle(Color.terminalGreen.opacity(0.8))
+                Spacer()
+                TerminalMenu(
+                    selection: project.context.checkoutSchemeOverride,
+                    options: [TerminalMenuOption("", "Auto (\(info.checkoutScheme))")]
+                        + info.availableCheckoutSchemes.map { TerminalMenuOption($0, $0) },
+                    onSelect: { project.send(.setCheckoutSchemeOverride($0)) },
+                    width: 260
+                )
             }
 
             Text("Branch `\(info.swiftBranch)` → scheme `\(info.checkoutScheme)` for update-checkout.")
@@ -119,16 +128,16 @@ struct DashboardView: View {
     private var quickActions: some View {
         GroupBox("Build Actions") {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 12)], spacing: 12) {
-                actionButton(title: "Incremental Frontend", subtitle: "ninja bin/swift-frontend", symbol: "swift", kind: .incrementalFrontend)
-                actionButton(title: "Incremental Swift Repo", subtitle: "Rebuild all swift/ targets", symbol: "arrow.triangle.2.circlepath", kind: .incrementalSwiftRepo)
-                actionButton(title: "Incremental Everything", subtitle: "ninja entire build tree", symbol: "square.stack.3d.up", kind: .incrementalEverything)
-                actionButton(title: "Full Build Script", subtitle: "Uses settings below", symbol: "gearshape.2", kind: .buildScript)
-                actionButton(title: "Fresh Rebuild", subtitle: "Clean + build script", symbol: "trash.circle", kind: .freshBuild)
-                actionButton(title: "Fresh Dependency", subtitle: "ninja clean + rebuild selected repo", symbol: "arrow.clockwise.circle", action: {
+                actionButton(title: "Incremental Frontend", subtitle: "ninja bin/swift-frontend", symbol: "swift", help: "action.incrementalFrontend", kind: .incrementalFrontend)
+                actionButton(title: "Incremental Swift Repo", subtitle: "Rebuild all swift/ targets", symbol: "arrow.triangle.2.circlepath", help: "action.incrementalSwiftRepo", kind: .incrementalSwiftRepo)
+                actionButton(title: "Incremental Everything", subtitle: "ninja entire build tree", symbol: "square.stack.3d.up", help: "action.incrementalEverything", kind: .incrementalEverything)
+                actionButton(title: "Full Build Script", subtitle: "Uses settings below", symbol: "gearshape.2", help: "action.buildScript", kind: .buildScript)
+                actionButton(title: "Fresh Rebuild", subtitle: "Clean + build script", symbol: "trash.circle", help: "action.freshBuild", kind: .freshBuild)
+                actionButton(title: "Fresh Dependency", subtitle: "ninja clean + rebuild selected repo", symbol: "arrow.clockwise.circle", help: "action.freshDependency", action: {
                     Task { try? await session.startFreshDependency() }
                 })
-                actionButton(title: "Update Dependencies", subtitle: "update-checkout --scheme … --match-timestamp", symbol: "arrow.down.circle", kind: .updateDependencies)
-                actionButton(title: "Update & Rebuild Changed", subtitle: "Sync deps, ninja changed repos", symbol: "arrow.triangle.merge", action: {
+                actionButton(title: "Update Dependencies", subtitle: "update-checkout --scheme … --match-timestamp", symbol: "arrow.down.circle", help: "action.updateDependencies", kind: .updateDependencies)
+                actionButton(title: "Update & Rebuild Changed", subtitle: "Sync deps, ninja changed repos", symbol: "arrow.triangle.merge", help: "action.updateAndRebuild", action: {
                     Task { await session.runUpdateThenRebuild() }
                 })
             }
@@ -139,6 +148,7 @@ struct DashboardView: View {
         title: String,
         subtitle: String,
         symbol: String,
+        help: String,
         kind: BuildOperationKind? = nil,
         action: (() -> Void)? = nil
     ) -> some View {
@@ -153,6 +163,7 @@ struct DashboardView: View {
                 Label(title, systemImage: symbol)
                     .font(.monaco(size: 13, weight: .bold))
                     .lineLimit(1)
+                    .padding(.trailing, 18)
                 Text(subtitle)
                     .font(.monaco(size: 11))
                     .foregroundStyle(Color.terminalGreen.opacity(0.75))
@@ -165,6 +176,11 @@ struct DashboardView: View {
         }
         .buttonStyle(RetroActionButtonStyle())
         .disabled(!project.context.isValid || project.matches(.loading) || build.matches(.running))
+        // Help stays tappable even while the action is disabled (build running / no project).
+        .overlay(alignment: .topTrailing) {
+            ActionHelpButton(help)
+                .padding(8)
+        }
     }
 
     private var repositorySection: some View {
@@ -177,13 +193,17 @@ struct DashboardView: View {
                         .foregroundStyle(Color.terminalGreen.opacity(0.75))
                 }
             } else if let repos = project.context.projectInfo?.repositories {
-                Picker(
-                    "Repository",
-                    selection: settings.bind(\.selectedRepository, send: BuildSettingsEvent.setRepository)
-                ) {
-                    ForEach(repos) { repo in
-                        Text(repo.name).tag(repo.name)
-                    }
+                HStack {
+                    Text("Repository")
+                        .font(.monaco(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.terminalGreen.opacity(0.8))
+                    Spacer()
+                    TerminalMenu(
+                        selection: settings.context.selectedRepository,
+                        options: repos.map { TerminalMenuOption($0.name, $0.name) },
+                        onSelect: { settings.send(.setRepository($0)) },
+                        width: 260
+                    )
                 }
                 Text("Used for dependency-specific fresh/incremental builds.")
                     .font(.monaco(size: 11))

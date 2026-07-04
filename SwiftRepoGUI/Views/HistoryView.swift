@@ -24,8 +24,11 @@ struct HistoryView: View {
             .toolbar {
                 ToolbarItemGroup {
                     Button("Import…") { importOperationFromDisk() }
+                    ActionHelpButton("action.import")
                     Button("Open Logs") { AppFolderActions.openLogsFolder() }
+                    ActionHelpButton("action.openLogsFolder")
                     Button("Open Exports") { AppFolderActions.openExportsFolder() }
+                    ActionHelpButton("action.openExportsFolder")
                 }
             }
         } detail: {
@@ -197,14 +200,17 @@ struct OperationDetailView: View {
                 Task { await session.replay(operation) }
             }
             .disabled(session.build.matches(.running))
+            ActionHelpButton("action.replay")
 
             Button(copied ? "Copied!" : "Copy Command") {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(shellWrappedCommand, forType: .string)
                 copied = true
             }
+            ActionHelpButton("action.copyCommand")
 
             Button("Export…") { exportOperation() }
+            ActionHelpButton("action.export")
             Spacer()
             if let exportMessage {
                 Text(exportMessage)

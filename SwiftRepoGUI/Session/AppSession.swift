@@ -51,6 +51,7 @@ final class AppSession {
     let settings: MachineStore<BuildSettingsMachine>
     let build: MachineStore<BuildOperationsMachine>
     let soundtrack: MachineStore<SoundtrackMachine>
+    let toolchain: MachineStore<ToolchainMachine>
 
     @ObservationIgnored private weak var modelContext: ModelContext?
     @ObservationIgnored private let settingsDefaults: UserDefaults
@@ -113,6 +114,12 @@ final class AppSession {
             BuildOperationsMachine(),
             id: "swiftbuilder.build",
             systemId: "swiftbuilder.build",
+            inspect: inspect
+        ))
+        toolchain = mainStore.track(inspectedStore(
+            ToolchainMachine(),
+            id: "swiftbuilder.toolchain",
+            systemId: "swiftbuilder.toolchain",
             inspect: inspect
         ))
 
@@ -298,6 +305,74 @@ final class AppSession {
 
     func cancelBuild() {
         build.send(.cancel)
+    }
+
+    // MARK: - Toolchain
+
+    /// (Re)parse the swift checkout's `build-presets.ini` into the toolchain catalog. Safe to call
+    /// with no project selected — the machine reports the missing-file state.
+    func loadToolchainCatalog() {
+        let path = project.context.projectInfo?.swiftDirectory
+            .appendingPathComponent("utils/build-presets.ini").path ?? ""
+        toolchain.send(.load(path))
+    }
+
+    /// The user's custom preset/mixin blocks, for `.ini` generation.
+    func toolchainCustomPresets() -> [CustomPresetValue] {
+        guard let modelContext else { return [] }
+        return ((try? modelContext.fetch(FetchDescriptor<CustomPreset>())) ?? []).map(\.value)
+    }
+
+    /// Generate the overlay `~/<tag>-presets.ini` and run `build-toolchain` through the build pipeline.
+    func buildToolchain(_ draft: ToolchainRecipeDraft) async {
+        do {
+            guard let info = project.context.projectInfo else {
+                throw SessionWaitError.projectInvalid(message: "Choose a valid swift project first.")
+            }
+            let overlayText = ToolchainPresetWriter.overlay(draft: draft, customPresets: toolchainCustomPresets())
+            let overlayURL = URL(fileURLWithPath: NSHomeDirectory())
+                .appendingPathComponent("\(draft.bundleTag)-presets.ini")
+            try overlayText.write(to: overlayURL, atomically: true, encoding: .utf8)
+
+            let buildToolchainPath = info.swiftDirectory.appendingPathComponent("utils/build-toolchain").path
+            let basePresetPath = info.swiftDirectory.appendingPathComponent("utils/build-presets.ini").path
+
+            var arguments = [
+                draft.bundleTag,
+                "--preset-file", basePresetPath,
+                "--preset-file", overlayURL.path,
+                "--preset-prefix", draft.presetPrefix,
+            ]
+            for flag in draft.flags.sorted(by: { $0.rawValue < $1.rawValue }) {
+                arguments.append(flag.argument)
+            }
+
+            let operationID = UUID()
+            let job = BuildJob(
+                operationID: operationID,
+                kind: .buildToolchain,
+                executable: buildToolchainPath,
+                arguments: arguments,
+                workingDirectory: info.root.path,
+                displayCommand: ToolchainPresetWriter.commandPreview(
+                    draft: draft,
+                    buildToolchainPath: buildToolchainPath,
+                    basePresetPath: basePresetPath,
+                    overlayPath: overlayURL.path
+                ),
+                logFilePath: try AppPaths.logFileURL(for: operationID).path,
+                projectPath: info.root.path,
+                buildSubdir: "",
+                targetRepository: draft.bundleTag
+            )
+            let record = insertRecord(for: job, options: .default, notes: "Toolchain: \(draft.name)")
+            trackedRecords[operationID] = record
+            build.send(.start(job))
+            try await waitForBuildIdle()
+            finalizeRecord(operationID)
+        } catch {
+            report(error)
+        }
     }
 
     func replay(_ record: BuildOperationRecord) async {

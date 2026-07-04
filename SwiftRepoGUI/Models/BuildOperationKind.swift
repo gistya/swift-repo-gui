@@ -9,6 +9,7 @@ nonisolated enum BuildOperationKind: String, Codable, CaseIterable, Identifiable
     case updateDependencies
     case updateAndRebuild
     case dependencyBuild
+    case buildToolchain
 
     var id: String { rawValue }
 
@@ -22,6 +23,7 @@ nonisolated enum BuildOperationKind: String, Codable, CaseIterable, Identifiable
         case .updateDependencies: String(localized: "Update Dependencies")
         case .updateAndRebuild: String(localized: "Update & Rebuild Changed")
         case .dependencyBuild: String(localized: "Dependency Build")
+        case .buildToolchain: String(localized: "Build Toolchain")
         }
     }
 
@@ -35,6 +37,7 @@ nonisolated enum BuildOperationKind: String, Codable, CaseIterable, Identifiable
         case .updateDependencies: "arrow.down.circle"
         case .updateAndRebuild: "arrow.triangle.merge"
         case .dependencyBuild: "folder"
+        case .buildToolchain: "shippingbox"
         }
     }
 }

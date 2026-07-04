@@ -42,7 +42,10 @@ struct BuildSettingsView: View {
             }
 
             Section {
-                Button("Save Current Configuration…") { showSaveSheet = true }
+                HStack {
+                    Button("Save Current Configuration…") { showSaveSheet = true }
+                    ActionHelpButton("action.saveProfile")
+                }
             }
         }
         .formStyle(.grouped)
@@ -171,16 +174,16 @@ struct BuildSettingsView: View {
         HStack {
             labeledRow("preset")
             Spacer()
-            Picker(
-                "Preset",
-                selection: settings.bind(\.options.preset, send: { BuildSettingsEvent.setStringOption(key: "preset", value: $0) })
-            ) {
-                Text("None").tag("")
-                Text("buildbot_incremental").tag("buildbot_incremental")
-                Text("asan").tag("asan")
-            }
-            .labelsHidden()
-            .frame(width: 220)
+            TerminalMenu(
+                selection: settings.context.options.preset,
+                options: [
+                    TerminalMenuOption("", "None"),
+                    TerminalMenuOption("buildbot_incremental", "buildbot_incremental"),
+                    TerminalMenuOption("asan", "asan"),
+                ],
+                onSelect: { settings.send(.setStringOption(key: "preset", value: $0)) },
+                width: 220
+            )
         }
     }
 

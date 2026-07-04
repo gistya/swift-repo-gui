@@ -44,8 +44,10 @@ struct BuildProgressPanel: View {
                     }
                     HStack {
                         Button("Cancel", role: .destructive) { build.send(.cancel) }
+                        ActionHelpButton("action.cancel")
                         Spacer()
                         Button("Open Logs Folder") { AppFolderActions.openLogsFolder() }
+                        ActionHelpButton("action.openLogsFolder")
                     }
                 }
             } else if let message = build.context.statusMessage {
@@ -55,10 +57,13 @@ struct BuildProgressPanel: View {
                         .foregroundStyle(statusColor(for: message).opacity(0.82))
                         .textSelection(.enabled)
                     if canCopyFailureReason(message) {
-                        Button(copiedFailureReason ? "Copied Failure Reason" : "Copy Failure Reason") {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(message, forType: .string)
-                            copiedFailureReason = true
+                        HStack {
+                            Button(copiedFailureReason ? "Copied Failure Reason" : "Copy Failure Reason") {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(message, forType: .string)
+                                copiedFailureReason = true
+                            }
+                            ActionHelpButton("action.copyFailureReason")
                         }
                     }
                 }

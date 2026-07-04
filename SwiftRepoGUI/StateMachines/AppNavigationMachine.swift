@@ -4,6 +4,7 @@ import SwiftXState
 nonisolated enum AppSectionID: String, StateIdentifying, CaseIterable, Identifiable, Codable {
     case build
     case settings
+    case toolchain
     case history
     case logs
     case inspector
@@ -15,6 +16,7 @@ nonisolated enum AppSectionID: String, StateIdentifying, CaseIterable, Identifia
         switch self {
         case .build: String(localized: "Build")
         case .settings: String(localized: "Settings")
+        case .toolchain: String(localized: "Toolchain")
         case .history: String(localized: "History")
         case .logs: String(localized: "Logs")
         case .inspector: String(localized: "Inspector")
@@ -25,6 +27,7 @@ nonisolated enum AppSectionID: String, StateIdentifying, CaseIterable, Identifia
         switch self {
         case .build: "hammer"
         case .settings: "slider.horizontal.3"
+        case .toolchain: "shippingbox"
         case .history: "clock.arrow.circlepath"
         case .logs: "doc.text"
         case .inspector: "waveform.path.ecg.rectangle"

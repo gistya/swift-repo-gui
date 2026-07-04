@@ -1,7 +1,14 @@
 import SwiftUI
 
+/// Anything that can populate a `HelpButton` popover — a build-setting option or an action button.
+protocol HelpDescribing {
+    var title: String { get }
+    var summary: String { get }
+    var practicalAdvice: String { get }
+}
+
 struct HelpButton: View {
-    let descriptor: BuildOptionDescriptor
+    let descriptor: any HelpDescribing
 
     @State private var showPopover = false
 
