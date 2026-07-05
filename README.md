@@ -15,7 +15,7 @@
 
 <br>...<br>
 
-# ManageToolchain Mixins With Ease
+# Manage Toolchain Mixins With Ease
 
 ![alt text](Assets/ToolchainLayers.png)
 

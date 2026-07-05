@@ -726,7 +726,7 @@
 			repositoryURL = "https://github.com/gistya/SwiftXState";
 			requirement = {
 				kind = exactVersion;
-				version = "2.0.0-alpha-1";
+				version = "2.0.0-alpha-2";
 			};
 		};
 		738CC9DA2FF9CDB2007A0286 /* XCRemoteSwiftPackageReference "matrix-swift" */ = {
