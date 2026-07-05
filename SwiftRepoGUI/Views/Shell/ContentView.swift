@@ -42,10 +42,17 @@ struct ContentView: View {
             )
 
             TerminalTabBar(
+                sections: session.attachedSections,
                 selected: session.selectedSection,
                 onSelect: { session.selectSection($0) },
-                onDetach: { openWindow(value: $0) }
+                onDetach: { section in
+                    session.markDetached(section)
+                    openWindow(value: section)
+                }
             )
+            // Keep the tab row above the content so a tab dragged downward to tear off stays visible
+            // over the section area instead of being painted under it.
+            .zIndex(1)
 
             ZStack {
                 TerminalBackground()
@@ -73,10 +80,6 @@ struct ContentView: View {
         }
         .onAppear {
             session.attach(modelContext: modelContext)
-            // `.launch` is owned by SoundtrackEffectDriver, which fires it only after the persisted
-            // audio settings (volume / inserts) are live on the engine — so default playback can't
-            // start before the saved volume lands. We only seed the current build stage here.
-            session.soundtrack.send(.buildSnapshotChanged(SoundtrackBuildSnapshot(session.build.context)))
             // Warm the Toolchain tab's cold costs (SwiftData + preset parse) off the critical path so
             // its first open doesn't spike CPU/disk and glitch the soundtrack.
             session.warmUpToolchain()
@@ -85,11 +88,10 @@ struct ContentView: View {
         .onChange(of: session.settings.context) {
             session.persistLastUsedSettings()
         }
-        // Bridge build → soundtrack on a narrow derived value, so this only fires when the stage /
-        // running / exit actually changes — not on every unrelated BuildOperationsContext mutation.
-        .onChange(of: SoundtrackBuildSnapshot(session.build.context)) { _, snapshot in
-            session.soundtrack.send(.buildSnapshotChanged(snapshot))
-        }
+        // NOTE: the build → soundtrack bridge and the initial stage seed live in AppSession (an
+        // off-view snapshot consumer), NOT here. Reading `session.build.context` in this body — e.g.
+        // to compute a SoundtrackBuildSnapshot for an onChange — subscribed the whole ContentView to
+        // every build progress tick, recreating the title bar / tab bar / content on each one.
     }
 }
 

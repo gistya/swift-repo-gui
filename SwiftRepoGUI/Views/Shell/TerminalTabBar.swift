@@ -1,13 +1,14 @@
 import SwiftUI
 
 struct TerminalTabBar: View {
+    let sections: [AppSectionID]
     let selected: AppSectionID
     let onSelect: (AppSectionID) -> Void
     let onDetach: (AppSectionID) -> Void
 
     var body: some View {
         HStack(spacing: 6) {
-            ForEach(AppSectionID.allCases) { section in
+            ForEach(sections) { section in
                 TerminalTabButton(
                     section: section,
                     isSelected: section == selected,

@@ -55,7 +55,9 @@ struct SwiftRepoGUITests {
         #expect(progress.message == "-- Performing Test CMAKE_HAVE_LIBC_PTHREAD")
     }
 
-    @Test func buildStageClassifiesTestingAndModuleDisplay() throws {
+    @Test func buildStageIgnoresTestWordInCompilerOutput() throws {
+        // A ninja compile line that merely mentions "test" is NOT the testing phase. The stage is
+        // whatever the last authoritative banner set (here: the base `.building`), never a substring.
         var context = BuildOperationsContext()
         context.activeJob = makeBuildJob(kind: .buildScript, displayCommand: "./swift/utils/build-script --test")
         context.progress = BuildProgressSnapshot(
@@ -63,24 +65,108 @@ struct SwiftRepoGUITests {
             totalSteps: 20,
             fraction: 0.15,
             etaSeconds: nil,
-            message: "[3/20] Testing SwiftParseTests"
+            message: "[3/20] Building CXX object .../SwiftParseTests.cpp.o",
+            stage: .building
         )
 
-        #expect(BuildStage.stage(for: context) == .testing)
-        #expect(BuildStage.moduleDisplay(for: context) == "SwiftParseTests")
+        #expect(BuildStage.stage(for: context) == .building)
     }
 
-    @Test func buildStageDisplaysPrimaryTargetInsteadOfObjectFile() throws {
+    @Test func buildStageDetectsAuthoritativePhaseBanners() throws {
+        // Only line-anchored `--- … ---` banners (and the distinctive full-line status prints) move
+        // the stage; compiler command lines return nil ("keep the current stage").
+        #expect(BuildStage.detect(bannerIn: "--- Building swift ---") == .building)
+        #expect(BuildStage.detect(bannerIn: "--- Cleaning swift ---") == .building)
+        #expect(BuildStage.detect(bannerIn: "--- Building tests for swift ---") == .building)
+        #expect(BuildStage.detect(bannerIn: "--- Running tests for swift ---") == .testing)
+        #expect(BuildStage.detect(bannerIn: "--- Running LLDB unit tests ---") == .testing)
+        #expect(BuildStage.detect(bannerIn: "--- check-swift ---") == .testing)
+        #expect(BuildStage.detect(bannerIn: "--- check-swift finished ---") == .testing)
+        #expect(BuildStage.detect(bannerIn: "--- Finished tests for swift ---") == .building)
+        #expect(BuildStage.detect(bannerIn: "--- Installing swift ---") == .deploying)
+        #expect(BuildStage.detect(bannerIn: "--- Extracting symbols ---") == .deploying)
+        #expect(BuildStage.detect(bannerIn: "--- Creating installable package ---") == .deploying)
+        #expect(BuildStage.detect(bannerIn: "Running Swift benchmarks for: macosx-arm64") == .measuring)
+
+        // Not banners → no stage change, no matter what words appear.
+        #expect(BuildStage.detect(bannerIn: "[1502/5533] /usr/bin/clang++ -c SomeTestFile.cpp") == nil)
+        #expect(BuildStage.detect(bannerIn: "[42/100] Linking install_name_tool target") == nil)
+        #expect(BuildStage.detect(bannerIn: "--- Bootstrap Local CMake ---") == nil)
+        #expect(BuildStage.detect(bannerIn: "--- Can't execute tests for host, skipping... ---") == nil)
+    }
+
+    @Test func progressParserKeepsStageStickyBetweenBanners() throws {
+        let started = Date()
+        // Enter testing on a banner…
+        let testing = ProgressParser.parse(
+            line: "--- Running tests for swift ---",
+            startedAt: started,
+            previous: BuildProgressSnapshot(completedSteps: 10, totalSteps: 10, fraction: 1, etaSeconds: nil, message: nil, stage: .building)
+        )
+        #expect(testing.stage == .testing)
+
+        // …and stay in testing while lit spews compiler-ish lines that mention nothing authoritative.
+        let stillTesting = ProgressParser.parse(
+            line: "PASS: Swift(macosx-arm64) :: Parse/some_test.swift (123 of 456)",
+            startedAt: started,
+            previous: testing
+        )
+        #expect(stillTesting.stage == .testing)
+
+        // Then a real install banner advances to deploying.
+        let deploying = ProgressParser.parse(
+            line: "--- Installing swift ---",
+            startedAt: started,
+            previous: stillTesting
+        )
+        #expect(deploying.stage == .deploying)
+    }
+
+    @Test func buildStageModuleLabelExtractsTargets() throws {
+        // Verb-anchored: the target follows a known build verb.
+        #expect(BuildStage.moduleLabel(for: "[3/20] Testing SwiftParseTests") == "SwiftParseTests")
+        // Known-target path component wins over the object-file name.
+        #expect(BuildStage.moduleLabel(for: "[191/800] Building CXX object projects/libcxx/src/CMakeFiles/cxx_shared.dir/algorithm.cpp.o") == "libcxx")
+        // Phase banners name the product (or the phase, when there is no product).
+        #expect(BuildStage.moduleLabel(for: "--- Installing swift ---") == "swift")
+        #expect(BuildStage.moduleLabel(for: "--- Running tests for swift ---") == "swift")
+        #expect(BuildStage.moduleLabel(for: "--- Extracting symbols ---") == "Extracting symbols")
+        #expect(BuildStage.moduleLabel(for: "--- Creating installable package ---") == "Installable package")
+    }
+
+    @Test func buildStageModuleLabelRejectsJunkLines() throws {
+        // The reported garbage: linker warnings, CMake install echoes, shell operators → no label.
+        #expect(BuildStage.moduleLabel(for: "ld: warning: ignoring duplicate libraries: 'lib/libgtest.a', 'lib/libllvmSupport.a'") == nil)
+        #expect(BuildStage.moduleLabel(for: "-- Installing: /Users/shad/dev/.../LLDB.framework/Headers") == nil)
+        #expect(BuildStage.moduleLabel(for: "clang++ -o out && ninja -C build") == nil)
+        #expect(BuildStage.moduleLabel(for: "--") == nil)
+    }
+
+    @Test func progressParserKeepsModuleLabelStickyOverJunk() throws {
+        let started = Date()
+        let good = ProgressParser.parse(
+            line: "[3/20] Testing SwiftParseTests",
+            startedAt: started,
+            previous: .zero
+        )
+        #expect(good.moduleLabel == "SwiftParseTests")
+
+        // A junk warning line must not clobber the last good target.
+        let afterJunk = ProgressParser.parse(
+            line: "ld: warning: ignoring duplicate libraries: 'lib/libgtest.a'",
+            startedAt: started,
+            previous: good
+        )
+        #expect(afterJunk.moduleLabel == "SwiftParseTests")
+    }
+
+    @Test func buildStageModuleDisplayUsesStickyLabel() throws {
         var context = BuildOperationsContext()
         context.activeJob = makeBuildJob(kind: .buildScript, displayCommand: "./swift/utils/build-script")
         context.progress = BuildProgressSnapshot(
-            completedSteps: 191,
-            totalSteps: 800,
-            fraction: 0.23,
-            etaSeconds: nil,
-            message: "[191/800] Building CXX object projects/libcxx/src/CMakeFiles/cxx_shared.dir/algorithm.cpp.o"
+            completedSteps: 3, totalSteps: 20, fraction: 0.15, etaSeconds: nil,
+            message: "ld: warning: something noisy", stage: .deploying, moduleLabel: "libcxx"
         )
-
         #expect(BuildStage.moduleDisplay(for: context) == "libcxx")
     }
 

@@ -13,12 +13,16 @@ final class ProcessPipeReader: @unchecked Sendable {
     nonisolated func drain(
         logPath: String,
         startedAt: Date,
+        baseStage: BuildStage,
         onProgress: @escaping @Sendable (BuildProgressSnapshot) -> Void
     ) throws -> String {
         let logWriter = try BuildLogWriter(path: logPath)
         var outputTail = BuildOutputTail()
         do {
             var progress = BuildProgressSnapshot.zero
+            // Jobs that never emit build-script phase banners (raw ninja, update-checkout) stay in
+            // their base stage the whole run; build-script/toolchain jobs advance from it via banners.
+            progress.stage = baseStage
             var buffer = ""
 
             // Coalesce progress to ~10 Hz. A compiler build emits thousands of `[x/y]` lines per

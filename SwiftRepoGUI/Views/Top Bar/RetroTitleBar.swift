@@ -4,8 +4,7 @@ import SwiftXStateSwiftUI
 struct RetroTitleBar: View {
     let build: MachineStore<BuildOperationsMachine>
     let soundtrackDeck: SoundtrackDeckConfiguration?
-    
-    // TODO: This is getting created over and over during a build why? Fix it
+
     @State private var pulse = false
 
     private var stage: BuildStage { build.currentStage }

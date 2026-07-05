@@ -201,7 +201,8 @@ struct BuildOperationsMachine: StateMachine {
             totalSteps: 0,
             fraction: 0,
             etaSeconds: nil,
-            message: "Starting: \(job.displayCommand)"
+            message: "Starting: \(job.displayCommand)",
+            stage: BuildStage.baseStage(for: job.kind)
         )
         ctx.startedAt = .now
         ctx.lastOperationID = job.operationID
@@ -240,7 +241,9 @@ struct BuildOperationsMachine: StateMachine {
         guard case let .progressUpdated(snapshot)? = event else {
             return BuildStage.stage(for: context)
         }
-        return BuildStage.runningStage(for: context.activeJob, progress: snapshot)
+        // The stage is parsed off the output stream (phase banners) and carried on the snapshot;
+        // the nested Building/Testing/Measuring/Deploying substates just mirror it.
+        return snapshot.stage
     }
 
     private static func isFailureStatusEvent(_ event: BuildOpsEvent?) -> Bool {

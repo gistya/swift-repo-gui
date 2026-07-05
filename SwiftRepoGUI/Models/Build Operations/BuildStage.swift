@@ -38,7 +38,7 @@ nonisolated enum BuildStage: String, CaseIterable, Sendable, Equatable, Hashable
             return .off
         }
 
-        return runningStage(for: context.activeJob, progress: context.progress)
+        return context.progress.stage
     }
 
     static func stage(for state: BuildOpsState, context: BuildOperationsContext) -> BuildStage {
@@ -60,65 +60,108 @@ nonisolated enum BuildStage: String, CaseIterable, Sendable, Equatable, Hashable
         }
     }
 
-    static func runningStage(
-        for job: BuildJob?,
-        progress: BuildProgressSnapshot
-    ) -> BuildStage {
-        guard let job else { return .building }
-        let text = [
-            job.kind.rawValue,
-            job.displayCommand,
-            progress.message ?? "",
-            job.targetRepository
-        ]
-            .joined(separator: " ")
-            .lowercased()
+    /// The stage a job begins in, before any phase banner is seen.
+    ///
+    /// Raw `ninja` invocations only ever compile — ninja never runs tests or installs — so they
+    /// stay `.building` for their whole lifetime. `update-checkout` is a source sync, so it reads
+    /// as `.deploying` (the closest non-compile phase). Full `build-script` / toolchain runs start
+    /// building and are advanced by the banners they emit (`detect(bannerIn:)`).
+    static func baseStage(for kind: BuildOperationKind) -> BuildStage {
+        switch kind {
+        case .updateDependencies:
+            return .deploying
+        case .incrementalFrontend, .incrementalSwiftRepo, .incrementalEverything,
+             .dependencyBuild, .updateAndRebuild, .buildScript, .freshBuild, .buildToolchain:
+            return .building
+        }
+    }
 
-        // TODO: this is giving false positives because of commands like this that contain the word "test" but are just build steps:
-        /*
-         buildtoolchain /users/shad/dev/3rdparty/swift-project/swift/utils/build-toolchain implicitfunc --preset-file /users/shad/dev/3rdparty/swift-project/swift/utils/build-presets.ini --preset-file /users/shad/implicitfunc-presets.ini --preset-prefix fast_ [1502/5533][ 27%][783.999s] /opt/homebrew/bin/sccache /applications/xcode.app/contents/developer/toolchains/xcodedefault.xctoolchain/usr/bin/clang++ -dclang_exports -dexperimental_key_instructions -dgtest_has_rtti=0 -d_debug -d_glibcxx_asse implicitfunc
-         */
-        // TODO: we need a better way to tell which step is currently running
-        if text.contains("test") || text.contains("lit ") || text.contains("validation") {
-            return .testing
-        }
-        if text.contains("benchmark") || text.contains("measure") || text.contains("perf") {
-            return .measuring
-        }
-        if text.contains("install") ||
-            text.contains("package") ||
-            text.contains("deploy") ||
-            text.contains("updatecheckout") ||
-            text.contains("update-checkout") {
+    /// Detects a stage change from a single line of build output — but ONLY from the authoritative,
+    /// line-anchored phase banners that `build-script`, `build-script-impl`, and the Python product
+    /// pipeline print. Everything else (compiler commands, `[x/y]` ninja lines, warnings) returns
+    /// `nil`, meaning "keep the current stage". This is deliberately NOT a substring search: a
+    /// filename or path that merely contains "test"/"install"/"benchmark" must not move the stage.
+    static func detect(bannerIn rawLine: String) -> BuildStage? {
+        let line = rawLine.trimmingCharacters(in: .whitespaces)
+        let lower = line.lowercased()
+
+        // Distinctive full-line status prints (anchored at line start; a compiler command never
+        // begins with these sentences).
+        if lower.hasPrefix("running swift benchmarks for") { return .measuring }
+        if lower.hasPrefix("running swift tests for") { return .testing }
+        if lower.hasPrefix("building the standard library for") { return .building }
+
+        // Phase banners have the exact shape `--- <phase> ---`.
+        guard line.hasPrefix("--- "), line.hasSuffix(" ---") else { return nil }
+        let phase = line.dropFirst(4).dropLast(4).trimmingCharacters(in: .whitespaces).lowercased()
+        guard !phase.isEmpty else { return nil }
+
+        if phase.hasPrefix("installing")
+            || phase.contains("installable package")
+            || phase.hasPrefix("extracting symbols") {
             return .deploying
         }
-        return .building
+        if phase.contains("benchmark") {
+            return .measuring
+        }
+        if phase.hasPrefix("running tests for")
+            || phase.hasPrefix("running lldb")
+            || phase.hasPrefix("check-") {
+            return .testing
+        }
+        // A product finished testing, or a new product's clean/build began → back to building.
+        if phase.hasPrefix("finished tests for")
+            || phase.hasPrefix("building")
+            || phase.hasPrefix("cleaning") {
+            return .building
+        }
+        // Unknown banner (e.g. "Bootstrap Local CMake") — don't touch the stage.
+        return nil
     }
 
     static func moduleDisplay(for context: BuildOperationsContext) -> String {
-        if stage(for: context) == .failed { return String(localized: "ERROR") }
-        guard context.isRunning else { return String(localized: "READY") }
-        if let message = context.progress.message,
-           let target = primaryTarget(from: message) {
-            return clipped(target, limit: 22)
-        }
-        if let target = context.activeJob?.targetRepository, !target.isEmpty {
-            return clipped(target, limit: 22)
-        }
-        return clipped(context.activeJob?.kind.title ?? String(localized: "RUNNING"), limit: 22)
+        moduleDisplay(for: stage(for: context), context: context)
     }
 
     static func moduleDisplay(for stage: BuildStage, context: BuildOperationsContext) -> String {
         if stage == .failed { return String(localized: "ERROR") }
         guard stage.isActive else { return String(localized: "READY") }
-        if let message = context.progress.message,
-           let target = primaryTarget(from: message) {
-            return clipped(target, limit: 22)
+        // The last confident target/phase parsed off the output stream (sticky — junk lines don't
+        // clobber it). Falls back to the repo/operation name only until the first real target lands.
+        if let label = context.progress.moduleLabel, !label.isEmpty {
+            return clipped(label, limit: 22)
         }
         if let target = context.activeJob?.targetRepository, !target.isEmpty {
             return clipped(target, limit: 22)
         }
         return clipped(context.activeJob?.kind.title ?? String(localized: "RUNNING"), limit: 22)
+    }
+
+    /// The LCD label for a single output line, or `nil` when the line names no target/phase (so the
+    /// caller keeps the previous label). Recognizes phase banners (`--- Installing swift ---` →
+    /// "swift", `--- Extracting symbols ---`) and structured compile lines; rejects noise.
+    static func moduleLabel(for line: String) -> String? {
+        if let banner = bannerModuleLabel(for: line) { return banner }
+        return primaryTarget(from: line)
+    }
+
+    private static func bannerModuleLabel(for rawLine: String) -> String? {
+        let line = rawLine.trimmingCharacters(in: .whitespaces)
+        guard line.hasPrefix("--- "), line.hasSuffix(" ---") else { return nil }
+        let phase = line.dropFirst(4).dropLast(4).trimmingCharacters(in: .whitespaces)
+        let lower = phase.lowercased()
+
+        if lower.hasPrefix("extracting symbols") { return "Extracting symbols" }
+        if lower.contains("installable package") { return "Installable package" }
+        if lower.hasPrefix("running lldb") { return "lldb" }
+        if lower.hasPrefix("check-") { return String(phase.split(separator: " ").first ?? "") }
+        // "<verb> [tests for] <product>" → the product name. Longer prefixes first.
+        for prefix in ["building tests for ", "finished tests for ", "running tests for ",
+                       "installing ", "cleaning ", "building "] where lower.hasPrefix(prefix) {
+            let target = String(phase.dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
+            if !target.isEmpty { return target }
+        }
+        return nil
     }
 
     private static func primaryTarget(from message: String) -> String? {
@@ -143,28 +186,52 @@ nonisolated enum BuildStage: String, CaseIterable, Sendable, Equatable, Hashable
             return cleaned
         }
 
-        let ignoredTokens: Set<String> = [
-            "building", "compiling", "linking", "installing", "testing",
-            "c", "cxx", "swift", "object", "objects", "module", "library", "executable",
-            "static", "shared", "archive", "tablegen"
-        ]
+        // Verb-anchored fallback: the target is the first identifier-like token that FOLLOWS a known
+        // build verb ("Testing SwiftParseTests" → "SwiftParseTests"). Anchoring on a verb is what
+        // stops junk lines — `ld: warning …`, `-- Installing: /path`, `… && ninja` — from yielding
+        // "ld"/"--"/"&&": those have no leading verb, or the token after it fails `qualifiedTarget`.
         let tokens = text
             .replacingOccurrences(of: ":", with: " ")
             .split(whereSeparator: \.isWhitespace)
             .map(String.init)
 
+        var sawVerb = false
         for token in tokens {
             let lower = token.trimmingCharacters(in: .punctuationCharacters).lowercased()
-            guard !ignoredTokens.contains(lower),
-                  !lower.hasPrefix("-"),
-                  !lower.contains("="),
-                  let cleaned = cleanedTargetName(token) else { continue }
-            if !cleaned.contains(".") {
-                return cleaned
+            if targetVerbs.contains(lower) {
+                sawVerb = true
+                continue
             }
+            guard sawVerb, let qualified = qualifiedTarget(token) else { continue }
+            return qualified
         }
 
         return nil
+    }
+
+    /// Build verbs that a real "compiling this target" description starts with. A line without one is
+    /// treated as non-structured output and yields no label.
+    private static let targetVerbs: Set<String> = [
+        "building", "compiling", "linking", "testing", "installing", "cleaning", "generating"
+    ]
+
+    /// Noise words that are never a target even though they read like identifiers.
+    private static let targetNoise: Set<String> = [
+        "c", "cxx", "cpp", "swift", "swiftc", "clang", "gcc", "ld", "cc", "ar", "ranlib",
+        "object", "objects", "module", "modules", "library", "libraries", "executable",
+        "static", "shared", "archive", "tablegen", "target", "source", "sources",
+        "the", "for", "and", "with", "into", "from", "of", "in", "on", "to", "at", "by",
+        "warning", "error", "note", "ignoring", "duplicate", "skipping", "using"
+    ]
+
+    /// A token that plausibly IS a target name: identifier-shaped, not noise, no path/flag/glue chars.
+    private static func qualifiedTarget(_ token: String) -> String? {
+        let trimmed = token.trimmingCharacters(in: CharacterSet(charactersIn: "\"'`:;,()[]{}"))
+        guard trimmed.count >= 3,
+              !trimmed.contains("."), !trimmed.contains("/"), !trimmed.contains("="),
+              trimmed.range(of: "^[A-Za-z][A-Za-z0-9_+-]*$", options: .regularExpression) != nil,
+              !targetNoise.contains(trimmed.lowercased()) else { return nil }
+        return trimmed
     }
 
     private static func targetFromPath(in text: String) -> String? {

@@ -59,6 +59,7 @@ final class AppSession {
     @ObservationIgnored private var trackedRecords: [UUID: BuildOperationRecord] = [:]
     @ObservationIgnored private var didStartEffectsLoad = false
     @ObservationIgnored private var toolchainWarmupTask: Task<Void, Never>?
+    @ObservationIgnored private var buildSoundtrackBridge: Task<Void, Never>?
     @ObservationIgnored private(set) var lastErrorMessage: String?
 
     /// Installed AudioUnit effects the user can drop into a soundtrack insert slot. Populated lazily
@@ -67,6 +68,15 @@ final class AppSession {
     private(set) var availableAudioEffects: [AudioComponentRef] = []
 
     var selectedSection: AppSectionID { navigation.context.section }
+
+    /// Sections currently torn off into their own window. They're hidden from the main tab bar until
+    /// that window closes. Observed, so the tab bar re-lays-out the moment a tab detaches/reattaches.
+    private(set) var detachedSections: Set<AppSectionID> = []
+
+    /// The sections still shown in the main window's tab bar (everything not torn off).
+    var attachedSections: [AppSectionID] {
+        AppSectionID.allCases.filter { !detachedSections.contains($0) }
+    }
 
     init(modelContext: ModelContext? = nil, settingsDefaults: UserDefaults = .standard) {
         //NSLog("%@", "[OxAudio] AppSession.init")
@@ -130,6 +140,22 @@ final class AppSession {
             systemId: "swiftbuilder.toolchain",
             inspect: inspect
         ))
+
+        // Bridge build → soundtrack OFF the view tree. Doing this in ContentView's body (an
+        // `onChange(of: SoundtrackBuildSnapshot(build.context))`) subscribed the whole view to the
+        // full build context, so every progress tick re-ran ContentView.body and recreated the title
+        // bar / tab bar / content. Here we consume the build snapshot stream off-main, collapse it to
+        // the narrow SoundtrackBuildSnapshot, and only touch the soundtrack when that actually changes.
+        let buildSnapshots = build.snapshots
+        buildSoundtrackBridge = Task { [weak self] in
+            var last: SoundtrackBuildSnapshot?
+            for await (_, context) in buildSnapshots {
+                let snapshot = SoundtrackBuildSnapshot(context)
+                guard snapshot != last else { continue }
+                last = snapshot
+                await MainActor.run { self?.soundtrack.send(.buildSnapshotChanged(snapshot)) }
+            }
+        }
 
         if let lastUsedSettings = LastUsedBuildSettingsStore.load(from: settingsDefaults) {
             settings.send(.restore(lastUsedSettings.options, lastUsedSettings.selectedRepository))
@@ -200,6 +226,21 @@ final class AppSession {
 
     func selectSection(_ section: AppSectionID) {
         navigation.send(.select(section))
+    }
+
+    /// Marks a section as torn off into its own window and removes it from the main tab bar. If it
+    /// was the selected tab, the main window falls back to the first remaining attached section.
+    func markDetached(_ section: AppSectionID) {
+        guard !detachedSections.contains(section) else { return }
+        detachedSections.insert(section)
+        if selectedSection == section, let fallback = attachedSections.first {
+            selectSection(fallback)
+        }
+    }
+
+    /// Re-attaches a section when its detached window closes, so its tab reappears in the main bar.
+    func markAttached(_ section: AppSectionID) {
+        detachedSections.remove(section)
     }
 
     // MARK: - Project

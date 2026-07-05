@@ -12,12 +12,14 @@ nonisolated enum BuildProcessRunner {
     ) async throws -> BuildProcessResult {
         try prepareLogFile(at: job.logFilePath)
         try appendLaunchHeader(for: job)
+        let baseStage = BuildStage.baseStage(for: job.kind)
         onProgress(BuildProgressSnapshot(
             completedSteps: 0,
             totalSteps: 0,
             fraction: 0,
             etaSeconds: nil,
-            message: "Launching: \(job.displayCommand)"
+            message: "Launching: \(job.displayCommand)",
+            stage: baseStage
         ))
 
         let process = Process()
@@ -56,6 +58,7 @@ nonisolated enum BuildProcessRunner {
                     capturedOutputTail = try reader.drain(
                         logPath: job.logFilePath,
                         startedAt: startedAt,
+                        baseStage: baseStage,
                         onProgress: onProgress
                     )
                 } catch {
