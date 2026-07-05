@@ -1,7 +1,11 @@
 import Foundation
 import SwiftXState
 
-nonisolated struct BuildJob: Sendable, Equatable, Hashable {
+extension UUID: @retroactive Blankable {
+    nonisolated public static var _blank: Self { UUID() }
+}
+
+nonisolated struct BuildJob: Sendable, Equatable, Hashable, Blankable {
     let operationID: UUID
     let kind: BuildOperationKind
     let executable: String
@@ -12,6 +16,19 @@ nonisolated struct BuildJob: Sendable, Equatable, Hashable {
     let projectPath: String
     let buildSubdir: String
     let targetRepository: String
+    
+    static let _blank = Self(
+        operationID: ._blank,
+        kind: .buildScript,
+        executable: ._blank,
+        arguments: [],
+        workingDirectory: ._blank,
+        displayCommand: ._blank,
+        logFilePath: ._blank,
+        projectPath: ._blank,
+        buildSubdir: ._blank,
+        targetRepository: ._blank
+    )
 }
 
 nonisolated struct BuildProcessResult: Sendable, Equatable {

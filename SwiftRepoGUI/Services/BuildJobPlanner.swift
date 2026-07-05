@@ -1,3 +1,4 @@
+import CompositionalInit
 import Foundation
 
 nonisolated enum BuildPlanningMode: Sendable, Equatable, Hashable {
@@ -7,7 +8,7 @@ nonisolated enum BuildPlanningMode: Sendable, Equatable, Hashable {
 
 /// A value-semantic build intent that can cross from the main-actor UI/session into a SwiftXState
 /// machine actor. The machine lowers this request into an executable `BuildJob`.
-nonisolated struct BuildRunRequest: Sendable, Equatable, Hashable {
+nonisolated struct BuildRunRequest: Sendable, Equatable, Hashable, Blankable {
     let operationID: UUID
     let kind: BuildOperationKind
     let project: SwiftProjectInfo
@@ -36,6 +37,15 @@ nonisolated struct BuildRunRequest: Sendable, Equatable, Hashable {
         self.mode = mode
         self.logFilePath = logFilePath
     }
+    
+    static let _blank = Self(
+        kind: .buildScript,
+        project: ._blank,
+        buildSubdir: ._blank,
+        options: .default,
+        targetRepository: ._blank,
+        logFilePath: ._blank
+    )
 }
 
 /// Keeps command construction out of SwiftUI/session code. This is deliberately pure: given a

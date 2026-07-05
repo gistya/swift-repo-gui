@@ -10,7 +10,11 @@ nonisolated struct SwiftRepository: Identifiable, Hashable, Sendable, Equatable 
     var id: String { name }
 }
 
-nonisolated struct SwiftProjectInfo: Sendable, Equatable, Hashable {
+extension URL: @retroactive Blankable {
+    nonisolated public static var _blank: Self { URL(string: "/")! }
+}
+
+nonisolated struct SwiftProjectInfo: Sendable, Equatable, Hashable, Blankable {
     let root: URL
     let swiftDirectory: URL
     let buildScript: URL
@@ -40,6 +44,21 @@ nonisolated struct SwiftProjectInfo: Sendable, Equatable, Hashable {
             availableCheckoutSchemes: availableCheckoutSchemes
         )
     }
+    
+    static let _blank = Self(
+        root: ._blank,
+        swiftDirectory: ._blank,
+        buildScript: ._blank,
+        updateCheckout: ._blank,
+        buildRoot: ._blank,
+        repositories: [],
+        detectedBuildSubdirs: [],
+        swiftBuildDirectoryName: ._blank,
+        checkoutScheme: ._blank,
+        swiftBranch: ._blank,
+        schemeResolutionSource: .alias,
+        availableCheckoutSchemes: []
+    )
 }
 
 nonisolated enum SwiftProjectError: LocalizedError, Sendable {
