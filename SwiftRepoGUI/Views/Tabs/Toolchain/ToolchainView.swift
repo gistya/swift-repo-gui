@@ -22,12 +22,15 @@ struct ToolchainView: View {
             VStack(alignment: .leading, spacing: 16) {
                 recipeBar
                 if store.matches(.failed) {
-                    banner(store.context.lastError ?? "build-presets.ini could not be read.", isError: true)
+                    banner(store.context.lastError ?? NSLocalizedString("build-presets.ini could not be read.", comment: "Toolchain tab error banner when the presets file cannot be loaded"), isError: true)
                 } else if store.matches(.loading) {
                     HStack(spacing: 8) {
                         MatrixLoader(.fun(.snake), size: 30.0, color: .terminalGreen, speed: 10.0, bloom: true, halo: 4.0)
+                            .accessibilityHidden(true)
                         Text("Parsing build-presets.ini…").foregroundStyle(Color.terminalGreen.opacity(0.75))
                     }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Parsing build-presets.ini")
                 }
                 identitySection
                 flagsSection
@@ -65,7 +68,10 @@ struct ToolchainView: View {
     private var recipeBar: some View {
         HStack(spacing: 10) {
             Image(systemName: "shippingbox.fill").foregroundStyle(Color.swiftOrange)
+                .accessibilityHidden(true)
             Text("TOOLCHAIN BUILDER").font(.monaco(size: 16, weight: .black))
+                .accessibilityLabel("Toolchain Builder")
+                .accessibilityAddTraits(.isHeader)
             Spacer()
             if !recipes.isEmpty {
                 TerminalMenu(
@@ -77,38 +83,50 @@ struct ToolchainView: View {
                     placeholder: "Load recipe…",
                     width: 200
                 )
+                .accessibilityLabel("Load saved recipe")
+                .accessibilityHint("Choose a previously saved toolchain recipe to load its settings")
             }
             Button("New") { store.send(.newRecipe) }
+                .accessibilityLabel("New recipe")
+                .accessibilityHint("Clears the form to start a new toolchain recipe")
             Button("Save Recipe") { saveRecipe() }
+                .accessibilityHint("Saves the current settings as a reusable recipe")
             ActionHelpButton("action.buildToolchain")
+                .accessibilityLabel("Help about Build Toolchain")
         }
     }
 
     private var identitySection: some View {
-        GroupBox("Identity") {
+        GroupBox {
             VStack(alignment: .leading, spacing: 8) {
                 labeledField("Recipe name", text: fieldBinding(\.name))
                 HStack(spacing: 4) {
                     labeledField("Bundle tag", text: fieldBinding(\.bundleTag), width: 180)
                     ActionHelpButton("action.toolchainTag")
+                        .accessibilityLabel("Help about Toolchain Tag")
                 }
                 HStack(spacing: 4) {
                     labeledField("Preset prefix", text: fieldBinding(\.presetPrefix), width: 180)
                     ActionHelpButton("action.presetPrefix")
+                        .accessibilityLabel("Help about Preset Prefix")
                 }
             }
             .padding(6)
+        } label: {
+            Text("Identity").accessibilityAddTraits(.isHeader)
         }
     }
 
     private var flagsSection: some View {
-        GroupBox("build-toolchain flags") {
+        GroupBox {
             VStack(alignment: .leading, spacing: 8) {
                 let columns = [GridItem(.adaptive(minimum: 150), spacing: 8)]
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 6) {
                     ForEach(ToolchainFlag.allCases) { flag in
                         Toggle(flag.title, isOn: flagBinding(flag))
                             .font(.monaco(size: 11))
+                            .accessibilityLabel(flag.title)
+                            .accessibilityHint("Toggles the \(flag.title) build-toolchain flag")
                     }
                 }
                 Divider()
@@ -118,15 +136,19 @@ struct ToolchainView: View {
                         .font(.monaco(size: 11, weight: .bold)).foregroundStyle(Color.lcdGreen)
                         .textSelection(.enabled)
                 }
+                .accessibilityElement(children: .combine)
                 Text("mixes in stock  \(ToolchainPresetWriter.stockBaseName(flags: draft.flags))  +  your layers below")
                     .font(.monaco(size: 10)).foregroundStyle(Color.terminalGreen.opacity(0.6))
+                    .accessibilityLabel("Mixes in stock \(ToolchainPresetWriter.stockBaseName(flags: draft.flags)) plus your layers below")
             }
             .padding(6)
+        } label: {
+            Text("build-toolchain flags").accessibilityAddTraits(.isHeader)
         }
     }
 
     private var layersSection: some View {
-        GroupBox("Layered presets & mixins") {
+        GroupBox {
             VStack(alignment: .leading, spacing: 8) {
                 if draft.selectedMixins.isEmpty {
                     Text("No extra layers — just the stock toolchain preset. Add presets/mixins to compose.")
@@ -134,30 +156,50 @@ struct ToolchainView: View {
                 } else {
                     ForEach(Array(draft.selectedMixins.enumerated()), id: \.offset) { index, name in
                         HStack {
-                            Image(systemName: "square.stack.3d.up.fill").font(.system(size: 10)).foregroundStyle(Color.swiftOrange.opacity(0.8))
-                            Text(name).font(.monaco(size: 11, weight: .bold)).foregroundStyle(Color.lcdGreen)
-                            if customPresets.contains(where: { $0.name == name }) {
-                                Text("custom").font(.monaco(size: 8, weight: .bold)).foregroundStyle(Color.swiftOrange)
-                            } else if !store.context.catalog.contains(where: { $0.name == name }) {
-                                Text("unknown").font(.monaco(size: 8, weight: .bold)).foregroundStyle(Color.terminalFailureRed)
+                            HStack {
+                                Image(systemName: "square.stack.3d.up.fill").font(.system(size: 10)).foregroundStyle(Color.swiftOrange.opacity(0.8))
+                                    .accessibilityHidden(true)
+                                Text(name).font(.monaco(size: 11, weight: .bold)).foregroundStyle(Color.lcdGreen)
+                                if customPresets.contains(where: { $0.name == name }) {
+                                    Text("custom").font(.monaco(size: 8, weight: .bold)).foregroundStyle(Color.swiftOrange)
+                                } else if !store.context.catalog.contains(where: { $0.name == name }) {
+                                    Text("unknown").font(.monaco(size: 8, weight: .bold)).foregroundStyle(Color.terminalFailureRed)
+                                }
                             }
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel(layerAccessibilityLabel(name))
                             Spacer()
                             Button { mutate { $0.selectedMixins.remove(at: index) } } label: {
                                 Image(systemName: "minus.circle.fill").foregroundStyle(Color.terminalFailureRed.opacity(0.8))
                             }.buttonStyle(.plain)
+                                .accessibilityLabel("Remove layer \(name)")
+                                .accessibilityHint("Removes this preset or mixin from the composed toolchain")
                         }
                     }
                 }
                 Button { showAddLayer = true } label: {
                     Label("Add layer…", systemImage: "plus.circle").font(.monaco(size: 11, weight: .bold))
                 }
+                .accessibilityLabel("Add layer")
+                .accessibilityHint("Opens a picker to add a preset or mixin layer")
             }
             .padding(6)
+        } label: {
+            Text("Layered presets & mixins").accessibilityAddTraits(.isHeader)
         }
     }
 
+    private func layerAccessibilityLabel(_ name: String) -> String {
+        if customPresets.contains(where: { $0.name == name }) {
+            return String(format: NSLocalizedString("%@, custom preset", comment: "Accessibility label for a layer row backed by a user-defined custom preset"), name)
+        } else if !store.context.catalog.contains(where: { $0.name == name }) {
+            return String(format: NSLocalizedString("%@, unknown preset", comment: "Accessibility label for a layer row whose preset is not found in the catalog"), name)
+        }
+        return name
+    }
+
     private var overridesSection: some View {
-        GroupBox("Option overrides (win last)") {
+        GroupBox {
             VStack(alignment: .leading, spacing: 6) {
                 Text("build-script long options, one per line — bare flag or key=value (no leading --).")
                     .font(.monaco(size: 10)).foregroundStyle(Color.terminalGreen.opacity(0.6))
@@ -169,13 +211,17 @@ struct ToolchainView: View {
                     .padding(6)
                     .background(RoundedRectangle(cornerRadius: 5).fill(Color.black.opacity(0.5))
                         .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.terminalGreen.opacity(0.3), lineWidth: 1)))
+                    .accessibilityLabel("Option overrides")
+                    .accessibilityHint("Enter build-script long options, one per line, as a bare flag or key equals value without leading dashes")
             }
             .padding(6)
+        } label: {
+            Text("Option overrides (win last)").accessibilityAddTraits(.isHeader)
         }
     }
 
     private var customPresetsSection: some View {
-        GroupBox("Your custom presets & mixins") {
+        GroupBox {
             VStack(alignment: .leading, spacing: 6) {
                 if customPresets.isEmpty {
                     Text("Define reusable building blocks that show up in “Add layer”.")
@@ -183,42 +229,61 @@ struct ToolchainView: View {
                 }
                 ForEach(customPresets) { preset in
                     HStack {
-                        Text(preset.name).font(.monaco(size: 11, weight: .bold)).foregroundStyle(Color.lcdGreen)
-                        Text("\(preset.mixins.count) mixins · \(preset.optionLines.count) options")
-                            .font(.monaco(size: 10)).foregroundStyle(Color.terminalGreen.opacity(0.6))
+                        HStack {
+                            Text(preset.name).font(.monaco(size: 11, weight: .bold)).foregroundStyle(Color.lcdGreen)
+                            Text("\(preset.mixins.count) mixins · \(preset.optionLines.count) options")
+                                .font(.monaco(size: 10)).foregroundStyle(Color.terminalGreen.opacity(0.6))
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("\(preset.name), \(preset.mixins.count) mixins, \(preset.optionLines.count) options")
                         Spacer()
                         Button("Add") { mutate { $0.selectedMixins.append(preset.name) } }
+                            .accessibilityLabel("Add \(preset.name)")
+                            .accessibilityHint("Adds this custom preset as a layer")
                         Button("Edit") { editingCustom = preset }
+                            .accessibilityLabel("Edit \(preset.name)")
+                            .accessibilityHint("Opens the editor for this custom preset")
                         Button(role: .destructive) { modelContext.delete(preset) } label: { Image(systemName: "trash") }
                             .buttonStyle(.borderless)
+                            .accessibilityLabel("Delete \(preset.name)")
+                            .accessibilityHint("Permanently removes this custom preset")
                     }
                 }
                 Button { showNewCustom = true } label: {
                     Label("New custom preset…", systemImage: "plus.circle").font(.monaco(size: 11, weight: .bold))
                 }
+                .accessibilityLabel("New custom preset")
+                .accessibilityHint("Opens the editor to define a reusable preset or mixin")
                 ActionHelpButton("action.toolchainOverride")
+                    .accessibilityLabel("Help about Toolchain Override Profile")
             }
             .padding(6)
+        } label: {
+            Text("Your custom presets & mixins").accessibilityAddTraits(.isHeader)
         }
     }
 
     private var previewSection: some View {
-        GroupBox("Generated ~/\(draft.bundleTag)-presets.ini") {
+        GroupBox {
             ScrollView(.vertical) {
                 Text(ToolchainPresetWriter.overlay(draft: draft, customPresets: customPresets.map(\.value)))
                     .font(.monaco(size: 10))
                     .foregroundStyle(Color.terminalGreen.opacity(0.9))
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityLabel("Generated preset file preview")
             }
             .frame(maxHeight: 220)
             .padding(6)
+        } label: {
+            Text("Generated ~/\(draft.bundleTag)-presets.ini").accessibilityAddTraits(.isHeader)
         }
     }
 
     private var buildBar: some View {
         HStack {
             ActionHelpButton("action.basePresetFile")
+                .accessibilityLabel("Help about Base Preset File")
             Spacer()
             Button {
                 let current = draft
@@ -228,6 +293,8 @@ struct ToolchainView: View {
             }
             .buttonStyle(RetroMetalButtonStyle())
             .disabled(isBuilding || !session.project.context.isValid)
+            .accessibilityLabel("Build Toolchain")
+            .accessibilityHint("Runs build-toolchain to produce an installable toolchain bundle")
         }
     }
 
@@ -241,10 +308,12 @@ struct ToolchainView: View {
     private func labeledField(_ label: String, text: Binding<String>, width: CGFloat? = nil) -> some View {
         HStack {
             Text(label).font(.monaco(size: 11, weight: .semibold)).foregroundStyle(Color.terminalGreen.opacity(0.8)).frame(width: 110, alignment: .leading)
+                .accessibilityHidden(true)
             TextField("", text: text)
                 .textFieldStyle(.roundedBorder)
                 .font(.monaco(size: 11))
                 .frame(width: width)
+                .accessibilityLabel(label)
         }
     }
 

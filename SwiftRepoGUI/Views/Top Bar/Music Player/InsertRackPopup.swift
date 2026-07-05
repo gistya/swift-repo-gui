@@ -15,6 +15,7 @@ struct InsertRackPopup: View {
                     .font(.system(size: 16, weight: .black))
                     .foregroundStyle(Color.swiftOrange)
                     .shadow(color: Color.swiftOrange.opacity(0.7), radius: 6)
+                    .accessibilityHidden(true)
                 Text("EFFECT INSERTS")
                     .font(.monaco(size: 15, weight: .black))
                     .foregroundStyle(Color.terminalGreen)
@@ -93,6 +94,7 @@ struct InsertRackPopup: View {
                 placeholder: "— empty —"
             )
             .frame(maxWidth: .infinity)
+            .accessibilityLabel("Effect insert \(index + 1)")
 
             SoundtrackIconButton(
                 systemName: slot.isBypassed ? "circle.slash" : "circle.fill",

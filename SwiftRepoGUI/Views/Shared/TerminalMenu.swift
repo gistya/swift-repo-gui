@@ -56,6 +56,10 @@ struct TerminalMenu<Value: Hashable>: View {
             }
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Selection")
+        .accessibilityValue(selectedLabel)
+        .accessibilityHint("Opens a menu.")
+        .accessibilityAddTraits(.isButton)
         .popover(isPresented: $isOpen, arrowEdge: .bottom) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 1) {
@@ -92,6 +96,7 @@ private struct TerminalMenuRow: View {
                     .foregroundStyle(Color.lcdGreen)
                     .opacity(isSelected ? 1 : 0)
                     .frame(width: 12)
+                    .accessibilityHidden(true)
                 Text(label)
                     .font(.monaco(size: 11, weight: isSelected ? .bold : .regular))
                     .foregroundStyle(isSelected ? Color.lcdGreen : Color.terminalGreen)
@@ -106,6 +111,8 @@ private struct TerminalMenuRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
         .onHover { hovering = $0 }
     }
 }

@@ -20,10 +20,15 @@ struct AddLayerSheet: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("ADD LAYER").font(.monaco(size: 14, weight: .black)).foregroundStyle(Color.terminalGreen)
+                    .accessibilityLabel("Add Layer")
+                    .accessibilityAddTraits(.isHeader)
                 Spacer()
                 Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
+                    .accessibilityHint("Closes without adding a layer")
             }
             TextField("Filter presets & mixins…", text: $search).textFieldStyle(.roundedBorder).font(.monaco(size: 11))
+                .accessibilityLabel("Filter presets and mixins")
+                .accessibilityHint("Type to narrow the list below")
             List {
                 if !customNames.isEmpty {
                     Section("Your custom") {
@@ -48,7 +53,10 @@ struct AddLayerSheet: View {
                 if let tag { Text(tag).font(.monaco(size: 8, weight: .bold)).foregroundStyle(Color.swiftOrange) }
                 Spacer()
                 Image(systemName: "plus.circle").foregroundStyle(Color.lcdGreen.opacity(0.7))
+                    .accessibilityHidden(true)
             }.contentShape(Rectangle())
         }.buttonStyle(.plain)
+        .accessibilityLabel(tag == nil ? "Add \(name)" : "Add \(name), \(tag!)")
+        .accessibilityHint("Adds this layer and closes the picker")
     }
 }

@@ -15,20 +15,25 @@ struct BuildProgressPanel: View {
                         ProgressView(value: build.context.progress.fraction) {
                             Text("Building... \(Int(build.context.progress.fraction * 100))%")
                         }
+                        .accessibilityLabel("Build progress")
+                        .accessibilityValue("\(Int(build.context.progress.fraction * 100)) percent")
                     } else {
                         ProgressView {
                             Text(runningTitle)
                         }
+                        .accessibilityLabel(runningTitle)
                     }
                     if let eta = build.context.progress.etaSeconds, eta > 0 {
                         Text("ETA: \(formatDuration(eta))")
                             .font(.monaco(size: 11))
                             .foregroundStyle(Color.terminalGreen.opacity(0.75))
+                            .accessibilityLabel("Estimated time remaining: \(formatDuration(eta))")
                     }
                     if build.context.progress.totalSteps > 0 {
                         Text("\(build.context.progress.completedSteps) / \(build.context.progress.totalSteps) ninja steps")
                             .font(.monaco(size: 11))
                             .foregroundStyle(Color.terminalGreen.opacity(0.75))
+                            .accessibilityLabel("\(build.context.progress.completedSteps) of \(build.context.progress.totalSteps) ninja steps completed")
                     }
                     if let message = build.context.progress.message, !message.isEmpty {
                         Text(message)
@@ -41,13 +46,20 @@ struct BuildProgressPanel: View {
                             .font(.monaco(size: 10))
                             .foregroundStyle(Color.terminalGreen.opacity(0.75))
                             .lineLimit(2)
+                            .accessibilityLabel("Current command: \(job.displayCommand)")
                     }
                     HStack {
                         Button("Cancel", role: .destructive) { build.send(.cancel) }
+                            .accessibilityLabel("Cancel build")
+                            .accessibilityHint("Stops the running build.")
                         ActionHelpButton("action.cancel")
+                            .accessibilityLabel("Help about Cancel build")
                         Spacer()
                         Button("Open Logs Folder") { AppFolderActions.openLogsFolder() }
+                            .accessibilityLabel("Open logs folder")
+                            .accessibilityHint("Reveals the build logs folder in Finder.")
                         ActionHelpButton("action.openLogsFolder")
+                            .accessibilityLabel("Help about Open logs folder")
                     }
                 }
             } else if let message = build.context.statusMessage {
@@ -63,7 +75,10 @@ struct BuildProgressPanel: View {
                                 NSPasteboard.general.setString(message, forType: .string)
                                 copiedFailureReason = true
                             }
+                            .accessibilityLabel(copiedFailureReason ? "Copied failure reason" : "Copy failure reason")
+                            .accessibilityHint("Copies the build failure message to the clipboard.")
                             ActionHelpButton("action.copyFailureReason")
+                                .accessibilityLabel("Help about Copy failure reason")
                         }
                     }
                 }

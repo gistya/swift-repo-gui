@@ -41,6 +41,9 @@ struct LcdModuleDisplay: View {
             .padding(.horizontal, 18)
         }
         .frame(height: 54)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Build stage")
+        .accessibilityValue("\(stage.title), \(text)")
     }
 }
 

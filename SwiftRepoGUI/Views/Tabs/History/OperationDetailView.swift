@@ -50,11 +50,14 @@ struct OperationDetailView: View {
     }
 
     private var commandSection: some View {
-        GroupBox("Command") {
+        GroupBox {
             Text(operation.commandLine)
                 .font(.monaco(size: 13))
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
+        } label: {
+            Text("Command")
+                .accessibilityAddTraits(.isHeader)
         }
     }
 
@@ -64,17 +67,26 @@ struct OperationDetailView: View {
                 Task { await session.replay(operation) }
             }
             .disabled(session.build.matches(.running))
+            .accessibilityLabel("Replay Operation")
+            .accessibilityHint("Restores this operation's settings and runs the build again. Disabled while a build is running.")
             ActionHelpButton("action.replay")
+                .accessibilityLabel("Help about Replay Operation")
 
             Button(copied ? "Copied!" : "Copy Command") {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(shellWrappedCommand, forType: .string)
                 copied = true
             }
+            .accessibilityLabel("Copy Command Line")
+            .accessibilityHint("Copies this operation's shell command to the clipboard.")
             ActionHelpButton("action.copyCommand")
+                .accessibilityLabel("Help about Copy Command Line")
 
             Button("Export…") { exportOperation() }
+                .accessibilityLabel("Export Operation")
+                .accessibilityHint("Writes this operation to a .swiftbuildop file and reveals it in Finder.")
             ActionHelpButton("action.export")
+                .accessibilityLabel("Help about Export Operation")
             Spacer()
             if let exportMessage {
                 Text(exportMessage)
@@ -95,7 +107,10 @@ struct OperationDetailView: View {
         do {
             let exported = ExportedBuildOperation(from: operation)
             let url = try OperationImportExport.writeExportFile(exported)
-            exportMessage = "Exported to \(url.lastPathComponent)"
+            exportMessage = String(
+                format: NSLocalizedString("Exported to %@", comment: "Confirmation shown after exporting an operation, with the file name"),
+                url.lastPathComponent
+            )
             NSWorkspace.shared.activateFileViewerSelecting([url])
         } catch {
             exportMessage = error.localizedDescription
@@ -106,6 +121,9 @@ struct OperationDetailView: View {
         let formatter = DateComponentsFormatter()
         formatter.allowedUnits = [.hour, .minute, .second]
         formatter.zeroFormattingBehavior = .pad
-        return formatter.string(from: interval) ?? "\(Int(interval))s"
+        return formatter.string(from: interval) ?? String(
+            format: NSLocalizedString("%ds", comment: "Fallback duration format in seconds"),
+            Int(interval)
+        )
     }
 }

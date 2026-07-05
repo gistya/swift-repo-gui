@@ -11,6 +11,17 @@ struct DashboardView: View {
     let build: MachineStore<BuildOperationsMachine>
 
     @Environment(\.modelContext) private var modelContext
+    @State private var pendingAction: PendingBuildAction?
+
+    /// A build action awaiting an "are you sure?" confirmation — the destructive ones (clean rebuilds,
+    /// update-checkout, which can discard local branch state).
+    private struct PendingBuildAction: Identifiable {
+        let id = UUID()
+        let title: String
+        let confirmLabel: String
+        let message: String
+        let run: () -> Void
+    }
 
     var body: some View {
         ScrollView {
@@ -35,6 +46,22 @@ struct DashboardView: View {
         } message: {
             Text(session.lastErrorMessage ?? "")
         }
+        .confirmationDialog(
+            pendingAction?.title ?? "",
+            isPresented: Binding(
+                get: { pendingAction != nil },
+                set: { if !$0 { pendingAction = nil } }
+            ),
+            presenting: pendingAction
+        ) { action in
+            Button(action.confirmLabel, role: .destructive) {
+                action.run()
+                pendingAction = nil
+            }
+            Button("Cancel", role: .cancel) { pendingAction = nil }
+        } message: { action in
+            Text(action.message)
+        }
     }
 
     private var projectHeader: some View {
@@ -43,9 +70,13 @@ struct DashboardView: View {
                 HStack {
                     Text("Swift Project")
                         .font(.monaco(size: 13, weight: .bold))
+                        .accessibilityAddTraits(.isHeader)
                     Spacer()
                     Button("Choose…") { chooseProjectDirectory() }
+                        .accessibilityLabel("Choose Swift project")
+                        .accessibilityHint("Opens a folder picker to set the Swift project root directory.")
                     ActionHelpButton("action.chooseProject")
+                        .accessibilityLabel("Help about Choose Swift project")
                 }
 
                 TextField(
@@ -54,10 +85,13 @@ struct DashboardView: View {
                 )
                 .textFieldStyle(.roundedBorder)
                 .onSubmit { project.send(.refresh) }
+                .accessibilityLabel("Swift project directory path")
+                .accessibilityHint("Enter the path to your swift-project directory. Press return to refresh.")
 
                 if project.matches(.loading) {
                     HStack(spacing: 8) {
                         MatrixLoader(.fun(.snake), size: 30, color: .terminalGreen, speed: 10.0, bloom: true, halo: 4.0)
+                            .accessibilityHidden(true)
                         Text("Discovering repositories…")
                             .font(.monaco(size: 13))
                             .foregroundStyle(Color.terminalGreen.opacity(0.75))
@@ -77,6 +111,7 @@ struct DashboardView: View {
                             }
                             .font(.monaco(size: 11))
                             .foregroundStyle(Color.terminalGreen.opacity(0.75))
+                            .accessibilityElement(children: .combine)
 
                             if !info.detectedBuildSubdirs.isEmpty {
                                 HStack {
@@ -89,6 +124,9 @@ struct DashboardView: View {
                                         onSelect: { project.send(.setBuildSubdir($0)) },
                                         width: 260
                                     )
+                                    .accessibilityLabel("Build directory")
+                                    .accessibilityValue(project.context.selectedBuildSubdir)
+                                    .accessibilityHint("Choose which detected build directory to use.")
                                 }
                                 checkoutSchemeSection(info: info)
                                     .frame(alignment: .init(horizontal: .trailing, vertical: .top))
@@ -97,7 +135,7 @@ struct DashboardView: View {
                         Spacer()
                         repositorySection
                     }
-                    
+
                     Text("Branch `\(info.swiftBranch)` → scheme `\(info.checkoutScheme)` for update-checkout.")
                         .font(.monaco(size: 11))
                         .foregroundStyle(Color.terminalGreen.opacity(0.75))
@@ -126,6 +164,8 @@ struct DashboardView: View {
                     onSelect: { project.send(.setCheckoutSchemeOverride($0)) },
                     width: 260
                 )
+                .accessibilityLabel("Checkout scheme")
+                .accessibilityHint("Override the update-checkout scheme, or use the auto-resolved one.")
             }
         }
     }
@@ -133,18 +173,30 @@ struct DashboardView: View {
     private var quickActions: some View {
         GroupBox("Build Actions") {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 12)], spacing: 12) {
+                // Swift-level builds (require the primary `swift` repo — disabled when a dependency is selected).
                 actionButton(title: "Incremental Frontend", subtitle: "ninja bin/swift-frontend", symbol: "swift", help: "action.incrementalFrontend", kind: .incrementalFrontend)
                 actionButton(title: "Incremental Swift Repo", subtitle: "Rebuild all swift/ targets", symbol: "arrow.triangle.2.circlepath", help: "action.incrementalSwiftRepo", kind: .incrementalSwiftRepo)
                 actionButton(title: "Incremental Everything", subtitle: "ninja entire build tree", symbol: "square.stack.3d.up", help: "action.incrementalEverything", kind: .incrementalEverything)
                 actionButton(title: "Full Build Script", subtitle: "Uses settings below", symbol: "gearshape.2", help: "action.buildScript", kind: .buildScript)
-                actionButton(title: "Fresh Rebuild", subtitle: "Clean + build script", symbol: "trash.circle", help: "action.freshBuild", kind: .freshBuild)
-                actionButton(title: "Fresh Dependency", subtitle: "ninja clean + rebuild selected repo", symbol: "arrow.clockwise.circle", help: "action.freshDependency", action: {
-                    Task { try? await session.startFreshDependency() }
-                })
-                actionButton(title: "Update Dependencies", subtitle: "update-checkout --scheme … --match-timestamp", symbol: "arrow.down.circle", help: "action.updateDependencies", kind: .updateDependencies)
-                actionButton(title: "Update & Rebuild Changed", subtitle: "Sync deps, ninja changed repos", symbol: "arrow.triangle.merge", help: "action.updateAndRebuild", action: {
-                    Task { await session.runUpdateThenRebuild() }
-                })
+                actionButton(title: "Fresh Rebuild", subtitle: "Clean + build script", symbol: "trash.circle", help: "action.freshBuild", kind: .freshBuild,
+                             destructive: true,
+                             confirmMessage: "This deletes the current build and runs a full clean build script from scratch — it can take a very long time.")
+                // Dependency-scoped — valid for whichever repo is selected.
+                actionButton(title: "Fresh Dependency", subtitle: "ninja clean + rebuild selected repo", symbol: "arrow.clockwise.circle", help: "action.freshDependency",
+                             requiresPrimaryRepo: false,
+                             destructive: true,
+                             confirmMessage: "This runs `ninja clean` on the selected dependency and rebuilds it from scratch.",
+                             action: { Task { try? await session.startFreshDependency() } })
+                // Checkout management — repo-agnostic, but mutates git state, so confirm.
+                actionButton(title: "Update Dependencies", subtitle: "update-checkout --scheme … --match-timestamp", symbol: "arrow.down.circle", help: "action.updateDependencies", kind: .updateDependencies,
+                             requiresPrimaryRepo: false,
+                             destructive: true,
+                             confirmMessage: "This runs update-checkout, syncing every repo to the scheme's revisions. Local branch state that has diverged may be reset.")
+                actionButton(title: "Update & Rebuild Changed", subtitle: "Sync deps, ninja changed repos", symbol: "arrow.triangle.merge", help: "action.updateAndRebuild",
+                             requiresPrimaryRepo: false,
+                             destructive: true,
+                             confirmMessage: "This syncs all dependencies (update-checkout) and rebuilds the changed repos. Local branch state that has diverged may be reset.",
+                             action: { Task { await session.runUpdateThenRebuild() } })
             }
         }
     }
@@ -155,21 +207,45 @@ struct DashboardView: View {
         symbol: String,
         help: String,
         kind: BuildOperationKind? = nil,
+        requiresPrimaryRepo: Bool = true,
+        destructive: Bool = false,
+        confirmMessage: String? = nil,
         action: (() -> Void)? = nil
     ) -> some View {
-        Button {
+        let perform: () -> Void = {
             if let action {
                 action()
             } else if let kind {
                 Task { try? await session.startBuild(kind: kind) }
             }
+        }
+        // A swift-level build makes no sense while a dependency is the target: gray it out and say why.
+        let dependencySelected = settings.context.selectedRepository != "swift"
+        let blockedByRepo = requiresPrimaryRepo && dependencySelected
+        let isDisabled = !project.context.isValid || project.matches(.loading) || build.matches(.running) || blockedByRepo
+
+        return Button {
+            if destructive {
+                // Built as String and fed to confirmationDialog/Button/Text (which don't auto-localize a
+                // String variable), so localize explicitly via runtime-key lookup against the catalog.
+                pendingAction = PendingBuildAction(
+                    title: String(format: NSLocalizedString("Run “%@”?", comment: "Confirm-run dialog title"),
+                                  NSLocalizedString(title, comment: "Build action name")),
+                    confirmLabel: NSLocalizedString(title, comment: "Build action name"),
+                    message: NSLocalizedString(confirmMessage ?? "This can modify or delete build state and may take a while.",
+                                               comment: "Destructive build action confirmation"),
+                    run: perform
+                )
+            } else {
+                perform()
+            }
         } label: {
             VStack(alignment: .leading, spacing: 6) {
-                Label(title, systemImage: symbol)
+                Label(LocalizedStringKey(title), systemImage: symbol)
                     .font(.monaco(size: 13, weight: .bold))
                     .lineLimit(1)
                     .padding(.trailing, 18)
-                Text(subtitle)
+                Text(LocalizedStringKey(subtitle))
                     .font(.monaco(size: 11))
                     .foregroundStyle(Color.terminalGreen.opacity(0.75))
                     .multilineTextAlignment(.leading)
@@ -180,12 +256,32 @@ struct DashboardView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .buttonStyle(RetroActionButtonStyle())
-        .disabled(!project.context.isValid || project.matches(.loading) || build.matches(.running))
-        // Help stays tappable even while the action is disabled (build running / no project).
+        .disabled(isDisabled)
+        .help(blockedByRepo
+            ? LocalizedStringKey("This is a swift-level build — select the swift repository to run it.")
+            : LocalizedStringKey(subtitle))
+        // VoiceOver: a single labeled/hinted button element (it announces the disabled state itself).
+        .accessibilityLabel(LocalizedStringKey(title))
+        .accessibilityHint(Self.accessibilityHint(subtitle: subtitle, destructive: destructive, blockedByRepo: blockedByRepo))
+        // Help stays tappable even while the action is disabled (build running / no project / wrong repo).
         .overlay(alignment: .topTrailing) {
             ActionHelpButton(help)
                 .padding(8)
+                .accessibilityLabel("Help about \(title)")
         }
+    }
+
+    private static func accessibilityHint(subtitle: String, destructive: Bool, blockedByRepo: Bool) -> String {
+        // Returned as String to `.accessibilityHint`, which won't localize a variable — so resolve
+        // the pieces through the catalog here.
+        let sub = NSLocalizedString(subtitle, comment: "Build action subtitle")
+        if blockedByRepo {
+            return String(format: NSLocalizedString("%@. Disabled — select the swift repository to enable this swift-level build.", comment: ""), sub)
+        }
+        if destructive {
+            return String(format: NSLocalizedString("%@. Asks for confirmation before running.", comment: ""), sub)
+        }
+        return sub
     }
 
     private var repositorySection: some View {
@@ -193,6 +289,7 @@ struct DashboardView: View {
             if project.matches(.loading) {
                 HStack(spacing: 8) {
                     MatrixLoader(.fun(.snake), size: 30.0, color: .terminalGreen, speed: 10.0, bloom: true, halo: 4.0)
+                        .accessibilityHidden(true)
                     Text("Loading repository list…")
                         .foregroundStyle(Color.terminalGreen.opacity(0.75))
                 }
@@ -207,6 +304,9 @@ struct DashboardView: View {
                         onSelect: { settings.send(.setRepository($0)) },
                         width: 260
                     )
+                    .accessibilityLabel("Target repository")
+                    .accessibilityValue(settings.context.selectedRepository)
+                    .accessibilityHint("Choose which repository dependency-specific builds act on.")
                 }
                 Text("Used for dependency-specific fresh/incremental builds.")
                     .font(.monaco(size: 11))
@@ -223,7 +323,7 @@ struct DashboardView: View {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
-        panel.message = "Select your swift-project directory"
+        panel.message = NSLocalizedString("Select your swift-project directory", comment: "Prompt shown in the folder picker for choosing the Swift project root")
         if panel.runModal() == .OK, let url = panel.url {
             session.setProjectPath(url.path)
         }

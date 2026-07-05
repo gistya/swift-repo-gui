@@ -60,6 +60,11 @@ struct TerminalTabButton: View {
                 }
         )
         .help("Drag away to open \(section.title) in a separate window")
+        // Accessibility: announce the natural-case title + selected state (the visible label is
+        // uppercased, which VoiceOver reads letter-by-letter), plus the drag affordance.
+        .accessibilityLabel(section.title)
+        .accessibilityHint("Shows the \(section.title) tab. Drag away to open it in its own window.")
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 
     private var detachedWindowPreview: some View {

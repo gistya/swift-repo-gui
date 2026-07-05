@@ -78,6 +78,7 @@ struct NoPluginInterfaceView: View {
             Image(systemName: "slider.horizontal.3")
                 .font(.system(size: 30, weight: .light))
                 .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
             Text(title)
                 .font(.headline)
             Text("This AudioUnit has no custom interface.")

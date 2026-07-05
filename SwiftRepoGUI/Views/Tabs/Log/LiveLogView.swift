@@ -25,8 +25,12 @@ struct LiveLogView: View {
         .toolbar {
             ToolbarItemGroup {
                 Button("Open Logs Folder") { AppFolderActions.openLogsFolder() }
+                    .accessibilityLabel("Open Logs Folder")
+                    .accessibilityHint("Opens the folder containing saved build logs in Finder.")
                 ActionHelpButton("action.openLogsFolder")
                 Button("Open Exports Folder") { AppFolderActions.openExportsFolder() }
+                    .accessibilityLabel("Open Exports Folder")
+                    .accessibilityHint("Opens the folder containing exported files in Finder.")
                 ActionHelpButton("action.openExportsFolder")
             }
         }

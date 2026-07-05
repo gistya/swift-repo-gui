@@ -25,6 +25,10 @@ struct TerminalTabBar: View {
             Rectangle()
                 .fill(Color.terminalGreen.opacity(0.35))
                 .frame(height: 1)
+                .accessibilityHidden(true)
         }
+        // Group the tab buttons under one navigable container for VoiceOver.
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Section tabs")
     }
 }

@@ -24,11 +24,20 @@ struct HistoryView: View {
             .toolbar {
                 ToolbarItemGroup {
                     Button("Import…") { importOperationFromDisk() }
+                        .accessibilityLabel("Import Operation")
+                        .accessibilityHint("Opens a picker to import a build operation from a .swiftbuildop file.")
                     ActionHelpButton("action.import")
+                        .accessibilityLabel("Help about Import Operation")
                     Button("Open Logs") { AppFolderActions.openLogsFolder() }
+                        .accessibilityLabel("Open Logs Folder")
+                        .accessibilityHint("Reveals the build logs folder in Finder.")
                     ActionHelpButton("action.openLogsFolder")
+                        .accessibilityLabel("Help about Open Logs Folder")
                     Button("Open Exports") { AppFolderActions.openExportsFolder() }
+                        .accessibilityLabel("Open Exports Folder")
+                        .accessibilityHint("Reveals the exported operations folder in Finder.")
                     ActionHelpButton("action.openExportsFolder")
+                        .accessibilityLabel("Help about Open Exports Folder")
                 }
             }
         } detail: {
@@ -50,6 +59,8 @@ struct HistoryView: View {
             set: { if !$0 { importError = nil } }
         )) {
             Button("OK") { importError = nil }
+                .accessibilityLabel("OK")
+                .accessibilityHint("Dismisses the import error.")
         } message: {
             Text(importError ?? "")
         }
@@ -89,7 +100,10 @@ struct HistoryView: View {
                     commandLine: imported.commandLine,
                     logFileName: "",
                     options: imported.options,
-                    notes: "Imported: \(imported.notes)",
+                    notes: String(
+                        format: NSLocalizedString("Imported: %@", comment: "Prefix for the notes of an imported build operation"),
+                        imported.notes
+                    ),
                     savedProfileName: imported.savedProfileName
                 )
                 modelContext.insert(record)

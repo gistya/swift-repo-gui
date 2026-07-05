@@ -4,6 +4,8 @@ import SwiftXStateSwiftUI
 struct RetroTitleBar: View {
     let build: MachineStore<BuildOperationsMachine>
     let soundtrackDeck: SoundtrackDeckConfiguration?
+    
+    // TODO: This is getting created over and over during a build why? Fix it
     @State private var pulse = false
 
     private var stage: BuildStage { build.currentStage }
@@ -13,11 +15,13 @@ struct RetroTitleBar: View {
     var body: some View {
         ZStack {
             BrushedMetalBackground()
+                .accessibilityHidden(true)
             if build.matches(.running) {
                 Color.swiftOrange
                     .opacity(pulse ? 0.22 : 0.06)
                     .blendMode(.plusLighter)
                     .animation(.easeInOut(duration: 1.45).repeatForever(autoreverses: true), value: pulse)
+                    .accessibilityHidden(true)
             }
 
             HStack(spacing: 18) {
@@ -42,11 +46,13 @@ struct RetroTitleBar: View {
                         Spacer(minLength: 0)
 
                         progressReadout
-                        if audioError != nil {
+                        if let audioError {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .font(.monaco(size: 11, weight: .bold))
                                 .foregroundStyle(Color.terminalFailureRed)
-                                .help(audioError ?? "")
+                                .help(audioError)
+                                .accessibilityLabel("Soundtrack error")
+                                .accessibilityValue(audioError)
                         }
                     }
                     if let soundtrackDeck {
@@ -76,6 +82,7 @@ struct RetroTitleBar: View {
                     .frame(width: 100, height: 100)
                     .rotationEffect(.degrees(-20.0))
             }
+            .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 0) {
                 Text("SwiftBuild")

@@ -22,14 +22,19 @@ struct BuildSettingsView: View {
                                     .font(.monaco(size: 11))
                                     .foregroundStyle(Color.terminalGreen.opacity(0.75))
                             }
+                            .accessibilityElement(children: .combine)
                             Spacer()
                             Button("Load") { settings.send(.setOptions(profile.options)) }
+                                .accessibilityLabel("Load profile \(profile.name)")
+                                .accessibilityHint("Replaces the current build settings with this saved profile.")
                             Button(role: .destructive) {
                                 modelContext.delete(profile)
                             } label: {
                                 Image(systemName: "trash")
                             }
                             .buttonStyle(.borderless)
+                            .accessibilityLabel("Delete profile \(profile.name)")
+                            .accessibilityHint("Permanently removes this saved profile.")
                         }
                     }
                 }
@@ -44,7 +49,10 @@ struct BuildSettingsView: View {
             Section {
                 HStack {
                     Button("Save Current Configuration…") { showSaveSheet = true }
+                        .accessibilityLabel("Save Current Configuration")
+                        .accessibilityHint("Saves the current build settings as a named profile.")
                     ActionHelpButton("action.saveProfile")
+                        .accessibilityLabel("Help about Save Current Configuration")
                 }
             }
         }
@@ -87,6 +95,9 @@ struct BuildSettingsView: View {
                         .foregroundStyle(Color.terminalGreen.opacity(0.75))
                 }
             }
+            .accessibilityLabel(displayTitle(for: "jobs"))
+            .accessibilityValue("\(settings.context.options.jobs)")
+            .accessibilityHint("Adjusts the number of parallel build jobs.")
             boolRow("sccache")
             boolRow("distcc")
             boolRow("enableCaching")
@@ -108,6 +119,9 @@ struct BuildSettingsView: View {
                         .foregroundStyle(Color.terminalGreen.opacity(0.75))
                 }
             }
+            .accessibilityLabel(displayTitle(for: "litJobs"))
+            .accessibilityValue("\(settings.context.options.litJobs)")
+            .accessibilityHint("Adjusts the number of parallel lit test jobs.")
         case .products:
             boolRow("installablePackage")
             boolRow("foundation")
@@ -184,6 +198,8 @@ struct BuildSettingsView: View {
                 onSelect: { settings.send(.setStringOption(key: "preset", value: $0)) },
                 width: 220
             )
+            .accessibilityLabel(displayTitle(for: "preset"))
+            .accessibilityHint("Selects a build preset.")
         }
     }
 
@@ -199,6 +215,8 @@ struct BuildSettingsView: View {
                 )
             )
             .labelsHidden()
+            // The visible label sits in a separate view, so name the toggle for VoiceOver.
+            .accessibilityLabel(displayTitle(for: id))
         }
     }
 
@@ -276,11 +294,13 @@ struct BuildSettingsView: View {
                     axis: .vertical
                 )
                 .lineLimit(2...8)
+                .accessibilityLabel(displayTitle(for: id))
             } else {
                 TextField(
                     prompt,
                     text: stringBinding(for: id)
                 )
+                .accessibilityLabel(displayTitle(for: id))
             }
         }
     }
@@ -321,11 +341,17 @@ struct BuildSettingsView: View {
         }
     }
 
+    /// Natural-language name for an option id — the catalog title when available, else the raw id.
+    private func displayTitle(for id: String) -> String {
+        BuildOptionCatalog.descriptor(for: id)?.title ?? id
+    }
+
     private func labeledRow(_ id: String) -> some View {
         HStack(spacing: 6) {
             if let descriptor = BuildOptionCatalog.descriptor(for: id) {
                 Text(descriptor.title)
                 HelpButton(descriptor: descriptor)
+                    .accessibilityLabel("Help about \(descriptor.title)")
             } else {
                 Text(id)
             }
@@ -336,11 +362,16 @@ struct BuildSettingsView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Save Build Profile")
                 .font(.monaco(size: 18, weight: .bold))
+                .accessibilityAddTraits(.isHeader)
             TextField("Profile name", text: $profileName)
                 .textFieldStyle(.roundedBorder)
+                .accessibilityLabel("Profile name")
+                .accessibilityHint("Enter a name for this build settings profile.")
             HStack {
                 Spacer()
                 Button("Cancel") { showSaveSheet = false }
+                    .accessibilityLabel("Cancel")
+                    .accessibilityHint("Dismisses the sheet without saving.")
                 Button("Save") {
                     let profile = SavedBuildProfile(name: profileName, options: settings.context.options)
                     modelContext.insert(profile)
@@ -349,6 +380,8 @@ struct BuildSettingsView: View {
                 }
                 .disabled(profileName.trimmingCharacters(in: .whitespaces).isEmpty)
                 .keyboardShortcut(.defaultAction)
+                .accessibilityLabel("Save")
+                .accessibilityHint("Saves the current build settings under this name.")
             }
         }
         .padding()

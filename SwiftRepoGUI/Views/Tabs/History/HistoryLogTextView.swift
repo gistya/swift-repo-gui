@@ -17,7 +17,7 @@ struct HistoryLogFileView: View {
     }
 
     var body: some View {
-        GroupBox("Build Log") {
+        GroupBox {
             ZStack {
                 if loader.isLoading {
                     loadingView
@@ -29,6 +29,9 @@ struct HistoryLogFileView: View {
             }
             .animation(.easeInOut(duration: 0.24), value: loader.isLoading)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } label: {
+            Text("Build Log")
+                .accessibilityAddTraits(.isHeader)
         }
         .terminalText()
         .task(id: logIdentity) {
@@ -43,6 +46,7 @@ struct HistoryLogFileView: View {
     private var loadingView: some View {
         VStack(spacing: 12) {
             MatrixLoader(.fun(.snake), size: 32.0, color: .terminalGreen, speed: 10.0, bloom: true, halo: 4.0)
+                .accessibilityHidden(true)
             Text("Loading Log...")
                 .font(.monaco(size: 13, weight: .bold))
                 .foregroundStyle(Color.terminalGreen)
@@ -55,6 +59,9 @@ struct HistoryLogFileView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black.opacity(0.42), in: RoundedRectangle(cornerRadius: 6))
+        // Announce the loading state as one element rather than the animated glyph.
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Loading log \(logDisplayName)")
     }
 
     private var logIdentity: String {

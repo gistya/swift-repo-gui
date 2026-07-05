@@ -21,6 +21,8 @@ struct HelpButton: View {
         }
         .buttonStyle(.plain)
         .help(descriptor.title)
+        .accessibilityLabel(Text("Help about \(descriptor.title)"))
+        .accessibilityHint("Explains what this control does.")
         .popover(isPresented: $showPopover, arrowEdge: .trailing) {
             VStack(alignment: .leading, spacing: 12) {
                 Text(descriptor.title)

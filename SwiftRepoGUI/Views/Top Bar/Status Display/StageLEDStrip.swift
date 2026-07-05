@@ -10,8 +10,12 @@ struct StageLEDStrip: View {
                     .background(alignment: .leading) {
                         Rectangle().fill(Color(.black))
                     }
+                    .accessibilityHidden(true)
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Build stage")
+        .accessibilityValue(stage.title)
     }
 
     private func color(for stage: BuildStage) -> Color {

@@ -50,10 +50,11 @@ struct ContentView: View {
             ZStack {
                 TerminalBackground()
                     .ignoresSafeArea()
+                    .accessibilityHidden(true)
                 AppSectionContent(session: session, section: session.selectedSection)
             }
         }
-        .frame(minWidth: 900, minHeight: 640)
+        .frame(minWidth: 1024, minHeight: 640)
         .background(TerminalBackground().ignoresSafeArea())
         .terminalText()
         .tint(.terminalGreen)

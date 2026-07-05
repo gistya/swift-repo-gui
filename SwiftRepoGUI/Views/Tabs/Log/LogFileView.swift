@@ -29,12 +29,20 @@ struct LogFileView: View {
             }
             HStack {
                 Toggle("Auto-scroll", isOn: $autoScroll)
+                    .accessibilityLabel("Auto-scroll")
+                    .accessibilityHint("Keeps the log scrolled to the newest output as it arrives.")
                 Spacer()
                 Button("Open Log") { openLog() }
+                    .accessibilityLabel("Open Log")
+                    .accessibilityHint("Opens the full log file in the default application.")
                 ActionHelpButton("action.openLog")
                 Button("Reveal in Finder") { revealLog() }
+                    .accessibilityLabel("Reveal in Finder")
+                    .accessibilityHint("Shows the log file in Finder.")
                 ActionHelpButton("action.revealLog")
                 Button("Refresh") { reader.reload() }
+                    .accessibilityLabel("Refresh")
+                    .accessibilityHint("Reloads the log from disk.")
                 ActionHelpButton("action.refreshLog")
             }
             .font(.monaco(size: 11))

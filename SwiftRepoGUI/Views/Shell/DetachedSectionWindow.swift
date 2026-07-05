@@ -14,10 +14,11 @@ struct DetachedSectionWindow: View {
             ZStack {
                 TerminalBackground()
                     .ignoresSafeArea()
+                    .accessibilityHidden(true)
                 AppSectionContent(session: session, section: section)
             }
         }
-        .frame(minWidth: 760, minHeight: 520)
+        .frame(minWidth: 960, minHeight: 520)
         .background(TerminalBackground().ignoresSafeArea())
         .terminalText()
         .tint(.terminalGreen)

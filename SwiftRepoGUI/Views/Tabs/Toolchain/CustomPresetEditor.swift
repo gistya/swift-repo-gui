@@ -12,13 +12,23 @@ struct CustomPresetEditor: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(existing == nil ? "NEW CUSTOM PRESET" : "EDIT CUSTOM PRESET")
                 .font(.monaco(size: 14, weight: .black)).foregroundStyle(Color.terminalGreen)
+                .accessibilityLabel(existing == nil ? "New Custom Preset" : "Edit Custom Preset")
+                .accessibilityAddTraits(.isHeader)
             field("Name (e.g. mixin_my_asserts)", text: $name)
+                .accessibilityLabel("Preset name")
             Text("mixin-preset names (one per line):").font(.monaco(size: 10)).foregroundStyle(Color.terminalGreen.opacity(0.7))
+                .accessibilityHidden(true)
             editor($mixinsText)
+                .accessibilityLabel("Mixin-preset names")
+                .accessibilityHint("Enter mixin-preset names, one per line")
             Text("option lines (bare flag or key=value):").font(.monaco(size: 10)).foregroundStyle(Color.terminalGreen.opacity(0.7))
+                .accessibilityHidden(true)
             editor($optionsText)
+                .accessibilityLabel("Option lines")
+                .accessibilityHint("Enter option lines, one per line, as a bare flag or key equals value")
             HStack {
                 Button("Cancel") { dismiss() }
+                    .accessibilityHint("Closes the editor without saving")
                 Spacer()
                 Button("Save") {
                     onSave(CustomPresetValue(
@@ -31,6 +41,7 @@ struct CustomPresetEditor: View {
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                .accessibilityHint("Saves this custom preset")
             }
         }
         .padding(16)
@@ -48,7 +59,7 @@ struct CustomPresetEditor: View {
         text.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
     }
 
-    private func field(_ placeholder: String, text: Binding<String>) -> some View {
+    private func field(_ placeholder: LocalizedStringKey, text: Binding<String>) -> some View {
         TextField(placeholder, text: text).textFieldStyle(.roundedBorder).font(.monaco(size: 11))
     }
 

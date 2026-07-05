@@ -2,6 +2,8 @@ import SwiftUI
 
 struct SoundtrackDeckView: View {
     let deck: SoundtrackDeckConfiguration
+    
+    // TODO: this is getting recreated over and over during a build... figure out why and fix it.
     @State private var isShowingEffects = false
 
     private var hasTrack: Bool {
@@ -69,7 +71,8 @@ struct SoundtrackDeckView: View {
                 Image(systemName: "speaker.wave.1.fill")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(deck.isMuted ? Color.terminalDimGreen : Color.terminalGreen)
-                
+                    .accessibilityHidden(true)
+
                 Slider(
                     value: Binding(
                         get: { deck.volume },
@@ -80,11 +83,14 @@ struct SoundtrackDeckView: View {
                 .controlSize(.small)
                 .tint(deck.isMuted ? Color.terminalDimGreen : Color.terminalGreen)
                 .frame(maxWidth: .infinity)
-                
+                .accessibilityLabel("Soundtrack volume")
+                .accessibilityValue("\(Int((deck.volume * 100).rounded()))%")
+
                 Text("\(Int((deck.volume * 100).rounded()))")
                     .font(.monaco(size: 9, weight: .bold))
                     .foregroundStyle(deck.isMuted ? Color.terminalDimGreen : Color.terminalGreen)
                     .frame(width: 28, alignment: .trailing)
+                    .accessibilityHidden(true)
             }
             .opacity(deck.isMuted ? 0.55 : 1)
             .help("Soundtrack volume")
@@ -123,6 +129,19 @@ struct SoundtrackDeckView: View {
                 )
                 .shadow(color: deck.isMuted ? .clear : Color.lcdGreen.opacity(0.25), radius: 4)
         }
-        .accessibilityLabel("\(deck.nowPlaying.artist), \(deck.nowPlaying.title)")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(nowPlayingLabel)
+    }
+
+    private var nowPlayingLabel: String {
+        guard hasTrack else { return String(localized: "No track") }
+        return String(
+            format: NSLocalizedString(
+                "Now playing: %@, %@",
+                comment: "Soundtrack now-playing readout: track title, artist"
+            ),
+            deck.nowPlaying.title,
+            deck.nowPlaying.artist
+        )
     }
 }
