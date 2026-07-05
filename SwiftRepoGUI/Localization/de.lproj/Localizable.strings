@@ -126,7 +126,7 @@
 "Select your swift-project directory" = "Wählen Sie Ihr swift-project-Verzeichnis";
 "Section tabs" = "Bereichs-Tabs";
 "Shows the %@ tab. Drag away to open it in its own window." = "Zeigt den Tab „%@“ an. Ziehen Sie ihn weg, um ihn in einem eigenen Fenster zu öffnen.";
-"Drag away to open %@ in a separate window" = "Wegziehen, um „%@“ in einem separaten Fenster zu öffnen";
+"Click to open %@; drag away to open it in a separate window" = "Klicken, um %@ zu öffnen; wegziehen, um es in einem separaten Fenster zu öffnen";
 "Toolchain" = "Toolchain";
 "Opens the folder containing saved build logs in Finder." = "Öffnet den Ordner mit den gespeicherten Build-Protokollen im Finder.";
 "Opens the folder containing exported files in Finder." = "Öffnet den Ordner mit den exportierten Dateien im Finder.";
@@ -308,3 +308,13 @@
 "Enter option lines, one per line, as a bare flag or key equals value" = "Geben Sie Optionszeilen ein, eine pro Zeile, als bloßes Flag oder key gleich value";
 "Closes the editor without saving" = "Schließt den Editor, ohne zu speichern";
 "Saves this custom preset" = "Speichert dieses benutzerdefinierte Preset";
+
+/* History — delete operation */
+"Delete" = "Löschen";
+"Deletes this build operation from history." = "Löscht diesen Build-Vorgang aus dem Verlauf.";
+"Delete this operation?" = "Diesen Vorgang löschen?";
+"Remove the %@ operation from %@ from history? This can’t be undone." = "Den Vorgang „%@“ vom %@ aus dem Verlauf entfernen? Dies kann nicht rückgängig gemacht werden.";
+"Delete the associated log too?" = "Auch das zugehörige Protokoll löschen?";
+"Delete Operation and Log" = "Vorgang und Protokoll löschen";
+"Delete Operation, Keep Log" = "Vorgang löschen, Protokoll behalten";
+"The log file “%@” will be permanently deleted along with the operation." = "Die Protokolldatei „%@“ wird zusammen mit dem Vorgang endgültig gelöscht.";

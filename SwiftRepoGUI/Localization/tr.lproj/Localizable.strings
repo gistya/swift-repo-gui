@@ -126,7 +126,7 @@
 "Select your swift-project directory" = "swift-project dizininizi seçin";
 "Section tabs" = "Bölüm sekmeleri";
 "Shows the %@ tab. Drag away to open it in its own window." = "%@ sekmesini gösterir. Kendi penceresinde açmak için sürükleyip bırakın.";
-"Drag away to open %@ in a separate window" = "%@ öğesini ayrı bir pencerede açmak için sürükleyip bırakın";
+"Click to open %@; drag away to open it in a separate window" = "Açmak için %@ öğesine tıklayın; ayrı bir pencerede açmak için sürükleyin";
 "Toolchain" = "Araç zinciri";
 "Opens the folder containing saved build logs in Finder." = "Kayıtlı derleme günlüklerini içeren klasörü Finder'da açar.";
 "Opens the folder containing exported files in Finder." = "Dışa aktarılan dosyaları içeren klasörü Finder'da açar.";
@@ -308,3 +308,13 @@
 "Enter option lines, one per line, as a bare flag or key equals value" = "Seçenek satırlarını, satır başına bir tane, düz bayrak veya key eşittir value olarak girin";
 "Closes the editor without saving" = "Düzenleyiciyi kaydetmeden kapatır";
 "Saves this custom preset" = "Bu özel ön ayarı kaydeder";
+
+/* History — delete operation */
+"Delete" = "Sil";
+"Deletes this build operation from history." = "Bu derleme işlemini geçmişten siler.";
+"Delete this operation?" = "Bu işlem silinsin mi?";
+"Remove the %@ operation from %@ from history? This can’t be undone." = "%@ işlemini (%@) geçmişten kaldırmak istiyor musunuz? Bu işlem geri alınamaz.";
+"Delete the associated log too?" = "İlişkili günlük de silinsin mi?";
+"Delete Operation and Log" = "İşlemi ve Günlüğü Sil";
+"Delete Operation, Keep Log" = "İşlemi Sil, Günlüğü Tut";
+"The log file “%@” will be permanently deleted along with the operation." = "“%@” günlük dosyası işlemle birlikte kalıcı olarak silinecek.";

@@ -126,7 +126,7 @@
 "Select your swift-project directory" = "swift-project ディレクトリを選択してください";
 "Section tabs" = "セクションタブ";
 "Shows the %@ tab. Drag away to open it in its own window." = "%@ タブを表示します。ドラッグして離すと専用ウインドウで開きます。";
-"Drag away to open %@ in a separate window" = "ドラッグして離すと %@ を別ウインドウで開きます";
+"Click to open %@; drag away to open it in a separate window" = "クリックで %@ を開きます。ドラッグして離すと別ウインドウで開きます";
 "Toolchain" = "ツールチェーン";
 "Opens the folder containing saved build logs in Finder." = "保存されたビルドログを含むフォルダをFinderで開きます。";
 "Opens the folder containing exported files in Finder." = "エクスポートされたファイルを含むフォルダをFinderで開きます。";
@@ -308,3 +308,13 @@
 "Enter option lines, one per line, as a bare flag or key equals value" = "オプション行を1行に1つ、単独のフラグまたは key=value の形式で入力してください";
 "Closes the editor without saving" = "保存せずにエディタを閉じます";
 "Saves this custom preset" = "このカスタムプリセットを保存します";
+
+/* History — delete operation */
+"Delete" = "削除";
+"Deletes this build operation from history." = "このビルド操作を履歴から削除します。";
+"Delete this operation?" = "この操作を削除しますか？";
+"Remove the %@ operation from %@ from history? This can’t be undone." = "%@（%@）の操作を履歴から削除しますか？この操作は元に戻せません。";
+"Delete the associated log too?" = "関連するログも削除しますか？";
+"Delete Operation and Log" = "操作とログを削除";
+"Delete Operation, Keep Log" = "操作を削除、ログは保持";
+"The log file “%@” will be permanently deleted along with the operation." = "ログファイル「%@」は操作とともに完全に削除されます。";

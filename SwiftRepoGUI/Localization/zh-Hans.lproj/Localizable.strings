@@ -126,7 +126,7 @@
 "Select your swift-project directory" = "选择您的 swift-project 目录";
 "Section tabs" = "分区标签页";
 "Shows the %@ tab. Drag away to open it in its own window." = "显示 %@ 标签页。拖出可在独立窗口中打开它。";
-"Drag away to open %@ in a separate window" = "拖出可在单独窗口中打开 %@";
+"Click to open %@; drag away to open it in a separate window" = "点按打开 %@；拖出可在单独窗口中打开";
 "Toolchain" = "工具链";
 "Opens the folder containing saved build logs in Finder." = "在 Finder 中打开包含已保存构建日志的文件夹。";
 "Opens the folder containing exported files in Finder." = "在 Finder 中打开包含已导出文件的文件夹。";
@@ -308,3 +308,13 @@
 "Enter option lines, one per line, as a bare flag or key equals value" = "输入选项行，每行一个，作为裸标志或 key=value";
 "Closes the editor without saving" = "不保存并关闭编辑器";
 "Saves this custom preset" = "保存此自定义预设";
+
+/* History — delete operation */
+"Delete" = "删除";
+"Deletes this build operation from history." = "从历史记录中删除此构建操作。";
+"Delete this operation?" = "删除此操作？";
+"Remove the %@ operation from %@ from history? This can’t be undone." = "从历史记录中移除 %@（%@）操作？此操作无法撤销。";
+"Delete the associated log too?" = "同时删除关联的日志？";
+"Delete Operation and Log" = "删除操作和日志";
+"Delete Operation, Keep Log" = "删除操作，保留日志";
+"The log file “%@” will be permanently deleted along with the operation." = "日志文件“%@”将随操作一起被永久删除。";

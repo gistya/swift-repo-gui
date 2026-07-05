@@ -126,7 +126,7 @@
 "Select your swift-project directory" = "Pilih direktori swift-project Anda";
 "Section tabs" = "Tab bagian";
 "Shows the %@ tab. Drag away to open it in its own window." = "Menampilkan tab %@. Seret keluar untuk membukanya di jendela tersendiri.";
-"Drag away to open %@ in a separate window" = "Seret keluar untuk membuka %@ di jendela terpisah";
+"Click to open %@; drag away to open it in a separate window" = "Klik untuk membuka %@; seret menjauh untuk membukanya di jendela terpisah";
 "Toolchain" = "Toolchain";
 "Opens the folder containing saved build logs in Finder." = "Membuka folder berisi log build tersimpan di Finder.";
 "Opens the folder containing exported files in Finder." = "Membuka folder berisi file yang diekspor di Finder.";
@@ -308,3 +308,13 @@
 "Enter option lines, one per line, as a bare flag or key equals value" = "Masukkan baris opsi, satu per baris, sebagai flag polos atau key sama dengan value";
 "Closes the editor without saving" = "Menutup editor tanpa menyimpan";
 "Saves this custom preset" = "Menyimpan praset khusus ini";
+
+/* History — delete operation */
+"Delete" = "Hapus";
+"Deletes this build operation from history." = "Menghapus operasi build ini dari riwayat.";
+"Delete this operation?" = "Hapus operasi ini?";
+"Remove the %@ operation from %@ from history? This can’t be undone." = "Hapus operasi %@ dari %@ dari riwayat? Tindakan ini tidak dapat dibatalkan.";
+"Delete the associated log too?" = "Hapus juga log terkait?";
+"Delete Operation and Log" = "Hapus Operasi dan Log";
+"Delete Operation, Keep Log" = "Hapus Operasi, Simpan Log";
+"The log file “%@” will be permanently deleted along with the operation." = "File log “%@” akan dihapus permanen bersama operasi ini.";

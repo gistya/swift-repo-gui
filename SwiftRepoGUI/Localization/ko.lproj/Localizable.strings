@@ -126,7 +126,7 @@
 "Select your swift-project directory" = "swift-project 디렉터리를 선택하세요";
 "Section tabs" = "섹션 탭";
 "Shows the %@ tab. Drag away to open it in its own window." = "%@ 탭을 표시합니다. 끌어서 떼면 별도 창으로 엽니다.";
-"Drag away to open %@ in a separate window" = "끌어서 떼면 %@을(를) 별도 창으로 엽니다";
+"Click to open %@; drag away to open it in a separate window" = "클릭하여 %@ 열기, 끌어내면 별도 창에서 열림";
 "Toolchain" = "툴체인";
 "Opens the folder containing saved build logs in Finder." = "저장된 빌드 로그가 있는 폴더를 Finder에서 엽니다.";
 "Opens the folder containing exported files in Finder." = "내보낸 파일이 있는 폴더를 Finder에서 엽니다.";
@@ -308,3 +308,13 @@
 "Enter option lines, one per line, as a bare flag or key equals value" = "옵션 줄을 한 줄에 하나씩, 단독 플래그 또는 key=value 형식으로 입력하세요";
 "Closes the editor without saving" = "저장하지 않고 편집기를 닫습니다";
 "Saves this custom preset" = "이 사용자 지정 프리셋을 저장합니다";
+
+/* History — delete operation */
+"Delete" = "삭제";
+"Deletes this build operation from history." = "이 빌드 작업을 기록에서 삭제합니다.";
+"Delete this operation?" = "이 작업을 삭제할까요?";
+"Remove the %@ operation from %@ from history? This can’t be undone." = "%@ 작업(%@)을 기록에서 제거할까요? 이 작업은 되돌릴 수 없습니다.";
+"Delete the associated log too?" = "연결된 로그도 삭제할까요?";
+"Delete Operation and Log" = "작업 및 로그 삭제";
+"Delete Operation, Keep Log" = "작업 삭제, 로그 유지";
+"The log file “%@” will be permanently deleted along with the operation." = "로그 파일 “%@”이(가) 작업과 함께 영구적으로 삭제됩니다.";

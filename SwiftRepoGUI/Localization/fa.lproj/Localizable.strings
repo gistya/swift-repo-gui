@@ -126,7 +126,7 @@
 "Select your swift-project directory" = "پوشه swift-project خود را انتخاب کنید";
 "Section tabs" = "زبانه‌های بخش";
 "Shows the %@ tab. Drag away to open it in its own window." = "زبانه %@ را نمایش می‌دهد. برای باز کردن آن در پنجره خودش، بکشید.";
-"Drag away to open %@ in a separate window" = "برای باز کردن %@ در پنجره‌ای جداگانه، بکشید";
+"Click to open %@; drag away to open it in a separate window" = "برای باز کردن %@ کلیک کنید؛ برای باز کردن در پنجرهٔ جدا آن را بکشید";
 "Toolchain" = "زنجیره ابزار";
 "Opens the folder containing saved build logs in Finder." = "پوشه حاوی گزارش‌های ساخت ذخیره‌شده را در Finder باز می‌کند.";
 "Opens the folder containing exported files in Finder." = "پوشه حاوی فایل‌های خروجی‌گرفته‌شده را در Finder باز می‌کند.";
@@ -308,3 +308,13 @@
 "Enter option lines, one per line, as a bare flag or key equals value" = "خطوط گزینه را وارد کنید، هر خط یکی، به‌صورت پرچم ساده یا key مساوی value";
 "Closes the editor without saving" = "ویرایشگر را بدون ذخیره می‌بندد";
 "Saves this custom preset" = "این تنظیم پیش‌فرض سفارشی را ذخیره می‌کند";
+
+/* History — delete operation */
+"Delete" = "حذف";
+"Deletes this build operation from history." = "این عملیات ساخت را از تاریخچه حذف می‌کند.";
+"Delete this operation?" = "این عملیات حذف شود؟";
+"Remove the %@ operation from %@ from history? This can’t be undone." = "عملیات %@ در تاریخ %@ از تاریخچه حذف شود؟ این عمل قابل بازگردانی نیست.";
+"Delete the associated log too?" = "فایل گزارش مرتبط هم حذف شود؟";
+"Delete Operation and Log" = "حذف عملیات و گزارش";
+"Delete Operation, Keep Log" = "حذف عملیات، حفظ گزارش";
+"The log file “%@” will be permanently deleted along with the operation." = "فایل گزارش «%@» به‌طور دائم همراه با عملیات حذف خواهد شد.";

@@ -126,7 +126,7 @@
 "Select your swift-project directory" = "Selecteer je swift-project-map";
 "Section tabs" = "Sectietabbladen";
 "Shows the %@ tab. Drag away to open it in its own window." = "Toont het tabblad %@. Sleep weg om het in een eigen venster te openen.";
-"Drag away to open %@ in a separate window" = "Sleep weg om %@ in een apart venster te openen";
+"Click to open %@; drag away to open it in a separate window" = "Klik om %@ te openen; sleep weg om het in een apart venster te openen";
 "Toolchain" = "Toolchain";
 "Opens the folder containing saved build logs in Finder." = "Opent de map met opgeslagen buildlogs in Finder.";
 "Opens the folder containing exported files in Finder." = "Opent de map met geëxporteerde bestanden in Finder.";
@@ -308,3 +308,13 @@
 "Enter option lines, one per line, as a bare flag or key equals value" = "Voer optieregels in, één per regel, als kale flag of key is gelijk aan value";
 "Closes the editor without saving" = "Sluit de editor zonder op te slaan";
 "Saves this custom preset" = "Slaat deze aangepaste preset op";
+
+/* History — delete operation */
+"Delete" = "Verwijderen";
+"Deletes this build operation from history." = "Verwijdert deze build-bewerking uit de geschiedenis.";
+"Delete this operation?" = "Deze bewerking verwijderen?";
+"Remove the %@ operation from %@ from history? This can’t be undone." = "De %@-bewerking van %@ uit de geschiedenis verwijderen? Dit kan niet ongedaan worden gemaakt.";
+"Delete the associated log too?" = "Ook het bijbehorende logbestand verwijderen?";
+"Delete Operation and Log" = "Bewerking en logbestand verwijderen";
+"Delete Operation, Keep Log" = "Bewerking verwijderen, logbestand behouden";
+"The log file “%@” will be permanently deleted along with the operation." = "Het logbestand ‘%@’ wordt samen met de bewerking definitief verwijderd.";

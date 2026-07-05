@@ -126,7 +126,7 @@
 "Select your swift-project directory" = "আপনার swift-project ডিরেক্টরি নির্বাচন করুন";
 "Section tabs" = "সেকশন ট্যাব";
 "Shows the %@ tab. Drag away to open it in its own window." = "%@ ট্যাব দেখায়। নিজস্ব উইন্ডোতে খুলতে টেনে সরান।";
-"Drag away to open %@ in a separate window" = "আলাদা উইন্ডোতে %@ খুলতে টেনে সরান";
+"Click to open %@; drag away to open it in a separate window" = "%@ খুলতে ক্লিক করুন; আলাদা উইন্ডোতে খুলতে টেনে সরান";
 "Toolchain" = "টুলচেইন";
 "Opens the folder containing saved build logs in Finder." = "সংরক্ষিত বিল্ড লগ ধারণকারী ফোল্ডার Finder-এ খোলে।";
 "Opens the folder containing exported files in Finder." = "রপ্তানিকৃত ফাইল ধারণকারী ফোল্ডার Finder-এ খোলে।";
@@ -308,3 +308,13 @@
 "Enter option lines, one per line, as a bare flag or key equals value" = "অপশন লাইন লিখুন, প্রতি লাইনে একটি, শুধু ফ্ল্যাগ বা key সমান value হিসেবে";
 "Closes the editor without saving" = "সংরক্ষণ না করেই এডিটর বন্ধ করে";
 "Saves this custom preset" = "এই কাস্টম প্রিসেট সংরক্ষণ করে";
+
+/* History — delete operation */
+"Delete" = "মুছুন";
+"Deletes this build operation from history." = "ইতিহাস থেকে এই বিল্ড অপারেশনটি মুছে ফেলে।";
+"Delete this operation?" = "এই অপারেশনটি মুছবেন?";
+"Remove the %@ operation from %@ from history? This can’t be undone." = "%@ অপারেশন (%@) ইতিহাস থেকে সরাবেন? এটি আর ফেরানো যাবে না।";
+"Delete the associated log too?" = "সংশ্লিষ্ট লগটিও মুছবেন?";
+"Delete Operation and Log" = "অপারেশন ও লগ মুছুন";
+"Delete Operation, Keep Log" = "অপারেশন মুছুন, লগ রাখুন";
+"The log file “%@” will be permanently deleted along with the operation." = "লগ ফাইল “%@” অপারেশনের সাথে স্থায়ীভাবে মুছে ফেলা হবে।";

@@ -126,7 +126,7 @@
 "Select your swift-project directory" = "בחר את תיקיית swift-project שלך";
 "Section tabs" = "לשוניות מקטע";
 "Shows the %@ tab. Drag away to open it in its own window." = "מציג את לשונית %@. גרור החוצה כדי לפתוח אותה בחלון משלה.";
-"Drag away to open %@ in a separate window" = "גרור החוצה כדי לפתוח את %@ בחלון נפרד";
+"Click to open %@; drag away to open it in a separate window" = "לחץ כדי לפתוח את %@; גרור החוצה כדי לפתוח בחלון נפרד";
 "Toolchain" = "שרשרת כלים";
 "Opens the folder containing saved build logs in Finder." = "פותח את התיקייה המכילה יומני בנייה שמורים ב-Finder.";
 "Opens the folder containing exported files in Finder." = "פותח את התיקייה המכילה קבצים מיוצאים ב-Finder.";
@@ -308,3 +308,13 @@
 "Enter option lines, one per line, as a bare flag or key equals value" = "הזן שורות אפשרויות, אחת בכל שורה, כדגל בודד או key שווה value";
 "Closes the editor without saving" = "סוגר את העורך ללא שמירה";
 "Saves this custom preset" = "שומר קביעה מוגדרת מראש מותאמת זו";
+
+/* History — delete operation */
+"Delete" = "מחק";
+"Deletes this build operation from history." = "מוחק את פעולת הבנייה הזו מההיסטוריה.";
+"Delete this operation?" = "למחוק את הפעולה הזו?";
+"Remove the %@ operation from %@ from history? This can’t be undone." = "להסיר את פעולת %@ מ־%@ מההיסטוריה? לא ניתן לבטל את הפעולה.";
+"Delete the associated log too?" = "למחוק גם את היומן המשויך?";
+"Delete Operation and Log" = "מחק פעולה ויומן";
+"Delete Operation, Keep Log" = "מחק פעולה, שמור יומן";
+"The log file “%@” will be permanently deleted along with the operation." = "קובץ היומן „%@“ יימחק לצמיתות יחד עם הפעולה.";

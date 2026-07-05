@@ -126,7 +126,7 @@
 "Select your swift-project directory" = "Виберіть ваш каталог swift-project";
 "Section tabs" = "Вкладки розділів";
 "Shows the %@ tab. Drag away to open it in its own window." = "Показує вкладку %@. Перетягніть, щоб відкрити її в окремому вікні.";
-"Drag away to open %@ in a separate window" = "Перетягніть, щоб відкрити %@ в окремому вікні";
+"Click to open %@; drag away to open it in a separate window" = "Натисніть, щоб відкрити %@; перетягніть, щоб відкрити в окремому вікні";
 "Toolchain" = "Набір інструментів";
 "Opens the folder containing saved build logs in Finder." = "Відкриває папку зі збереженими журналами збірки у Finder.";
 "Opens the folder containing exported files in Finder." = "Відкриває папку з експортованими файлами у Finder.";
@@ -308,3 +308,13 @@
 "Enter option lines, one per line, as a bare flag or key equals value" = "Введіть рядки опцій, один на рядок, як сам прапорець або ключ дорівнює значенню";
 "Closes the editor without saving" = "Закриває редактор без збереження";
 "Saves this custom preset" = "Зберігає цей власний пресет";
+
+/* History — delete operation */
+"Delete" = "Видалити";
+"Deletes this build operation from history." = "Видаляє цю операцію збірки з історії.";
+"Delete this operation?" = "Видалити цю операцію?";
+"Remove the %@ operation from %@ from history? This can’t be undone." = "Видалити операцію %@ від %@ з історії? Цю дію не можна скасувати.";
+"Delete the associated log too?" = "Видалити також пов’язаний журнал?";
+"Delete Operation and Log" = "Видалити операцію та журнал";
+"Delete Operation, Keep Log" = "Видалити операцію, зберегти журнал";
+"The log file “%@” will be permanently deleted along with the operation." = "Файл журналу «%@» буде остаточно видалено разом з операцією.";

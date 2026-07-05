@@ -126,7 +126,7 @@
 "Select your swift-project directory" = "حدد مجلد swift-project الخاص بك";
 "Section tabs" = "علامات تبويب الأقسام";
 "Shows the %@ tab. Drag away to open it in its own window." = "يعرض علامة تبويب %@. اسحبها بعيدًا لفتحها في نافذتها الخاصة.";
-"Drag away to open %@ in a separate window" = "اسحب بعيدًا لفتح %@ في نافذة منفصلة";
+"Click to open %@; drag away to open it in a separate window" = "انقر لفتح %@؛ اسحب بعيدًا لفتحه في نافذة منفصلة";
 "Toolchain" = "سلسلة الأدوات";
 "Opens the folder containing saved build logs in Finder." = "يفتح المجلد الذي يحتوي على سجلات البناء المحفوظة في Finder.";
 "Opens the folder containing exported files in Finder." = "يفتح المجلد الذي يحتوي على الملفات المُصدَّرة في Finder.";
@@ -308,3 +308,13 @@
 "Enter option lines, one per line, as a bare flag or key equals value" = "أدخل أسطر الخيارات، سطر في كل سطر، كعلم مجرد أو key يساوي value";
 "Closes the editor without saving" = "يغلق المحرر دون حفظ";
 "Saves this custom preset" = "يحفظ هذا الإعداد المسبق المخصص";
+
+/* History — delete operation */
+"Delete" = "حذف";
+"Deletes this build operation from history." = "يحذف عملية البناء هذه من السجل.";
+"Delete this operation?" = "حذف هذه العملية؟";
+"Remove the %@ operation from %@ from history? This can’t be undone." = "إزالة عملية %@ بتاريخ %@ من السجل؟ لا يمكن التراجع عن هذا.";
+"Delete the associated log too?" = "حذف السجل المرتبط أيضًا؟";
+"Delete Operation and Log" = "حذف العملية والسجل";
+"Delete Operation, Keep Log" = "حذف العملية مع الاحتفاظ بالسجل";
+"The log file “%@” will be permanently deleted along with the operation." = "سيُحذف ملف السجل «%@» نهائيًا مع العملية.";

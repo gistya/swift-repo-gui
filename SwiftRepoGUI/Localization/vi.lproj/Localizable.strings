@@ -126,7 +126,7 @@
 "Select your swift-project directory" = "Chọn thư mục swift-project của bạn";
 "Section tabs" = "Thẻ phần";
 "Shows the %@ tab. Drag away to open it in its own window." = "Hiện thẻ %@. Kéo ra để mở trong cửa sổ riêng.";
-"Drag away to open %@ in a separate window" = "Kéo ra để mở %@ trong cửa sổ riêng";
+"Click to open %@; drag away to open it in a separate window" = "Nhấp để mở %@; kéo ra để mở trong cửa sổ riêng";
 "Toolchain" = "Bộ công cụ";
 "Opens the folder containing saved build logs in Finder." = "Mở thư mục chứa nhật ký dựng đã lưu trong Finder.";
 "Opens the folder containing exported files in Finder." = "Mở thư mục chứa tệp đã xuất trong Finder.";
@@ -308,3 +308,13 @@
 "Enter option lines, one per line, as a bare flag or key equals value" = "Nhập dòng tùy chọn, mỗi dòng một mục, dưới dạng cờ đơn hoặc key bằng value";
 "Closes the editor without saving" = "Đóng trình chỉnh sửa mà không lưu";
 "Saves this custom preset" = "Lưu cấu hình sẵn tùy chỉnh này";
+
+/* History — delete operation */
+"Delete" = "Xóa";
+"Deletes this build operation from history." = "Xóa thao tác build này khỏi lịch sử.";
+"Delete this operation?" = "Xóa thao tác này?";
+"Remove the %@ operation from %@ from history? This can’t be undone." = "Xóa thao tác %@ từ %@ khỏi lịch sử? Không thể hoàn tác.";
+"Delete the associated log too?" = "Xóa cả nhật ký liên quan?";
+"Delete Operation and Log" = "Xóa thao tác và nhật ký";
+"Delete Operation, Keep Log" = "Xóa thao tác, giữ nhật ký";
+"The log file “%@” will be permanently deleted along with the operation." = "Tệp nhật ký “%@” sẽ bị xóa vĩnh viễn cùng với thao tác.";

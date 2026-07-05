@@ -126,7 +126,7 @@
 "Select your swift-project directory" = "Select your swift-project directory";
 "Section tabs" = "Section tabs";
 "Shows the %@ tab. Drag away to open it in its own window." = "Shows the %@ tab. Drag away to open it in its own window.";
-"Drag away to open %@ in a separate window" = "Drag away to open %@ in a separate window";
+"Click to open %@; drag away to open it in a separate window" = "Click to open %@; drag away to open it in a separate window";
 "Toolchain" = "Toolchain";
 "Opens the folder containing saved build logs in Finder." = "Opens the folder containing saved build logs in Finder.";
 "Opens the folder containing exported files in Finder." = "Opens the folder containing exported files in Finder.";
@@ -308,3 +308,13 @@
 "Enter option lines, one per line, as a bare flag or key equals value" = "Enter option lines, one per line, as a bare flag or key equals value";
 "Closes the editor without saving" = "Closes the editor without saving";
 "Saves this custom preset" = "Saves this custom preset";
+
+/* History — delete operation */
+"Delete" = "Delete";
+"Deletes this build operation from history." = "Deletes this build operation from history.";
+"Delete this operation?" = "Delete this operation?";
+"Remove the %@ operation from %@ from history? This can’t be undone." = "Remove the %@ operation from %@ from history? This can’t be undone.";
+"Delete the associated log too?" = "Delete the associated log too?";
+"Delete Operation and Log" = "Delete Operation and Log";
+"Delete Operation, Keep Log" = "Delete Operation, Keep Log";
+"The log file “%@” will be permanently deleted along with the operation." = "The log file “%@” will be permanently deleted along with the operation.";
