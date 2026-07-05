@@ -12,6 +12,11 @@
 		7362027E2FF2FB5400B6B024 /* SwiftXStateInspectorUI in Frameworks */ = {isa = PBXBuildFile; productRef = 73A100042FF3000100B6B024 /* SwiftXStateInspectorUI */; };
 		738CC96D2FF94E8D007A0286 /* Ox0badf00d in Frameworks */ = {isa = PBXBuildFile; productRef = 738CC96C2FF94E8D007A0286 /* Ox0badf00d */; };
 		738CC9762FF95698007A0286 /* Matrix in Frameworks */ = {isa = PBXBuildFile; productRef = 738CC9752FF95698007A0286 /* Matrix */; };
+		738CC9D22FF9CCD5007A0286 /* Ox0badf00d in Frameworks */ = {isa = PBXBuildFile; productRef = 738CC9D12FF9CCD5007A0286 /* Ox0badf00d */; };
+		738CC9D52FF9CD68007A0286 /* SwiftXState in Frameworks */ = {isa = PBXBuildFile; productRef = 738CC9D42FF9CD68007A0286 /* SwiftXState */; };
+		738CC9D72FF9CD68007A0286 /* SwiftXStateInspectorUI in Frameworks */ = {isa = PBXBuildFile; productRef = 738CC9D62FF9CD68007A0286 /* SwiftXStateInspectorUI */; };
+		738CC9D92FF9CD68007A0286 /* SwiftXStateSwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = 738CC9D82FF9CD68007A0286 /* SwiftXStateSwiftUI */; };
+		738CC9DC2FF9CDB2007A0286 /* Matrix in Frameworks */ = {isa = PBXBuildFile; productRef = 738CC9DB2FF9CDB2007A0286 /* Matrix */; };
 		73BADF0001BADF0000B6B024 /* Ox0badf00d in Frameworks */ = {isa = PBXBuildFile; productRef = 73BADF0002BADF0000B6B024 /* Ox0badf00d */; };
 /* End PBXBuildFile section */
 
@@ -62,9 +67,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				73BADF0001BADF0000B6B024 /* Ox0badf00d in Frameworks */,
+				738CC9D52FF9CD68007A0286 /* SwiftXState in Frameworks */,
 				738CC96D2FF94E8D007A0286 /* Ox0badf00d in Frameworks */,
+				738CC9D72FF9CD68007A0286 /* SwiftXStateInspectorUI in Frameworks */,
 				7362027E2FF2FB5400B6B024 /* SwiftXStateInspectorUI in Frameworks */,
+				738CC9DC2FF9CDB2007A0286 /* Matrix in Frameworks */,
+				738CC9D22FF9CCD5007A0286 /* Ox0badf00d in Frameworks */,
 				738CC9762FF95698007A0286 /* Matrix in Frameworks */,
+				738CC9D92FF9CD68007A0286 /* SwiftXStateSwiftUI in Frameworks */,
 				7362027D2FF2FB5400B6B024 /* SwiftXStateSwiftUI in Frameworks */,
 				7362027C2FF2FB5400B6B024 /* SwiftXState in Frameworks */,
 			);
@@ -133,6 +143,11 @@
 				73A100042FF3000100B6B024 /* SwiftXStateInspectorUI */,
 				738CC96C2FF94E8D007A0286 /* Ox0badf00d */,
 				738CC9752FF95698007A0286 /* Matrix */,
+				738CC9D12FF9CCD5007A0286 /* Ox0badf00d */,
+				738CC9D42FF9CD68007A0286 /* SwiftXState */,
+				738CC9D62FF9CD68007A0286 /* SwiftXStateInspectorUI */,
+				738CC9D82FF9CD68007A0286 /* SwiftXStateSwiftUI */,
+				738CC9DB2FF9CDB2007A0286 /* Matrix */,
 			);
 			productName = SwiftRepoGUI;
 			productReference = 7362018C2FF2E6E600B6B024 /* SwiftRepoGUI.app */;
@@ -237,9 +252,9 @@
 			mainGroup = 736201832FF2E6E600B6B024;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				73A100052FF3000100B6B024 /* XCLocalSwiftPackageReference "../../phy/SwiftXState" */,
-				738CC96B2FF94E8D007A0286 /* XCLocalSwiftPackageReference "../Ox0badf00d" */,
-				738CC9742FF95698007A0286 /* XCLocalSwiftPackageReference "../../3rdParty/matrix-swift" */,
+				738CC9D02FF9CCD5007A0286 /* XCRemoteSwiftPackageReference "Ox0badf00d" */,
+				738CC9D32FF9CD68007A0286 /* XCRemoteSwiftPackageReference "SwiftXState" */,
+				738CC9DA2FF9CDB2007A0286 /* XCRemoteSwiftPackageReference "matrix-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 7362018D2FF2E6E600B6B024 /* Products */;
@@ -697,20 +712,32 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		738CC96B2FF94E8D007A0286 /* XCLocalSwiftPackageReference "../Ox0badf00d" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = ../Ox0badf00d;
+/* Begin XCRemoteSwiftPackageReference section */
+		738CC9D02FF9CCD5007A0286 /* XCRemoteSwiftPackageReference "Ox0badf00d" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/gistya/Ox0badf00d";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.1;
+			};
 		};
-		738CC9742FF95698007A0286 /* XCLocalSwiftPackageReference "../../3rdParty/matrix-swift" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = "../../3rdParty/matrix-swift";
+		738CC9D32FF9CD68007A0286 /* XCRemoteSwiftPackageReference "SwiftXState" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/gistya/SwiftXState";
+			requirement = {
+				kind = exactVersion;
+				version = "2.0.0-alpha-1";
+			};
 		};
-		73A100052FF3000100B6B024 /* XCLocalSwiftPackageReference "../../phy/SwiftXState" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = ../../phy/SwiftXState;
+		738CC9DA2FF9CDB2007A0286 /* XCRemoteSwiftPackageReference "matrix-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/gistya/matrix-swift";
+			requirement = {
+				kind = revision;
+				revision = 874797bb39aa4c0b6e94b5e71d2e70fae8f72258;
+			};
 		};
-/* End XCLocalSwiftPackageReference section */
+/* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		738CC96C2FF94E8D007A0286 /* Ox0badf00d */ = {
@@ -719,6 +746,31 @@
 		};
 		738CC9752FF95698007A0286 /* Matrix */ = {
 			isa = XCSwiftPackageProductDependency;
+			productName = Matrix;
+		};
+		738CC9D12FF9CCD5007A0286 /* Ox0badf00d */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 738CC9D02FF9CCD5007A0286 /* XCRemoteSwiftPackageReference "Ox0badf00d" */;
+			productName = Ox0badf00d;
+		};
+		738CC9D42FF9CD68007A0286 /* SwiftXState */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 738CC9D32FF9CD68007A0286 /* XCRemoteSwiftPackageReference "SwiftXState" */;
+			productName = SwiftXState;
+		};
+		738CC9D62FF9CD68007A0286 /* SwiftXStateInspectorUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 738CC9D32FF9CD68007A0286 /* XCRemoteSwiftPackageReference "SwiftXState" */;
+			productName = SwiftXStateInspectorUI;
+		};
+		738CC9D82FF9CD68007A0286 /* SwiftXStateSwiftUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 738CC9D32FF9CD68007A0286 /* XCRemoteSwiftPackageReference "SwiftXState" */;
+			productName = SwiftXStateSwiftUI;
+		};
+		738CC9DB2FF9CDB2007A0286 /* Matrix */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 738CC9DA2FF9CDB2007A0286 /* XCRemoteSwiftPackageReference "matrix-swift" */;
 			productName = Matrix;
 		};
 		73A100012FF3000100B6B024 /* SwiftXState */ = {

@@ -1,6 +1,23 @@
 {
-  "originHash" : "70e8b3d74f7de039fde2b08a6d83851cd7dd27e5906b17cbee45f988c55cbf43",
+  "originHash" : "2defa446d1a32e444e054944780a1572d8e78e33441e11df1116da6a0d09099e",
   "pins" : [
+    {
+      "identity" : "matrix-swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/gistya/matrix-swift",
+      "state" : {
+        "revision" : "874797bb39aa4c0b6e94b5e71d2e70fae8f72258"
+      }
+    },
+    {
+      "identity" : "ox0badf00d",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/gistya/Ox0badf00d",
+      "state" : {
+        "revision" : "2efb366b06b828022ea6d0a5dbc988c5f02e2d54",
+        "version" : "0.9.1"
+      }
+    },
     {
       "identity" : "swift-compositional-init",
       "kind" : "remoteSourceControl",
@@ -8,6 +25,15 @@
       "state" : {
         "revision" : "46115c8285305135cb288a1bf05b9f69297bc619",
         "version" : "1.1.2"
+      }
+    },
+    {
+      "identity" : "swiftxstate",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/gistya/SwiftXState",
+      "state" : {
+        "revision" : "77e24e0edf0062779912d357d0f016556fefabc6",
+        "version" : "2.0.0-alpha-1"
       }
     }
   ],
