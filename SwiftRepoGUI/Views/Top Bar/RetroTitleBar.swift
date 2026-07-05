@@ -7,8 +7,12 @@ struct RetroTitleBar: View {
 
     @State private var pulse = false
 
-    private var stage: BuildStage { build.currentStage }
-    private var module: String { BuildStage.moduleDisplay(for: stage, context: build.context) }
+    // NOTE: this view's body must NOT read `build.context` / `build.currentStage`. Those change
+    // ~10×/sec during a build, and reading them here would rebuild the ENTIRE title bar (brushed
+    // metal, rotated app icon, brand, soundtrack deck) on every tick. The live-updating bits live in
+    // `BuildStatusReadout` / `BuildProgressReadout` subviews so only they re-render per tick. The
+    // `matches(.running)` glow below reads `configuration`, which only changes on state transitions
+    // (a handful of times per build), so it's fine to keep here.
     private var audioError: String? { soundtrackDeck?.audioError }
 
     var body: some View {
@@ -28,11 +32,8 @@ struct RetroTitleBar: View {
                     .frame(minWidth: 250, alignment: .leading)
                     .layoutPriority(2)
 
-                VStack(spacing: 6) {
-                    LcdModuleDisplay(text: module, stage: stage)
-                    StageLEDStrip(stage: stage)
-                }
-                .layoutPriority(3)
+                BuildStatusReadout(build: build)
+                    .layoutPriority(3)
 
                 VStack(alignment: .trailing, spacing: 7) {
                     HStack(spacing: 10) {
@@ -42,8 +43,8 @@ struct RetroTitleBar: View {
                         
                         Spacer(minLength: 0)
 
-                        progressReadout
-                        
+                        BuildProgressReadout(build: build)
+
                         if let audioError {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .font(.monaco(size: 11, weight: .bold))
@@ -103,14 +104,36 @@ struct RetroTitleBar: View {
         }
     }
 
+}
+
+/// The LCD module name + stage LEDs. Isolated so its ~10 Hz updates during a build don't rebuild the
+/// rest of the title bar — only this small view reads `currentStage`/`context` and re-renders.
+private struct BuildStatusReadout: View {
+    let build: MachineStore<BuildOperationsMachine>
+
+    private var stage: BuildStage { build.currentStage }
+    private var module: String { BuildStage.moduleDisplay(for: stage, context: build.context) }
+
+    var body: some View {
+        VStack(spacing: 6) {
+            LcdModuleDisplay(text: module, stage: stage)
+            StageLEDStrip(stage: stage)
+        }
+    }
+}
+
+/// The step counter / status / clock readout. Isolated for the same reason as `BuildStatusReadout`.
+private struct BuildProgressReadout: View {
+    let build: MachineStore<BuildOperationsMachine>
+
     @ViewBuilder
-    private var progressReadout: some View {
+    var body: some View {
         if build.matches(.running), build.context.progress.totalSteps > 0 {
             Text("\(build.context.progress.completedSteps)/\(build.context.progress.totalSteps)  \(Int(build.context.progress.fraction * 100))%")
                 .font(.monaco(size: 12, weight: .bold))
                 .foregroundStyle(Color.lcdGreen)
                 .shadow(color: Color.lcdGreen.opacity(0.75), radius: 4)
-        } else if let message = build.context.statusMessage, stage == .failed {
+        } else if let message = build.context.statusMessage, build.currentStage == .failed {
             Text(message.uppercased())
                 .font(.monaco(size: 10, weight: .bold))
                 .foregroundStyle(Color.terminalGreen)
