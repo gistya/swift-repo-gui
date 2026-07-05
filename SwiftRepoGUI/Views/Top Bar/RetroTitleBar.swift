@@ -33,19 +33,18 @@ struct RetroTitleBar: View {
                     LcdModuleDisplay(text: module, stage: stage)
                     StageLEDStrip(stage: stage)
                 }
-                .frame(maxWidth: 390)
-                .layoutPriority(1)
+                .layoutPriority(3)
 
                 VStack(alignment: .trailing, spacing: 7) {
                     HStack(spacing: 10) {
                         Text("Ox0badf00d MOD tracker")
                             .font(.monaco(size: 10, weight: .semibold))
                             .foregroundStyle(Color.terminalGreen.opacity(0.65))
-                            .alignmentGuide(HorizontalAlignment.leading) { _ in 0.5 }
                         
                         Spacer(minLength: 0)
 
                         progressReadout
+                        
                         if let audioError {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .font(.monaco(size: 11, weight: .bold))
@@ -55,12 +54,13 @@ struct RetroTitleBar: View {
                                 .accessibilityValue(audioError)
                         }
                     }
+
                     if let soundtrackDeck {
                         SoundtrackDeckView(deck: soundtrackDeck)
                     }
                 }
                 .frame(minWidth: soundtrackDeck == nil ? 260 : 318, alignment: .trailing)
-                .layoutPriority(2)
+                .layoutPriority(1)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
@@ -126,5 +126,6 @@ struct RetroTitleBar: View {
 }
 
 #Preview {
-    RetroTitleBar(build: .init(.init()), soundtrackDeck: .none)
+    RetroTitleBar(build: .init(.init()), soundtrackDeck: SoundtrackDeckConfiguration(nowPlaying: .empty, isMuted: false, isPaused: false, volume: 0.5, insertSlots: [], availableEffects: [], audioError: nil, onToggleMute: {}, onTogglePause: {}, onPreviousTrack: {}, onNextTrack: {}, onVolumeChange: {_ in }, onSetInsert: { _, _ in }, onToggleBypass: { _ in }, onOpenEffects: {}, makeInsertEditor: { _ in return nil}))
+        .frame(width: 1200)
 }

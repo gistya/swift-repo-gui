@@ -82,7 +82,7 @@ struct SoundtrackDeckView: View {
                 )
                 .controlSize(.small)
                 .tint(deck.isMuted ? Color.terminalDimGreen : Color.terminalGreen)
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: 300)
                 .accessibilityLabel("Soundtrack volume")
                 .accessibilityValue("\(Int((deck.volume * 100).rounded()))%")
 
