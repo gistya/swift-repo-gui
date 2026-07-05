@@ -2,7 +2,6 @@ import CoreText
 import Foundation
 
 enum FontLoader {
-
     static func registerFonts() {
         register("12-segment-display", ext: "ttf")
     }
