@@ -57,146 +57,143 @@ struct SoundtrackMachine: StateMachine {
     private static func stoppedTransitions() -> [Transition] {
         var transitions = commonTransitions(stayingIn: .stopped)
         transitions.append(Transition(on: .launch, to: .loading)
-            .when(Self.canLaunchPlayback)
-            .action { args, _ in Self.applyLaunch(args.context, shouldPlay: true) })
+            .when(canLaunchPlayback)
+            .action { args, _ in applyLaunch(args.context, shouldPlay: true) })
         transitions.append(Transition(on: .launch, to: .failed)
-            .when(Self.launchNeedsMissingTracksFailure)
-            .action { args, _ in Self.applyFailure("No tracker modules were found in the app bundle.", to: args.context) })
+            .when(launchNeedsMissingTracksFailure)
+            .action { args, _ in applyFailure("No tracker modules were found in the app bundle.", to: args.context) })
         transitions.append(Transition(on: .launch, to: .stopped)
             .when { context, event in
-                // Deterministic catch-all: only when neither guarded `.launch` transition applies.
-                // Multiple transitions on one event must be mutually exclusive so selection never
-                // depends on declaration/iteration order.
-                !Self.canLaunchPlayback(context, event) && !Self.launchNeedsMissingTracksFailure(context, event)
+                !canLaunchPlayback(context, event) && !launchNeedsMissingTracksFailure(context, event)
             }
-            .action { args, _ in Self.applyLaunch(args.context, shouldPlay: false) })
+            .action { args, _ in applyLaunch(args.context, shouldPlay: false) })
         transitions.append(Transition(on: .togglePause, to: .loading)
-            .when(Self.canStartFromStopped)
-            .action { args, _ in Self.queueTrackForCurrentPurpose(args.context, startImmediately: true) })
+            .when(canStartFromStopped)
+            .action { args, _ in queueTrackForCurrentPurpose(args.context, startImmediately: true) })
         transitions.append(Transition(on: .previousTrack, to: .loading)
-            .when(Self.canSelectTrack)
-            .action { args, _ in Self.queueOffsetTrack(-1, context: args.context, startImmediately: true) })
+            .when(canSelectTrack)
+            .action { args, _ in queueOffsetTrack(-1, context: args.context, startImmediately: true) })
         transitions.append(Transition(on: .nextTrack, to: .loading)
-            .when(Self.canSelectTrack)
-            .action { args, _ in Self.queueOffsetTrack(1, context: args.context, startImmediately: true) })
+            .when(canSelectTrack)
+            .action { args, _ in queueOffsetTrack(1, context: args.context, startImmediately: true) })
         transitions.append(Transition(on: .playTestCue, to: .loading)
-            .when(Self.canSelectTrack)
-            .action { args, _ in Self.queueRandomTrack(for: .test, context: args.context, startImmediately: true) })
+            .when(canSelectTrack)
+            .action { args, _ in queueRandomTrack(for: .test, context: args.context, startImmediately: true) })
         transitions.append(Transition(on: .buildSnapshotChanged, to: .loading)
-            .when(Self.buildChangeNeedsTrack)
-            .action { args, _ in Self.applyBuildContextAndQueueTrack(args.event, to: args.context) })
+            .when(buildChangeNeedsTrack)
+            .action { args, _ in applyBuildContextAndQueueTrack(args.event, to: args.context) })
         transitions.append(Transition(on: .buildSnapshotChanged, to: .stopped)
-            .when { context, event in !Self.buildChangeNeedsTrack(context, event) }
-            .action { args, _ in Self.applyBuildContext(args.event, to: args.context) })
+            .when { context, event in !buildChangeNeedsTrack(context, event) }
+            .action { args, _ in applyBuildContext(args.event, to: args.context) })
         transitions.append(Transition(on: .playbackStopped, to: .stopped)
-            .action { args, _ in Self.applyStopped(args.event, to: args.context) })
+            .action { args, _ in applyStopped(args.event, to: args.context) })
         transitions.append(Transition(on: .audioFailed, to: .failed)
-            .action { args, _ in Self.applyFailure(args.event, to: args.context) })
+            .action { args, _ in applyFailure(args.event, to: args.context) })
         return transitions
     }
 
     private static func loadingTransitions() -> [Transition] {
         var transitions = commonTransitions(stayingIn: .loading)
         transitions.append(Transition(on: .playbackPrepared, to: .playing)
-            .when(Self.preparedStartedCurrentGeneration)
-            .action { args, _ in Self.applyPlaybackPrepared(args.event, to: args.context) })
+            .when(preparedStartedCurrentGeneration)
+            .action { args, _ in applyPlaybackPrepared(args.event, to: args.context) })
         transitions.append(Transition(on: .playbackPrepared, to: .paused)
-            .when(Self.preparedPausedCurrentGeneration)
-            .action { args, _ in Self.applyPlaybackPrepared(args.event, to: args.context) })
+            .when(preparedPausedCurrentGeneration)
+            .action { args, _ in applyPlaybackPrepared(args.event, to: args.context) })
         transitions.append(Transition(on: .audioFailed, to: .failed)
-            .action { args, _ in Self.applyFailure(args.event, to: args.context) })
+            .action { args, _ in applyFailure(args.event, to: args.context) })
         transitions.append(Transition(on: .togglePause, to: .paused)
-            .action { args, _ in Self.applyPauseIntent(args.context) })
+            .action { args, _ in applyPauseIntent(args.context) })
         transitions.append(Transition(on: .previousTrack, to: .loading)
-            .when(Self.canSelectTrack)
-            .action { args, _ in Self.queueOffsetTrack(-1, context: args.context, startImmediately: true) })
+            .when(canSelectTrack)
+            .action { args, _ in queueOffsetTrack(-1, context: args.context, startImmediately: true) })
         transitions.append(Transition(on: .nextTrack, to: .loading)
-            .when(Self.canSelectTrack)
-            .action { args, _ in Self.queueOffsetTrack(1, context: args.context, startImmediately: true) })
+            .when(canSelectTrack)
+            .action { args, _ in queueOffsetTrack(1, context: args.context, startImmediately: true) })
         transitions.append(Transition(on: .buildSnapshotChanged, to: .loading)
-            .action { args, _ in Self.applyBuildContext(args.event, to: args.context) })
+            .action { args, _ in applyBuildContext(args.event, to: args.context) })
         transitions.append(Transition(on: .playbackStopped, to: .stopped)
-            .action { args, _ in Self.applyStopped(args.event, to: args.context) })
+            .action { args, _ in applyStopped(args.event, to: args.context) })
         return transitions
     }
 
     private static func playingTransitions() -> [Transition] {
         var transitions = commonTransitions(stayingIn: .playing)
         transitions.append(Transition(on: .togglePause, to: .playing)
-            .action { args, _ in Self.queuePause(args.context) })
+            .action { args, _ in queuePause(args.context) })
         transitions.append(Transition(on: .playbackPaused, to: .paused)
-            .action { args, _ in Self.applyPlaybackPaused(args.event, to: args.context) })
+            .action { args, _ in applyPlaybackPaused(args.event, to: args.context) })
         transitions.append(Transition(on: .previousTrack, to: .loading)
-            .when(Self.canSelectTrack)
-            .action { args, _ in Self.queueOffsetTrack(-1, context: args.context, startImmediately: true) })
+            .when(canSelectTrack)
+            .action { args, _ in queueOffsetTrack(-1, context: args.context, startImmediately: true) })
         transitions.append(Transition(on: .nextTrack, to: .loading)
-            .when(Self.canSelectTrack)
-            .action { args, _ in Self.queueOffsetTrack(1, context: args.context, startImmediately: true) })
+            .when(canSelectTrack)
+            .action { args, _ in queueOffsetTrack(1, context: args.context, startImmediately: true) })
         transitions.append(Transition(on: .playTestCue, to: .loading)
-            .when(Self.canSelectTrack)
-            .action { args, _ in Self.queueRandomTrack(for: .test, context: args.context, startImmediately: true) })
+            .when(canSelectTrack)
+            .action { args, _ in queueRandomTrack(for: .test, context: args.context, startImmediately: true) })
         transitions.append(Transition(on: .buildSnapshotChanged, to: .loading)
-            .when(Self.buildChangeNeedsTrack)
-            .action { args, _ in Self.applyBuildContextAndQueueTrack(args.event, to: args.context) })
+            .when(buildChangeNeedsTrack)
+            .action { args, _ in applyBuildContextAndQueueTrack(args.event, to: args.context) })
         transitions.append(Transition(on: .buildSnapshotChanged, to: .playing)
-            .when { context, event in !Self.buildChangeNeedsTrack(context, event) }
-            .action { args, _ in Self.applyBuildContext(args.event, to: args.context) })
+            .when { context, event in !buildChangeNeedsTrack(context, event) }
+            .action { args, _ in applyBuildContext(args.event, to: args.context) })
         transitions.append(Transition(on: .trackFinished, to: .loading)
-            .when(Self.shouldAutoAdvanceFinishedTrack)
-            .action { args, _ in Self.applyTrackFinishedAndQueueNext(args.event, to: args.context) })
+            .when(shouldAutoAdvanceFinishedTrack)
+            .action { args, _ in applyTrackFinishedAndQueueNext(args.event, to: args.context) })
         transitions.append(Transition(on: .trackFinished, to: .stopped)
-            .when { context, event in !Self.shouldAutoAdvanceFinishedTrack(context, event) }
-            .action { args, _ in Self.applyTrackFinished(args.event, to: args.context) })
+            .when { context, event in !shouldAutoAdvanceFinishedTrack(context, event) }
+            .action { args, _ in applyTrackFinished(args.event, to: args.context) })
         transitions.append(Transition(on: .audioFailed, to: .failed)
-            .action { args, _ in Self.applyFailure(args.event, to: args.context) })
+            .action { args, _ in applyFailure(args.event, to: args.context) })
         return transitions
     }
 
     private static func pausedTransitions() -> [Transition] {
         var transitions = commonTransitions(stayingIn: .paused)
         transitions.append(Transition(on: .togglePause, to: .paused)
-            .when(Self.canResumeCurrentTrack)
-            .action { args, _ in Self.queueResume(args.context) })
+            .when(canResumeCurrentTrack)
+            .action { args, _ in queueResume(args.context) })
         transitions.append(Transition(on: .togglePause, to: .loading)
-            .when(Self.canStartFromPaused)
-            .action { args, _ in Self.queueTrackForCurrentPurpose(args.context, startImmediately: true) })
+            .when(canStartFromPaused)
+            .action { args, _ in queueTrackForCurrentPurpose(args.context, startImmediately: true) })
         transitions.append(Transition(on: .previousTrack, to: .loading)
-            .when(Self.canSelectTrack)
-            .action { args, _ in Self.queueOffsetTrack(-1, context: args.context, startImmediately: false) })
+            .when(canSelectTrack)
+            .action { args, _ in queueOffsetTrack(-1, context: args.context, startImmediately: false) })
         transitions.append(Transition(on: .nextTrack, to: .loading)
-            .when(Self.canSelectTrack)
-            .action { args, _ in Self.queueOffsetTrack(1, context: args.context, startImmediately: false) })
+            .when(canSelectTrack)
+            .action { args, _ in queueOffsetTrack(1, context: args.context, startImmediately: false) })
         transitions.append(Transition(on: .buildSnapshotChanged, to: .paused)
-            .action { args, _ in Self.applyBuildContext(args.event, to: args.context) })
+            .action { args, _ in applyBuildContext(args.event, to: args.context) })
         transitions.append(Transition(on: .playbackPaused, to: .paused)
-            .action { args, _ in Self.applyPlaybackPaused(args.event, to: args.context) })
+            .action { args, _ in applyPlaybackPaused(args.event, to: args.context) })
         transitions.append(Transition(on: .playbackResumed, to: .playing)
-            .action { args, _ in Self.applyPlaybackResumed(args.event, to: args.context) })
+            .action { args, _ in applyPlaybackResumed(args.event, to: args.context) })
         transitions.append(Transition(on: .audioFailed, to: .failed)
-            .action { args, _ in Self.applyFailure(args.event, to: args.context) })
+            .action { args, _ in applyFailure(args.event, to: args.context) })
         return transitions
     }
 
     private static func failedTransitions() -> [Transition] {
         var transitions = commonTransitions(stayingIn: .failed)
         transitions.append(Transition(on: .launch, to: .loading)
-            .when(Self.canLaunchPlayback)
-            .action { args, _ in Self.applyLaunch(args.context, shouldPlay: true) })
+            .when(canLaunchPlayback)
+            .action { args, _ in applyLaunch(args.context, shouldPlay: true) })
         transitions.append(Transition(on: .previousTrack, to: .loading)
-            .when(Self.canSelectTrack)
-            .action { args, _ in Self.queueOffsetTrack(-1, context: args.context, startImmediately: true) })
+            .when(canSelectTrack)
+            .action { args, _ in queueOffsetTrack(-1, context: args.context, startImmediately: true) })
         transitions.append(Transition(on: .nextTrack, to: .loading)
-            .when(Self.canSelectTrack)
-            .action { args, _ in Self.queueOffsetTrack(1, context: args.context, startImmediately: true) })
+            .when(canSelectTrack)
+            .action { args, _ in queueOffsetTrack(1, context: args.context, startImmediately: true) })
         transitions.append(Transition(on: .playTestCue, to: .loading)
-            .when(Self.canSelectTrack)
-            .action { args, _ in Self.queueRandomTrack(for: .test, context: args.context, startImmediately: true) })
+            .when(canSelectTrack)
+            .action { args, _ in queueRandomTrack(for: .test, context: args.context, startImmediately: true) })
         transitions.append(Transition(on: .buildSnapshotChanged, to: .loading)
-            .when(Self.buildChangeNeedsTrack)
-            .action { args, _ in Self.applyBuildContextAndQueueTrack(args.event, to: args.context) })
+            .when(buildChangeNeedsTrack)
+            .action { args, _ in applyBuildContextAndQueueTrack(args.event, to: args.context) })
         transitions.append(Transition(on: .buildSnapshotChanged, to: .failed)
-            .when { context, event in !Self.buildChangeNeedsTrack(context, event) }
-            .action { args, _ in Self.applyBuildContext(args.event, to: args.context) })
+            .when { context, event in !buildChangeNeedsTrack(context, event) }
+            .action { args, _ in applyBuildContext(args.event, to: args.context) })
         return transitions
     }
 
@@ -205,24 +202,24 @@ struct SoundtrackMachine: StateMachine {
     ) -> [Transition] {
         [
             Transition(on: .setVolume, to: state)
-                .action { args, _ in Self.applyVolume(args.event, to: args.context) },
+                .action { args, _ in applyVolume(args.event, to: args.context) },
             Transition(on: .setInsertSlot, to: state)
-                .action { args, _ in Self.applyInsertSlot(args.event, to: args.context) },
+                .action { args, _ in applyInsertSlot(args.event, to: args.context) },
             Transition(on: .toggleInsertBypass, to: state)
-                .action { args, _ in Self.applyInsertBypass(args.event, to: args.context) },
+                .action { args, _ in applyInsertBypass(args.event, to: args.context) },
             Transition(on: .audioRequestHandled, to: state)
-                .action { args, _ in Self.clearHandledRequest(args.event, from: args.context) },
+                .action { args, _ in clearHandledRequest(args.event, from: args.context) },
             Transition(on: .toggleMute, to: .stopped)
                 .when { context, _ in !context.isMuted }
-                .action { args, _ in Self.applyMute(to: args.context) },
+                .action { args, _ in applyMute(to: args.context) },
             Transition(on: .toggleMute, to: .loading)
-                .when(Self.unmuteCanStartPlayback)
-                .action { args, _ in Self.applyUnmute(args.context, shouldPlay: true) },
+                .when(unmuteCanStartPlayback)
+                .action { args, _ in applyUnmute(args.context, shouldPlay: true) },
             Transition(on: .toggleMute, to: .stopped)
-                .when { context, event in context.isMuted && !Self.unmuteCanStartPlayback(context, event) }
-                .action { args, _ in Self.applyUnmute(args.context, shouldPlay: false) },
+                .when { context, event in context.isMuted && !unmuteCanStartPlayback(context, event) }
+                .action { args, _ in applyUnmute(args.context, shouldPlay: false) },
             Transition(on: .playbackStopped, to: .stopped)
-                .action { args, _ in Self.applyStopped(args.event, to: args.context) },
+                .action { args, _ in applyStopped(args.event, to: args.context) },
         ]
     }
 }

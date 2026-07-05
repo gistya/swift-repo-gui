@@ -41,7 +41,7 @@ struct ProjectMachine: StateMachine {
     var context: ProjectContext { .init() }
 
     var machine: some XStateMachine {
-        XState(.ready) {
+        State(.ready) {
             Always(to: .error)
                 .when(Self.hasValidationError)
             Always(to: .reloading)
@@ -52,7 +52,7 @@ struct ProjectMachine: StateMachine {
         }
         .initial()
 
-        XState(.error) {
+        State(.error) {
             Always(to: .reloading)
                 .when { $0.reloadPending && !$0.projectPath.isEmpty }
             for transition in Self.projectInputTransitions() {
@@ -60,8 +60,8 @@ struct ProjectMachine: StateMachine {
             }
         }
 
-        XState(.loading) {
-            XState(.reloading) {
+        State(.loading) {
+            State(.reloading) {
                 Always(to: .refreshing)
                     .when { !$0.projectPath.isEmpty }
                     .action(Self.clearReloadRequest)
@@ -70,7 +70,7 @@ struct ProjectMachine: StateMachine {
             }
             .initial()
 
-            XState(.refreshing) {
+            State(.refreshing) {
                 Invoke(id: "inspect", run: { scope in
                     do {
                         guard let input = scope.input?.get(ProjectInspectInput.self) else {
@@ -119,70 +119,86 @@ struct ProjectMachine: StateMachine {
                     return next
                 }
 
-                XTransition(on: ProjectEvent.setBuildSubdir, to: .refreshing).action { args, _ in
+                Transition(on: ProjectEvent.setBuildSubdir, to: .refreshing).action { args, _ in
                     Self.applyBuildSubdir(args.event, to: args.context)
                 }
-                XTransition(on: ProjectEvent.setPath, to: .ready)
+
+                Transition(on: ProjectEvent.setPath, to: .ready)
                     .when(Self.eventPathIsEmpty)
                     .action { args, _ in Self.applyEmptyPath(args.event, to: args.context) }
-                XTransition(on: ProjectEvent.setPath, to: .reloading)
+
+                Transition(on: ProjectEvent.setPath, to: .reloading)
                     .when { _, event in !Self.pathEventIsEmpty(event) }
                     .action { args, _ in Self.queueReload(context: args.context, event: args.event, mode: .fullInspect) }
-                XTransition(on: .refresh, to: .reloading)
+
+                Transition(on: .refresh, to: .reloading)
                     .when { !$0.projectPath.isEmpty }
                     .action { args, _ in Self.queueReload(context: args.context, event: args.event, mode: .fullInspect) }
-                XTransition(on: ProjectEvent.setCheckoutSchemeOverride, to: .reloading)
+
+                Transition(on: ProjectEvent.setCheckoutSchemeOverride, to: .reloading)
                     .when { !$0.projectPath.isEmpty }
                     .action { args, _ in Self.queueReload(context: args.context, event: args.event, mode: .fullInspect) }
-                XTransition(on: .captureRevisions, to: .reloading)
+
+                Transition(on: .captureRevisions, to: .reloading)
                     .when { $0.projectInfo != nil }
                     .action { args, _ in Self.queueReload(context: args.context, event: args.event, mode: .revisionsOnly) }
-                XTransition(on: .restore, to: .reloading)
+
+                Transition(on: .restore, to: .reloading)
                     .when { !$0.projectPath.isEmpty }
                     .action { args, _ in Self.queueReload(context: args.context, event: args.event, mode: .fullInspect) }
             }
         }
     }
 
-    private static func projectInputTransitions() -> [XTransition<ProjectContext, ProjectEvent, ProjectState>] {
+    private static func projectInputTransitions() -> [Transition] {
         [
-            XTransition(on: ProjectEvent.setPath, to: .ready)
+            Transition(on: ProjectEvent.setPath, to: .ready)
                 .when(Self.eventPathIsEmpty)
                 .action { args, _ in Self.applyEmptyPath(args.event, to: args.context) },
-            XTransition(on: ProjectEvent.setPath, to: .reloading)
+
+            Transition(on: ProjectEvent.setPath, to: .reloading)
                 .when { _, event in
                     guard case let .setPath(path)? = event else { return false }
                     return !path.isEmpty
                 }
                 .action { args, _ in Self.queueReload(context: args.context, event: args.event, mode: .fullInspect) },
-            XTransition(on: ProjectEvent.setBuildSubdir, to: .ready)
+
+            Transition(on: ProjectEvent.setBuildSubdir, to: .ready)
                 .action { args, _ in Self.applyBuildSubdir(args.event, to: args.context) },
-            XTransition(on: ProjectEvent.setCheckoutSchemeOverride, to: .ready)
+
+            Transition(on: ProjectEvent.setCheckoutSchemeOverride, to: .ready)
                 .when { $0.projectPath.isEmpty }
                 .action { args, _ in Self.applyCheckoutScheme(args.event, to: args.context) },
-            XTransition(on: ProjectEvent.setCheckoutSchemeOverride, to: .reloading)
+
+            Transition(on: ProjectEvent.setCheckoutSchemeOverride, to: .reloading)
                 .when { !$0.projectPath.isEmpty }
                 .action { args, _ in Self.queueReload(context: args.context, event: args.event, mode: .fullInspect) },
-            XTransition(on: .refresh, to: .ready)
+
+            Transition(on: .refresh, to: .ready)
                 .when { $0.projectPath.isEmpty }
                 .action { args, _ in Self.applyMissingProjectMessage(to: args.context) },
-            XTransition(on: .refresh, to: .refreshing)
+
+            Transition(on: .refresh, to: .refreshing)
                 .when { !$0.projectPath.isEmpty }
                 .action { args, _ in Self.prepareInspect(context: args.context, mode: .fullInspect) },
-            XTransition(on: .captureRevisions, to: .error)
+
+            Transition(on: .captureRevisions, to: .error)
                 .when { $0.projectInfo == nil }
                 .action { args, _ in
                     var ctx = args.context
                     ctx.validationMessage = ProjectInspectFailure.projectNotLoaded.errorDescription
                     return ctx
                 },
-            XTransition(on: .captureRevisions, to: .refreshing)
+
+            Transition(on: .captureRevisions, to: .refreshing)
                 .when { $0.projectInfo != nil }
                 .action { args, _ in Self.prepareInspect(context: args.context, mode: .revisionsOnly) },
-            XTransition(on: .restore, to: .ready)
+
+            Transition(on: .restore, to: .ready)
                 .when { $0.projectPath.isEmpty }
                 .action { args, _ in Self.applyMissingProjectMessage(to: args.context) },
-            XTransition(on: .restore, to: .reloading)
+
+            Transition(on: .restore, to: .reloading)
                 .when { !$0.projectPath.isEmpty }
                 .action { args, _ in Self.queueReload(context: args.context, event: args.event, mode: .fullInspect) },
         ]

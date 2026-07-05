@@ -30,37 +30,43 @@ struct BuildSettingsMachine: StateMachine {
     var context: BuildSettingsContext { .init() }
 
     var machine: some XStateMachine {
-        XState(.ready) {
-            XTransition(on: BuildSettingsEvent.setOptions, to: .ready).action { args, _ in
+        State(.ready) {
+            Transition(on: BuildSettingsEvent.setOptions, to: .ready).action { args, _ in
                 var ctx = args.context
                 if case let .setOptions(options)? = args.event { ctx.options = options }
                 return ctx
             }
-            XTransition(on: BuildSettingsEvent.setRepository, to: .ready).action { args, _ in
+
+            Transition(on: BuildSettingsEvent.setRepository, to: .ready).action { args, _ in
                 var ctx = args.context
                 if case let .setRepository(repo)? = args.event { ctx.selectedRepository = repo }
                 return ctx
             }
-            XTransition(on: BuildSettingsEvent.setBoolOption, to: .ready).action { args, _ in
+
+            Transition(on: BuildSettingsEvent.setBoolOption, to: .ready).action { args, _ in
                 guard case let .setBoolOption(key, value)? = args.event else { return args.context }
                 return args.context.updatingBool(key: key, value: value)
             }
-            XTransition(on: BuildSettingsEvent.setIntOption, to: .ready).action { args, _ in
+
+            Transition(on: BuildSettingsEvent.setIntOption, to: .ready).action { args, _ in
                 guard case let .setIntOption(key, value)? = args.event else { return args.context }
                 return args.context.updatingInt(key: key, value: value)
             }
-            XTransition(on: BuildSettingsEvent.setStringOption, to: .ready).action { args, _ in
+
+            Transition(on: BuildSettingsEvent.setStringOption, to: .ready).action { args, _ in
                 guard case let .setStringOption(key, value)? = args.event else { return args.context }
                 return args.context.updatingString(key: key, value: value)
             }
-            XTransition(on: BuildSettingsEvent.applyPreset, to: .ready).action { args, _ in
+
+            Transition(on: BuildSettingsEvent.applyPreset, to: .ready).action { args, _ in
                 var ctx = args.context
                 if case let .applyPreset(name)? = args.event {
                     ctx.options.applyPreset(name)
                 }
                 return ctx
             }
-            XTransition(on: BuildSettingsEvent.restore, to: .ready).action { args, _ in
+
+            Transition(on: BuildSettingsEvent.restore, to: .ready).action { args, _ in
                 var ctx = args.context
                 if case let .restore(options, repo)? = args.event {
                     ctx.options = options

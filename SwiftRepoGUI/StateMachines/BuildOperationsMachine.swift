@@ -42,78 +42,91 @@ struct BuildOperationsMachine: StateMachine {
     var context: BuildOperationsContext { .init() }
 
     var machine: some XStateMachine {
-        XState(.idle) {
-            XTransition(on: BuildOpsEvent.startRequest, to: .running).action { args, _ in
+        State(.idle) {
+            Transition(on: BuildOpsEvent.startRequest, to: .running).action { args, _ in
                 guard case let .startRequest(request)? = args.event else { return args.context }
                 return Self.start(job: BuildJobPlanner.job(for: request), context: args.context)
             }
-            XTransition(on: BuildOpsEvent.start, to: .running).action { args, _ in
+
+            Transition(on: BuildOpsEvent.start, to: .running).action { args, _ in
                 guard case let .start(job)? = args.event else { return args.context }
                 return Self.start(job: job, context: args.context)
             }
-            XTransition(on: BuildOpsEvent.setStatusMessage, to: .error)
+
+            Transition(on: BuildOpsEvent.setStatusMessage, to: .error)
                 .when { _, event in Self.isFailureStatusEvent(event) }
                 .action { args, _ in Self.applyStatusMessage(args.event, to: args.context) }
-            XTransition(on: BuildOpsEvent.setStatusMessage, to: .idle).action { args, _ in
+
+            Transition(on: BuildOpsEvent.setStatusMessage, to: .idle).action { args, _ in
                 Self.applyStatusMessage(args.event, to: args.context)
             }
         }
         .initial()
 
-        XState(.completed) {
+        State(.completed) {
             Always(to: .error)
                 .when(Self.isFailureContext)
-            XTransition(on: BuildOpsEvent.startRequest, to: .running).action { args, _ in
+
+            Transition(on: BuildOpsEvent.startRequest, to: .running).action { args, _ in
                 guard case let .startRequest(request)? = args.event else { return args.context }
                 return Self.start(job: BuildJobPlanner.job(for: request), context: args.context)
             }
-            XTransition(on: BuildOpsEvent.start, to: .running).action { args, _ in
+
+            Transition(on: BuildOpsEvent.start, to: .running).action { args, _ in
                 guard case let .start(job)? = args.event else { return args.context }
                 return Self.start(job: job, context: args.context)
             }
-            XTransition(on: BuildOpsEvent.setStatusMessage, to: .error)
+
+            Transition(on: BuildOpsEvent.setStatusMessage, to: .error)
                 .when { _, event in Self.isFailureStatusEvent(event) }
                 .action { args, _ in Self.applyStatusMessage(args.event, to: args.context) }
-            XTransition(on: BuildOpsEvent.setStatusMessage, to: .idle).action { args, _ in
+
+            Transition(on: BuildOpsEvent.setStatusMessage, to: .idle).action { args, _ in
                 Self.applyStatusMessage(args.event, to: args.context)
             }
         }
 
-        XState(.error) {
-            XTransition(on: BuildOpsEvent.startRequest, to: .running).action { args, _ in
+        State(.error) {
+            Transition(on: BuildOpsEvent.startRequest, to: .running).action { args, _ in
                 guard case let .startRequest(request)? = args.event else { return args.context }
                 return Self.start(job: BuildJobPlanner.job(for: request), context: args.context)
             }
-            XTransition(on: BuildOpsEvent.start, to: .running).action { args, _ in
+
+            Transition(on: BuildOpsEvent.start, to: .running).action { args, _ in
                 guard case let .start(job)? = args.event else { return args.context }
                 return Self.start(job: job, context: args.context)
             }
-            XTransition(on: BuildOpsEvent.setStatusMessage, to: .error)
+
+            Transition(on: BuildOpsEvent.setStatusMessage, to: .error)
                 .when { _, event in Self.isFailureStatusEvent(event) }
                 .action { args, _ in Self.applyStatusMessage(args.event, to: args.context) }
-            XTransition(on: BuildOpsEvent.setStatusMessage, to: .idle).action { args, _ in
+
+            Transition(on: BuildOpsEvent.setStatusMessage, to: .idle).action { args, _ in
                 Self.applyStatusMessage(args.event, to: args.context)
             }
         }
 
-        XState(.cancelled) {
-            XTransition(on: BuildOpsEvent.startRequest, to: .running).action { args, _ in
+        State(.cancelled) {
+            Transition(on: BuildOpsEvent.startRequest, to: .running).action { args, _ in
                 guard case let .startRequest(request)? = args.event else { return args.context }
                 return Self.start(job: BuildJobPlanner.job(for: request), context: args.context)
             }
-            XTransition(on: BuildOpsEvent.start, to: .running).action { args, _ in
+
+            Transition(on: BuildOpsEvent.start, to: .running).action { args, _ in
                 guard case let .start(job)? = args.event else { return args.context }
                 return Self.start(job: job, context: args.context)
             }
-            XTransition(on: BuildOpsEvent.setStatusMessage, to: .error)
+
+            Transition(on: BuildOpsEvent.setStatusMessage, to: .error)
                 .when { _, event in Self.isFailureStatusEvent(event) }
                 .action { args, _ in Self.applyStatusMessage(args.event, to: args.context) }
-            XTransition(on: BuildOpsEvent.setStatusMessage, to: .idle).action { args, _ in
+
+            Transition(on: BuildOpsEvent.setStatusMessage, to: .idle).action { args, _ in
                 Self.applyStatusMessage(args.event, to: args.context)
             }
         }
 
-        XState(.running) {
+        State(.running) {
             Invoke(id: "build-process", run: { scope in
                 do {
                     guard let input = scope.input?.get(BuildJob.self) else {
@@ -159,7 +172,7 @@ struct BuildOperationsMachine: StateMachine {
                 return next
             }
 
-            XTransition(on: .cancel, to: .cancelled).action { args, _ in
+            Transition(on: .cancel, to: .cancelled).action { args, _ in
                 var ctx = args.context
                 ctx.activeJob = nil
                 ctx.statusMessage = "Build cancelled."
@@ -167,26 +180,26 @@ struct BuildOperationsMachine: StateMachine {
                 return ctx
             }
 
-            XState(.building) {
+            State(.building) {
                 for transition in Self.progressTransitions() {
                     transition
                 }
             }
             .initial()
 
-            XState(.testing) {
+            State(.testing) {
                 for transition in Self.progressTransitions() {
                     transition
                 }
             }
 
-            XState(.measuring) {
+            State(.measuring) {
                 for transition in Self.progressTransitions() {
                     transition
                 }
             }
 
-            XState(.deploying) {
+            State(.deploying) {
                 for transition in Self.progressTransitions() {
                     transition
                 }
@@ -194,19 +207,22 @@ struct BuildOperationsMachine: StateMachine {
         }
     }
 
-    private static func progressTransitions() -> [XTransition<BuildOperationsContext, BuildOpsEvent, BuildOpsState>] {
+    private static func progressTransitions() -> [Transition] {
         [
-            XTransition(on: BuildOpsEvent.progressUpdated, to: .testing)
-                .when { ctx, event in Self.stage(for: event, context: ctx) == .testing }
-                .action { args, _ in Self.applyProgress(args.event, to: args.context) },
-            XTransition(on: BuildOpsEvent.progressUpdated, to: .measuring)
-                .when { ctx, event in Self.stage(for: event, context: ctx) == .measuring }
-                .action { args, _ in Self.applyProgress(args.event, to: args.context) },
-            XTransition(on: BuildOpsEvent.progressUpdated, to: .deploying)
-                .when { ctx, event in Self.stage(for: event, context: ctx) == .deploying }
-                .action { args, _ in Self.applyProgress(args.event, to: args.context) },
-            XTransition(on: BuildOpsEvent.progressUpdated, to: .building)
-                .action { args, _ in Self.applyProgress(args.event, to: args.context) },
+            Transition(on: BuildOpsEvent.progressUpdated, to: .testing)
+                .when { ctx, event in stage(for: event, context: ctx) == .testing }
+                .action { args, _ in applyProgress(args.event, to: args.context) },
+
+            Transition(on: BuildOpsEvent.progressUpdated, to: .measuring)
+                .when { ctx, event in stage(for: event, context: ctx) == .measuring }
+                .action { args, _ in applyProgress(args.event, to: args.context) },
+
+            Transition(on: BuildOpsEvent.progressUpdated, to: .deploying)
+                .when { ctx, event in stage(for: event, context: ctx) == .deploying }
+                .action { args, _ in applyProgress(args.event, to: args.context) },
+
+            Transition(on: BuildOpsEvent.progressUpdated, to: .building)
+                .action { args, _ in applyProgress(args.event, to: args.context) },
         ]
     }
 

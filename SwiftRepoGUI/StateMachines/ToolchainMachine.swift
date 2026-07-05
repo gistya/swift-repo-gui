@@ -57,7 +57,7 @@ struct ToolchainMachine: StateMachine {
     var context: ToolchainContext { initialContext }
 
     var machine: some XStateMachine {
-        XState(.loading) {
+        State(.loading) {
             Invoke(id: "parse", run: { scope in
                 guard let path = scope.input?.get(String.self), !path.isEmpty else {
                     throw PresentableError(ToolchainLoadError.missingPresetFile)
@@ -85,38 +85,41 @@ struct ToolchainMachine: StateMachine {
         }
         .initial()
 
-        XState(.ready) {
+        State(.ready) {
             for transition in Self.compositionTransitions(stayingIn: .ready) { transition }
         }
 
-        XState(.failed) {
+        State(.failed) {
             for transition in Self.compositionTransitions(stayingIn: .failed) { transition }
         }
     }
 
     private static func compositionTransitions(
         stayingIn state: ToolchainState
-    ) -> [XTransition<ToolchainContext, ToolchainEvent, ToolchainState>] {
+    ) -> [Transition] {
         [
-            XTransition(on: ToolchainEvent.load, to: .loading)
+            Transition(on: ToolchainEvent.load, to: .loading)
                 .action { args, _ in
                     var ctx = args.context
                     if case let .load(path)? = args.event { ctx.presetFilePath = path }
                     return ctx
                 },
-            XTransition(on: ToolchainEvent.updateDraft, to: state)
+            
+            Transition(on: ToolchainEvent.updateDraft, to: state)
                 .action { args, _ in
                     var ctx = args.context
                     if case let .updateDraft(draft)? = args.event { ctx.draft = draft }
                     return ctx
                 },
-            XTransition(on: ToolchainEvent.loadRecipe, to: state)
+            
+            Transition(on: ToolchainEvent.loadRecipe, to: state)
                 .action { args, _ in
                     var ctx = args.context
                     if case let .loadRecipe(draft)? = args.event { ctx.draft = draft }
                     return ctx
                 },
-            XTransition(on: ToolchainEvent.newRecipe, to: state)
+            
+            Transition(on: ToolchainEvent.newRecipe, to: state)
                 .action { args, _ in
                     var ctx = args.context
                     ctx.draft = ToolchainRecipeDraft()

@@ -3,7 +3,7 @@ import Matrix
 import Observation
 import SwiftUI
 
-/// Loads completed build logs once, off the main actor, and keeps full text out of XState snapshots.
+/// Loads completed build logs once, off the main actor, and keeps full text out of State snapshots.
 struct HistoryLogFileView: View {
     let operationID: UUID
     let logFileName: String?
