@@ -543,17 +543,17 @@ final class AppSession {
 
     private func waitForBuildIdle(timeout: Duration = AppSession.buildTimeout) async throws {
         // Snapshot-driven, not polled: the machine actor replays its current snapshot on subscribe
-        // and pushes every transition; the AsyncStream bridge enforces the deadline. Progress
-        // mirroring onto the tracked record now happens per snapshot (formerly per poll tick).
+        // and pushes every transition; the AsyncStream bridge enforces the deadline.
+        //
+        // We deliberately do NOT mirror per-snapshot progress onto the tracked SwiftData record.
+        // That fires ~10×/sec, and every write invalidates every `@Query<BuildOperationRecord>`
+        // (History + live log), rebuilding those views on each tick even though nothing displays a
+        // record's live `progress`. Live progress comes from the machine context (top bar); the
+        // record only needs its final value, which `finalizeRecord` writes once the build settles.
         let snapshots = build.snapshots(timeout: timeout) {
             SessionWaitError.buildTimedOut(seconds: Int(timeout.components.seconds))
         }
         for try await snapshot in snapshots {
-            if let operationID = snapshot.context.lastOperationID,
-               let record = trackedRecords[operationID] {
-                record.progress = snapshot.context.progress.fraction
-                record.etaSeconds = snapshot.context.progress.etaSeconds
-            }
             if !(snapshot.configuration?.matches(.running) ?? false) { return }
         }
     }
