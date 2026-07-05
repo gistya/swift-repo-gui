@@ -76,6 +76,9 @@ struct ContentView: View {
             // audio settings (volume / inserts) are live on the engine — so default playback can't
             // start before the saved volume lands. We only seed the current build stage here.
             session.soundtrack.send(.buildSnapshotChanged(SoundtrackBuildSnapshot(session.build.context)))
+            // Warm the Toolchain tab's cold costs (SwiftData + preset parse) off the critical path so
+            // its first open doesn't spike CPU/disk and glitch the soundtrack.
+            session.warmUpToolchain()
             keyboardFocus = true
         }
         .onChange(of: session.settings.context) {

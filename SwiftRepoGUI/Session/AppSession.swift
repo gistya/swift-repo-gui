@@ -58,6 +58,7 @@ final class AppSession {
     @ObservationIgnored private var soundtrackDriver: SoundtrackEffectDriver?
     @ObservationIgnored private var trackedRecords: [UUID: BuildOperationRecord] = [:]
     @ObservationIgnored private var didStartEffectsLoad = false
+    @ObservationIgnored private var toolchainWarmupTask: Task<Void, Never>?
     @ObservationIgnored private(set) var lastErrorMessage: String?
 
     /// Installed AudioUnit effects the user can drop into a soundtrack insert slot. Populated lazily
@@ -321,7 +322,32 @@ final class AppSession {
     func loadToolchainCatalog() {
         let path = project.context.projectInfo?.swiftDirectory
             .appendingPathComponent("utils/build-presets.ini").path ?? ""
+        // Idempotent: if this exact catalog is already parsed, don't re-parse. Lets the background
+        // warm-up's result stand so switching to the tab doesn't redo the work (and re-flash the
+        // loader). A changed project path still reloads, since `presetFilePath` won't match.
+        if toolchain.matches(.ready), toolchain.context.presetFilePath == path, !toolchain.context.catalog.isEmpty {
+            return
+        }
         toolchain.send(.load(path))
+    }
+
+    /// Pre-warm the Toolchain tab's one-time costs off the critical path, so the first switch to it
+    /// doesn't spike CPU/disk while the soundtrack is playing (the transient render starvation that
+    /// glitches audio without any soundtrack state change). Runs once, at low priority: warm the
+    /// SwiftData store for the tab's models so the first `@Query` isn't a cold fetch, then parse the
+    /// 231-entry preset catalog as soon as the project is ready. All harmless if the tab is never opened.
+    func warmUpToolchain() {
+        guard toolchainWarmupTask == nil else { return }
+        toolchainWarmupTask = Task(priority: .background) { [weak self] in
+            guard let self else { return }
+            if let modelContext {
+                _ = try? modelContext.fetchCount(FetchDescriptor<ToolchainRecipe>())
+                _ = try? modelContext.fetchCount(FetchDescriptor<CustomPreset>())
+            }
+            try? await waitForProjectReady()
+            guard !Task.isCancelled else { return }
+            loadToolchainCatalog()
+        }
     }
 
     /// The user's custom preset/mixin blocks, for `.ini` generation.
