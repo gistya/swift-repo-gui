@@ -74,6 +74,11 @@ nonisolated enum BuildStage: String, CaseIterable, Sendable, Equatable, Hashable
             .joined(separator: " ")
             .lowercased()
 
+        // TODO: this is giving false positives because of commands like this that contain the word "test" but are just build steps:
+        /*
+         buildtoolchain /users/shad/dev/3rdparty/swift-project/swift/utils/build-toolchain implicitfunc --preset-file /users/shad/dev/3rdparty/swift-project/swift/utils/build-presets.ini --preset-file /users/shad/implicitfunc-presets.ini --preset-prefix fast_ [1502/5533][ 27%][783.999s] /opt/homebrew/bin/sccache /applications/xcode.app/contents/developer/toolchains/xcodedefault.xctoolchain/usr/bin/clang++ -dclang_exports -dexperimental_key_instructions -dgtest_has_rtti=0 -d_debug -d_glibcxx_asse implicitfunc
+         */
+        // TODO: we need a better way to tell which step is currently running
         if text.contains("test") || text.contains("lit ") || text.contains("validation") {
             return .testing
         }
