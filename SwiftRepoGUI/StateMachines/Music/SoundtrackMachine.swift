@@ -561,16 +561,22 @@ private extension SoundtrackMachine {
 // See Swift Evolution pitch:
 // https://forums.swift.org/t/pitch-implicit-member-expressions-for-function-typed-parameters/87892/6
 
-typealias Insert = (index: Int, component: AudioComponentRef?)
-typealias AudioFailure = (String, generation: Int?)
-typealias PlaybackInfo = (moduleTitle: String?, generation: Int, started: Bool)
+// These MUST stay UNLABELED tuples. The multi-value events below are named by the variadic
+// `XTransition.init(on: Map<(repeat each Payload), EventID>)` overload, and a parameter pack only ever
+// expands to an *unlabeled* tuple. A labeled tuple (e.g. `(String, generation: Int?)`) won't match that
+// overload — it falls through to the scalar `Payload: Blankable` one and fails to compile with
+// "type '(String, generation: Int?)' cannot conform to 'Blankable'". Keep the labels on the *enum
+// cases* (they document the payload); just not on these Map-input tuples.
+typealias Insert = (Int, AudioComponentRef?)
+typealias AudioFailure = (String, Int?)
+typealias PlaybackInfo = (String?, Int, Bool)
 
 extension Map where In == Double, Out == SoundtrackEvent {
     static var setVolume: Map<In, Out> { .init(transform: Out.setVolume) }
 }
 
 extension Map where In == Insert, Out == SoundtrackEvent {
-    static var setInsertSlot: Map<In, Out> { .init(transform: Out.setInsertSlot) }
+    static var setInsertSlot: Self { .init(transform: Out.setInsertSlot) }
 }
 
 extension Map where In == SoundtrackBuildSnapshot, Out == SoundtrackEvent {
@@ -578,7 +584,7 @@ extension Map where In == SoundtrackBuildSnapshot, Out == SoundtrackEvent {
 }
 
 extension Map where In == AudioFailure, Out == SoundtrackEvent {
-    static var audioFailed: Map<In, Out> { .init(transform: Out.audioFailed) }
+    static var audioFailed: Self { .init(transform: Out.audioFailed) }
 }
 
 extension Map where In == Int, Out == SoundtrackEvent {
@@ -592,10 +598,4 @@ extension Map where In == Int, Out == SoundtrackEvent {
 
 extension Map where In == PlaybackInfo, Out == SoundtrackEvent {
     static var playbackPrepared: Map<In, Out> { .init(transform: Out.playbackPrepared) }
-}
-
-public extension XTransition {
-    init<Payload>(on map: Map<Payload, EventID>, to target: StateID) {
-        self.init(on: map.transform, to: target)
-    }
 }
