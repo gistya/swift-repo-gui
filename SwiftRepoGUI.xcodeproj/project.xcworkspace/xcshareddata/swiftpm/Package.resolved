@@ -14,8 +14,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/gistya/Ox0badf00d",
       "state" : {
-        "revision" : "2efb366b06b828022ea6d0a5dbc988c5f02e2d54",
-        "version" : "0.9.1"
+        "revision" : "e630d964e51e19dc53dda94fe89822caa342f669",
+        "version" : "0.9.3"
       }
     },
     {
@@ -32,8 +32,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/gistya/SwiftXState",
       "state" : {
-        "revision" : "fceaea7274708f9c478e39f08c6bab2b655d53ca",
-        "version" : "2.0.0-alpha-3"
+        "revision" : "09303133702673c842bc07144362313d9d5d5071",
+        "version" : "2.0.0-alpha-4"
       }
     }
   ],
