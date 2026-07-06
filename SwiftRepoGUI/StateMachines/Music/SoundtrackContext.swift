@@ -5,24 +5,6 @@ nonisolated enum SoundtrackDefaults {
     static let volumeKey = "SwiftBuilder.soundtrackVolume"
 }
 
-nonisolated struct SoundtrackBuildSnapshot: Sendable, Equatable, Hashable {
-    var stage: BuildStage
-    var isRunning: Bool
-    var succeeded: Bool
-
-    init(stage: BuildStage = .off, isRunning: Bool = false, succeeded: Bool = false) {
-        self.stage = stage
-        self.isRunning = isRunning
-        self.succeeded = succeeded
-    }
-
-    init(_ context: BuildOperationsContext) {
-        stage = BuildStage.stage(for: context)
-        isRunning = context.isRunning
-        succeeded = !context.isRunning && context.lastExitCode == 0
-    }
-}
-
 nonisolated struct SoundtrackContext: Sendable, Equatable {
     static let insertSlotCount = 2
 
