@@ -91,7 +91,7 @@ struct RetroTitleBar: View {
                     .font(.monaco(size: 24, weight: .bold))
                     .foregroundStyle(Color.terminalGreen)
                     .shadow(color: Color.terminalGreen.opacity(0.75), radius: 4)
-                    .shadow(color: .black.opacity(0.9), radius: 3, x: 3, y: 3)
+                    .shadow(color: Color.logoShadow, radius: 3, x: 3, y: 3)
 
                 Text("swift-project control surface")
                     .font(.monaco(size: 10, weight: .semibold))

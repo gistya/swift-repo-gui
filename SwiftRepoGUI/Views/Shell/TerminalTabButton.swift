@@ -21,7 +21,7 @@ struct TerminalTabButton: View {
             .frame(minWidth: 118)
             .background {
                 UnevenRoundedRectangle(topLeadingRadius: 7, bottomLeadingRadius: 0, bottomTrailingRadius: 0, topTrailingRadius: 7)
-                    .fill(isSelected ? Color.black.opacity(0.72) : Color.black.opacity(0.42))
+                    .fill(Color.tabFill.opacity(isSelected ? 0.72 : 0.42))
                     .overlay {
                         UnevenRoundedRectangle(topLeadingRadius: 7, bottomLeadingRadius: 0, bottomTrailingRadius: 0, topTrailingRadius: 7)
                             .stroke(isSelected ? Color.terminalGreen.opacity(0.9) : Color.terminalGreen.opacity(0.25), lineWidth: 1)

@@ -8,6 +8,7 @@ struct ContentView: View {
     let session: AppSession
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.colorScheme) private var colorScheme
     @FocusState private var keyboardFocus: Bool
 
     init(session: AppSession) {
@@ -88,6 +89,10 @@ struct ContentView: View {
         }
         .onChange(of: session.settings.context) {
             session.persistLastUsedSettings()
+        }
+        // Feed the OS appearance into the theme store so the Light preset auto-applies in Light Mode.
+        .onChange(of: colorScheme, initial: true) { _, scheme in
+            AppStyleStore.shared.systemIsLight = (scheme == .light)
         }
         // Re-resolve the project when the app regains focus so a git branch switched in the terminal
         // is reflected in the checkout scheme (the branch is only read at validation time).

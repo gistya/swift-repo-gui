@@ -7,6 +7,7 @@ nonisolated enum AppSectionID: String, StateIdentifying, CaseIterable, Identifia
     case history
     case logs
     case inspector
+    case style
 
     var id: String { rawValue }
     static var _blank: AppSectionID { .build }
@@ -19,6 +20,7 @@ nonisolated enum AppSectionID: String, StateIdentifying, CaseIterable, Identifia
         case .history: String(localized: "History")
         case .logs: String(localized: "Logs")
         case .inspector: String(localized: "Inspector")
+        case .style: String(localized: "Style")
         }
     }
 
@@ -30,6 +32,7 @@ nonisolated enum AppSectionID: String, StateIdentifying, CaseIterable, Identifia
         case .history: "clock.arrow.circlepath"
         case .logs: "doc.text"
         case .inspector: "waveform.path.ecg.rectangle"
+        case .style: "paintpalette"
         }
     }
 

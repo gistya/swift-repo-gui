@@ -62,6 +62,7 @@ struct BuildSettingsView: View {
         .terminalText()
         .navigationTitle("Build Settings")
         .sheet(isPresented: $showSaveSheet) { saveProfileSheet }
+        .background(TerminalBackground())
     }
 
     @ViewBuilder
@@ -215,8 +216,50 @@ struct BuildSettingsView: View {
                 )
             )
             .labelsHidden()
+            .toggleStyle(
+                ChipToggleStyle(
+                    onColor: .toggleTint,
+                    offColor: .toggleTint.opacity(0.3),
+                    thumbColor: .toggleThumb
+                )
+            )
             // The visible label sits in a separate view, so name the toggle for VoiceOver.
             .accessibilityLabel(displayTitle(for: id))
+        }
+    }
+    
+    struct ChipToggleStyle: ToggleStyle {
+        var onColor: Color = .green
+        var offColor: Color = .gray
+        var thumbColor: Color = .white
+
+        func makeBody(configuration: Configuration) -> some View {
+            Button {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                    configuration.isOn.toggle()
+                }
+            } label: {
+                HStack {
+                    configuration.label
+
+                    Spacer()
+
+                    ZStack(alignment: configuration.isOn ? .trailing : .leading) {
+                        Capsule()
+                            .fill(configuration.isOn ? onColor : offColor)
+                            .frame(width: 48, height: 28)
+
+                        Circle()
+                            .fill(thumbColor)
+                            .shadow(radius: 1)
+                            .padding(3)
+                            .frame(width: 28, height: 28)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(configuration.isOn ? "On" : "Off")
         }
     }
 
@@ -359,32 +402,6 @@ struct BuildSettingsView: View {
     }
 
     private var saveProfileSheet: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Save Build Profile")
-                .font(.monaco(size: 18, weight: .bold))
-                .accessibilityAddTraits(.isHeader)
-            TextField("Profile name", text: $profileName)
-                .textFieldStyle(.roundedBorder)
-                .accessibilityLabel("Profile name")
-                .accessibilityHint("Enter a name for this build settings profile.")
-            HStack {
-                Spacer()
-                Button("Cancel") { showSaveSheet = false }
-                    .accessibilityLabel("Cancel")
-                    .accessibilityHint("Dismisses the sheet without saving.")
-                Button("Save") {
-                    let profile = SavedBuildProfile(name: profileName, options: settings.context.options)
-                    modelContext.insert(profile)
-                    profileName = ""
-                    showSaveSheet = false
-                }
-                .disabled(profileName.trimmingCharacters(in: .whitespaces).isEmpty)
-                .keyboardShortcut(.defaultAction)
-                .accessibilityLabel("Save")
-                .accessibilityHint("Saves the current build settings under this name.")
-            }
-        }
-        .padding()
-        .frame(width: 360)
+        SaveProfileSheet(profileName: $profileName, showSaveSheet: $showSaveSheet, settings: settings)
     }
 }

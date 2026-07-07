@@ -25,6 +25,8 @@ struct AppSectionContent: View {
         case .inspector:
             MachineInspectorView(store: session.inspector)
                 .inspectorStyle(.dark)
+        case .style:
+            StyleView()
         }
     }
 }

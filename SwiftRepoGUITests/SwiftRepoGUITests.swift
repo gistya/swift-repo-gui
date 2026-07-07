@@ -332,8 +332,9 @@ struct SwiftRepoGUITests {
     @Test func appSectionsNavigateLeftAndRightWithWraparound() throws {
         #expect(AppSectionID.build.next == .settings)
         #expect(AppSectionID.logs.next == .inspector)
-        #expect(AppSectionID.inspector.next == .build)
-        #expect(AppSectionID.build.previous == .inspector)
+        #expect(AppSectionID.inspector.next == .style)
+        #expect(AppSectionID.style.next == .build)
+        #expect(AppSectionID.build.previous == .style)
         #expect(AppSectionID.history.previous == .toolchain)
     }
 

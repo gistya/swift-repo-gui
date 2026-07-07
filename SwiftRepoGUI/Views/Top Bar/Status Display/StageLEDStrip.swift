@@ -8,7 +8,7 @@ struct StageLEDStrip: View {
             ForEach([BuildStage.off, .building, .testing, .measuring, .deploying, .failed], id: \.self) { item in
                 LEDIndicator(title: item.title, color: color(for: item), isOn: stage == item)
                     .background(alignment: .leading) {
-                        Rectangle().fill(Color(.black))
+                        Rectangle().fill(Color.ledBackground)
                     }
                     .accessibilityHidden(true)
             }

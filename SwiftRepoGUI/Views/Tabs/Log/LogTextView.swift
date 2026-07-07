@@ -21,6 +21,12 @@ struct LogTextView: NSViewRepresentable {
 
     let text: String
     var scroll: Scroll = .top
+    // Theme as reactive inputs (defaulted from the live style). When the theme changes the parent
+    // re-renders, these re-evaluate, and `updateNSView` re-colors the text view — so the log panel
+    // follows Light/Dark and custom colors like the rest of the UI.
+    var background: Color = .terminalBlack
+    var foreground: Color = .terminalGreen
+    var fontName: String = SwiftBuilderStyle.current.fonts.monospaceName
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -31,7 +37,7 @@ struct LogTextView: NSViewRepresentable {
         scrollView.autohidesScrollers = true
         scrollView.borderType = .lineBorder
         scrollView.drawsBackground = true
-        scrollView.backgroundColor = NSColor(SwiftBuilderStyle.current.colors.terminalBlack)
+        scrollView.backgroundColor = NSColor(background)
 
         let textView = NSTextView(frame: .zero)
         textView.isEditable = false
@@ -41,10 +47,10 @@ struct LogTextView: NSViewRepresentable {
         textView.allowsUndo = false
         textView.usesFindBar = true
         textView.drawsBackground = true
-        textView.backgroundColor = NSColor(SwiftBuilderStyle.current.colors.terminalBlack)
-        textView.textColor = NSColor(SwiftBuilderStyle.current.colors.terminalGreen)
-        textView.insertionPointColor = NSColor(SwiftBuilderStyle.current.colors.terminalGreen)
-        textView.font = NSFont(name: SwiftBuilderStyle.current.fonts.monospaceName, size: 11)
+        textView.backgroundColor = NSColor(background)
+        textView.textColor = NSColor(foreground)
+        textView.insertionPointColor = NSColor(foreground)
+        textView.font = NSFont(name: fontName, size: 11)
             ?? .monospacedSystemFont(ofSize: 11, weight: .regular)
         textView.textContainerInset = NSSize(width: 10, height: 10)
         textView.minSize = .zero
@@ -62,12 +68,16 @@ struct LogTextView: NSViewRepresentable {
         context.coordinator.textView = textView
         context.coordinator.attributes = [
             .font: textView.font ?? NSFont.monospacedSystemFont(ofSize: 11, weight: .regular),
-            .foregroundColor: textView.textColor ?? NSColor(SwiftBuilderStyle.current.colors.terminalGreen),
+            .foregroundColor: textView.textColor ?? NSColor(foreground),
         ]
+        context.coordinator.currentBackground = background
+        context.coordinator.currentForeground = foreground
+        context.coordinator.currentFontName = fontName
         return scrollView
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        applyThemeIfNeeded(scrollView, context: context)
         let previous = context.coordinator.currentText
         guard previous != text else { return }
         context.coordinator.currentText = text
@@ -115,10 +125,40 @@ struct LogTextView: NSViewRepresentable {
         }
     }
 
+    /// Re-color the text view when the theme inputs change (Light/Dark switch or custom colors).
+    private func applyThemeIfNeeded(_ scrollView: NSScrollView, context: Context) {
+        let coord = context.coordinator
+        guard coord.currentBackground != background
+            || coord.currentForeground != foreground
+            || coord.currentFontName != fontName else { return }
+        coord.currentBackground = background
+        coord.currentForeground = foreground
+        coord.currentFontName = fontName
+
+        let bg = NSColor(background)
+        let fg = NSColor(foreground)
+        let font = NSFont(name: fontName, size: 11) ?? .monospacedSystemFont(ofSize: 11, weight: .regular)
+        scrollView.backgroundColor = bg
+        guard let textView = coord.textView else { return }
+        textView.backgroundColor = bg
+        textView.textColor = fg
+        textView.insertionPointColor = fg
+        textView.font = font
+        if let storage = textView.textStorage, storage.length > 0 {
+            let whole = NSRange(location: 0, length: storage.length)
+            storage.addAttribute(.foregroundColor, value: fg, range: whole)
+            storage.addAttribute(.font, value: font, range: whole)
+        }
+        coord.attributes = [.font: font, .foregroundColor: fg]
+    }
+
     final class Coordinator {
         weak var textView: NSTextView?
         var currentText = ""
         var attributes: [NSAttributedString.Key: Any] = [:]
+        var currentBackground: Color?
+        var currentForeground: Color?
+        var currentFontName: String?
     }
 }
 

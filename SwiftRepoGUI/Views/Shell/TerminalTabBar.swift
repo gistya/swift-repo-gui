@@ -21,7 +21,7 @@ struct TerminalTabBar: View {
         .padding(.horizontal, 14)
         .padding(.top, 8)
         .padding(.bottom, 0)
-        .background(TerminalBackground())
+        .background(Color.tabBarBackground)
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(Color.terminalGreen.opacity(0.35))

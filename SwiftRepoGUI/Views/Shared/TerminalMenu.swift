@@ -48,7 +48,7 @@ struct TerminalMenu<Value: Hashable>: View {
             .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
             .background {
                 RoundedRectangle(cornerRadius: 5)
-                    .fill(Color.black.opacity(0.5))
+                    .fill(Color.controlSurface.opacity(0.5))
                     .overlay(
                         RoundedRectangle(cornerRadius: 5)
                             .stroke(Color.terminalGreen.opacity(0.35), lineWidth: 1)

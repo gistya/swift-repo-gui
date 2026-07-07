@@ -209,7 +209,7 @@ struct ToolchainView: View {
                     .scrollContentBackground(.hidden)
                     .frame(minHeight: 80)
                     .padding(6)
-                    .background(RoundedRectangle(cornerRadius: 5).fill(Color.black.opacity(0.5))
+                    .background(RoundedRectangle(cornerRadius: 5).fill(Color.controlSurface.opacity(0.5))
                         .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.terminalGreen.opacity(0.3), lineWidth: 1)))
                     .accessibilityLabel("Option overrides")
                     .accessibilityHint("Enter build-script long options, one per line, as a bare flag or key equals value without leading dashes")

@@ -122,7 +122,7 @@ struct SoundtrackDeckView: View {
         .frame(width: 150, height: 34, alignment: .leading)
         .background {
             RoundedRectangle(cornerRadius: 5)
-                .fill(Color.black.opacity(0.42))
+                .fill(Color.controlSurface.opacity(0.42))
                 .overlay(
                     RoundedRectangle(cornerRadius: 5)
                         .stroke((deck.isMuted ? Color.terminalDimGreen : Color.lcdGreen).opacity(0.45), lineWidth: 1)
