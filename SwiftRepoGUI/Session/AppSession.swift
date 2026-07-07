@@ -78,6 +78,10 @@ final class AppSession {
         AppSectionID.allCases.filter { !detachedSections.contains($0) }
     }
 
+    /// Security-scoped access to the user-chosen project root, so a sandboxed build can reach it —
+    /// and the git/ninja/build-script subprocesses it spawns inherit that access — across launches.
+    @ObservationIgnored private let projectAccess = ProjectAccessBookmark()
+
     init(modelContext: ModelContext? = nil, settingsDefaults: UserDefaults = .standard) {
         //NSLog("%@", "[OxAudio] AppSession.init")
         self.modelContext = modelContext
@@ -160,7 +164,15 @@ final class AppSession {
         if let lastUsedSettings = LastUsedBuildSettingsStore.load(from: settingsDefaults) {
             settings.send(.restore(lastUsedSettings.options, lastUsedSettings.selectedRepository))
         }
-        project.send(.restore)
+        // Re-open the security-scoped project folder before validating, so the persisted path is
+        // reachable under the sandbox. If the folder moved since last launch the bookmark tracks it —
+        // adopt the new path; otherwise validate whatever path is persisted (which prompts the user
+        // to re-pick if access is missing / there's no usable bookmark).
+        if let resolvedRoot = projectAccess.restore(), resolvedRoot.path != project.context.projectPath {
+            project.send(.setPath(resolvedRoot.path))
+        } else {
+            project.send(.restore)
+        }
     }
 
     /// Enumerate installed AudioUnit effects the first time the user actually opens the insert-slot
@@ -247,6 +259,14 @@ final class AppSession {
 
     func setProjectPath(_ path: String) {
         project.send(.setPath(path))
+    }
+
+    /// Adopt a folder the user picked in an `NSOpenPanel`: persist a security-scoped bookmark to it
+    /// (so access survives relaunch and reaches any location on disk), begin accessing it, then load
+    /// it. Use this — not `setProjectPath` — for picker results so the sandbox grant is captured.
+    func selectProjectDirectory(_ url: URL) {
+        projectAccess.store(pickedURL: url)
+        setProjectPath(url.path)
     }
 
     func refreshProject() {

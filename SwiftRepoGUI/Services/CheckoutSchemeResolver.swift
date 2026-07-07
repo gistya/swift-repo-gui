@@ -66,11 +66,47 @@ nonisolated enum CheckoutSchemeResolver {
     }
 
     static func currentBranch(in swiftDirectory: URL) async -> String? {
+        // Prefer reading `.git/HEAD` directly: a plain in-process file read works with the file
+        // access the app already has (user-picked repo / granted paths), whereas a spawned `git`
+        // subprocess does NOT reliably inherit that access under the App Sandbox, so `git rev-parse`
+        // there returns nothing and the scheme falls back to the default. Git is only a fallback for
+        // detached HEAD / worktree edge cases.
+        if let branch = branchFromGitHead(in: swiftDirectory) {
+            return branch
+        }
         if let branch = await gitOutput(["rev-parse", "--abbrev-ref", "HEAD"], in: swiftDirectory),
            branch != "HEAD" {
             return branch
         }
         return await branchPointingAtHead(in: swiftDirectory)
+    }
+
+    /// Parses the current branch from `<repo>/.git/HEAD` without spawning git. Returns `nil` for a
+    /// detached HEAD (a bare SHA) or if the file can't be read, letting the git fallback try.
+    private static func branchFromGitHead(in swiftDirectory: URL) -> String? {
+        let dotGit = swiftDirectory.appendingPathComponent(".git")
+
+        // `.git` is normally a directory, but for a worktree/submodule it's a file whose contents are
+        // "gitdir: <path>" pointing at the real git directory.
+        var gitDirectory = dotGit
+        if (try? dotGit.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == false,
+           let pointer = try? String(contentsOf: dotGit, encoding: .utf8),
+           let line = pointer.split(whereSeparator: \.isNewline).first(where: { $0.hasPrefix("gitdir:") }) {
+            let path = line.dropFirst("gitdir:".count).trimmingCharacters(in: .whitespaces)
+            gitDirectory = URL(fileURLWithPath: path, relativeTo: swiftDirectory).standardizedFileURL
+        }
+
+        let head = gitDirectory.appendingPathComponent("HEAD")
+        guard let contents = try? String(contentsOf: head, encoding: .utf8) else { return nil }
+        let trimmed = contents.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // "ref: refs/heads/<branch>" on a branch; a bare 40-char SHA when detached.
+        guard trimmed.hasPrefix("ref:") else { return nil }
+        let ref = trimmed.dropFirst("ref:".count).trimmingCharacters(in: .whitespaces)
+        let headsPrefix = "refs/heads/"
+        guard ref.hasPrefix(headsPrefix) else { return nil }
+        let branch = String(ref.dropFirst(headsPrefix.count))
+        return branch.isEmpty ? nil : branch
     }
 
     private static func branchPointingAtHead(in swiftDirectory: URL) async -> String? {

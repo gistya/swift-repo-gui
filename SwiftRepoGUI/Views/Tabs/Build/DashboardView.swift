@@ -325,7 +325,7 @@ struct DashboardView: View {
         panel.allowsMultipleSelection = false
         panel.message = NSLocalizedString("Select your swift-project directory", comment: "Prompt shown in the folder picker for choosing the Swift project root")
         if panel.runModal() == .OK, let url = panel.url {
-            session.setProjectPath(url.path)
+            session.selectProjectDirectory(url)
         }
     }
 }

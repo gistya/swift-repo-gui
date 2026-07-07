@@ -22,7 +22,20 @@ struct SwiftRepoGUIApp: App {
             ToolchainRecipe.self,
             CustomPreset.self,
         ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        // Pin an explicit, app-namespaced store URL. SwiftData's default store for an UNSANDBOXED
+        // app is the un-namespaced ~/Library/Application Support/default.store — shared by every
+        // SwiftData app on the machine, so sibling apps clobbered each other's data (why History and
+        // Logs kept turning up empty). Our own file under the app's Application Support subdirectory
+        // fixes that without relying on the App Sandbox, which can't run the Homebrew build tools.
+        let modelConfiguration: ModelConfiguration
+        if let storeDirectory = try? AppPaths.databaseDirectory() {
+            modelConfiguration = ModelConfiguration(
+                schema: schema,
+                url: storeDirectory.appendingPathComponent("SwiftBuild.store")
+            )
+        } else {
+            modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        }
 
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])

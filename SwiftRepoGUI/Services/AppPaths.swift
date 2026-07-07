@@ -20,11 +20,35 @@ nonisolated enum AppPathsError: Error, LocalizedError, Sendable {
 nonisolated enum AppPaths {
     static let bundleID = "com.physicalsoftware.SwiftRepoGUI"
 
+    /// The folder under Application Support that holds all of the app's data.
+    static let appFolderName = "SwiftBuild"
+
+    /// The app's data root: `~/Library/Application Support/SwiftBuild` — the Database, logs, and
+    /// exports all live under here. Resolved from the real home (see `realHomeDirectory`) so it's the
+    /// Finder-visible location even under the sandbox, and named after the app rather than the bundle
+    /// id so the folder is human-readable.
     static func applicationSupportDirectory() throws -> URL {
-        guard let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            throw AppPathsError.missingApplicationSupportDirectory
+        let dir = realHomeDirectory()
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+            .appendingPathComponent(appFolderName, isDirectory: true)
+        try ensureDirectory(at: dir)
+        return dir
+    }
+
+    /// The user's real home directory. `getpwuid` returns it even under the App Sandbox, where
+    /// `NSHomeDirectory()` / `FileManager` would hand back the container path — so this reaches the
+    /// Finder-visible `~/Documents` the user actually means.
+    static func realHomeDirectory() -> URL {
+        if let pw = getpwuid(getuid()), let home = pw.pointee.pw_dir {
+            return URL(fileURLWithPath: String(cString: home), isDirectory: true)
         }
-        let dir = base.appendingPathComponent(bundleID, isDirectory: true)
+        return FileManager.default.homeDirectoryForCurrentUser
+    }
+
+    /// Where the SwiftData store lives: ~/Library/Application Support/SwiftBuild/Database.
+    static func databaseDirectory() throws -> URL {
+        let dir = try applicationSupportDirectory().appendingPathComponent("Database", isDirectory: true)
         try ensureDirectory(at: dir)
         return dir
     }
