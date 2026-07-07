@@ -92,17 +92,35 @@ jobs:
           # Let codesign/productbuild use the private keys without an interactive prompt.
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
 
-          # Put our keychain first in the search list so the identities are found.
+          # Put our keychain first in the search list AND make it the default — xcodebuild's
+          # -exportArchive only looks in the default keychain, so the search list alone isn't enough.
           security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | sed s/\"//g)
+          security default-keychain -d user -s "$KEYCHAIN"
+          # Re-unlock after switching default (belt-and-suspenders against auto-lock during the build).
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
 
           echo "Signing identities available:"
-          security find-identity -v -p codesigning "$KEYCHAIN"
           security find-identity -v "$KEYCHAIN"
           rm -f "$CERT_PATH"
 
-      - name: Archive (Developer ID signed)
+          # Fail early with a clear message if the .p12 is missing either Developer ID cert (the usual
+          # cause: exporting the wrong certs, or exporting the certificate without its private key).
+          if ! security find-identity -v -p codesigning "$KEYCHAIN" | grep -q "Developer ID Application"; then
+            echo "::error::CERTIFICATES_P12 has no 'Developer ID Application' identity with a private key. Export BOTH Developer ID certs *with their private keys* into one .p12 (Keychain Access → My Certificates → select both → Export). See ci/RELEASE.md."
+            exit 1
+          fi
+          if ! security find-identity -v "$KEYCHAIN" | grep -q "Developer ID Installer"; then
+            echo "::error::CERTIFICATES_P12 has no 'Developer ID Installer' identity. Export BOTH Developer ID certs into one .p12. See ci/RELEASE.md."
+            exit 1
+          fi
+
+      - name: Archive (unsigned)
         run: |
           set -euo pipefail
+          # Archive WITHOUT signing. A global CODE_SIGN_IDENTITY override would force every Swift
+          # package target (e.g. SwiftXState_SwiftXStateInspectorUI) to sign with Developer ID and
+          # fail. All Developer ID signing — the app plus every embedded framework, with hardened
+          # runtime and a secure timestamp — is done once in the export step below.
           xcodebuild archive \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
@@ -111,11 +129,7 @@ jobs:
             -archivePath "$RUNNER_TEMP/$APP_NAME.xcarchive" \
             -skipMacroValidation \
             -skipPackagePluginValidation \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Developer ID Application" \
-            DEVELOPMENT_TEAM="$TEAM_ID" \
-            PROVISIONING_PROFILE_SPECIFIER="" \
-            OTHER_CODE_SIGN_FLAGS="--timestamp"
+            CODE_SIGNING_ALLOWED=NO
 
       - name: Export signed .app
         run: |
