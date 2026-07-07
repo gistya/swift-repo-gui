@@ -8,7 +8,7 @@ struct StageLEDStrip: View {
             ForEach([BuildStage.off, .building, .testing, .measuring, .deploying, .failed], id: \.self) { item in
                 LEDIndicator(title: item.title, color: color(for: item), isOn: stage == item)
                     .background(alignment: .leading) {
-                        Rectangle().fill(Color.ledBackground)
+                        Rectangle().fill(Color.black)
                     }
                     .accessibilityHidden(true)
             }
@@ -20,12 +20,16 @@ struct StageLEDStrip: View {
 
     private func color(for stage: BuildStage) -> Color {
         switch stage {
-        case .building: .swiftOrange
+        case .building: .orange
         case .testing: .yellow
         case .measuring: .blue
         case .deploying: .cyan
         case .failed: .red
-        case .off: .terminalGreen
+        case .off: .white
         }
     }
+}
+
+#Preview {
+    StageLEDStrip(stage: .building)
 }
