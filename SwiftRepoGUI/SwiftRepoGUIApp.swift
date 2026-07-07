@@ -28,10 +28,10 @@ struct SwiftRepoGUIApp: App {
         // Logs kept turning up empty). Our own file under the app's Application Support subdirectory
         // fixes that without relying on the App Sandbox, which can't run the Homebrew build tools.
         let modelConfiguration: ModelConfiguration
-        if let storeDirectory = try? AppPaths.databaseDirectory() {
+        if let storeDirectory = try? AppPaths.applicationSupportDirectory() {
             modelConfiguration = ModelConfiguration(
                 schema: schema,
-                url: storeDirectory.appendingPathComponent("SwiftBuild.store")
+                url: storeDirectory.appendingPathComponent("SwiftRepoGUI.store")
             )
         } else {
             modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)

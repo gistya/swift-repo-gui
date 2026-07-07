@@ -20,18 +20,15 @@ nonisolated enum AppPathsError: Error, LocalizedError, Sendable {
 nonisolated enum AppPaths {
     static let bundleID = "com.physicalsoftware.SwiftRepoGUI"
 
-    /// The folder under Application Support that holds all of the app's data.
-    static let appFolderName = "SwiftBuild"
-
-    /// The app's data root: `~/Library/Application Support/SwiftBuild` — the Database, logs, and
-    /// exports all live under here. Resolved from the real home (see `realHomeDirectory`) so it's the
-    /// Finder-visible location even under the sandbox, and named after the app rather than the bundle
-    /// id so the folder is human-readable.
+    /// The app's data root: `~/Library/Application Support/com.physicalsoftware.SwiftRepoGUI` — the
+    /// store, logs, and exports all live under here. Resolved from the real home (see
+    /// `realHomeDirectory`) so it points at the actual, Finder-visible location even under the sandbox
+    /// (where `FileManager` would hand back a container path).
     static func applicationSupportDirectory() throws -> URL {
         let dir = realHomeDirectory()
             .appendingPathComponent("Library", isDirectory: true)
             .appendingPathComponent("Application Support", isDirectory: true)
-            .appendingPathComponent(appFolderName, isDirectory: true)
+            .appendingPathComponent(bundleID, isDirectory: true)
         try ensureDirectory(at: dir)
         return dir
     }
@@ -44,13 +41,6 @@ nonisolated enum AppPaths {
             return URL(fileURLWithPath: String(cString: home), isDirectory: true)
         }
         return FileManager.default.homeDirectoryForCurrentUser
-    }
-
-    /// Where the SwiftData store lives: ~/Library/Application Support/SwiftBuild/Database.
-    static func databaseDirectory() throws -> URL {
-        let dir = try applicationSupportDirectory().appendingPathComponent("Database", isDirectory: true)
-        try ensureDirectory(at: dir)
-        return dir
     }
 
     static func logsDirectory() throws -> URL {
