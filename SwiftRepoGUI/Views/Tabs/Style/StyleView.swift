@@ -13,6 +13,7 @@ struct StyleView: View {
                 appearanceSection
                 colorsSection
                 gradientSection
+                lcdSection
                 fontsSection
             }
             .padding(16)
@@ -134,6 +135,30 @@ struct StyleView: View {
                     }
                     .accessibilityLabel("Gradient stop \(i + 1)")
                 }
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    // MARK: LCD status display
+
+    /// All colors of the top-bar LCD readout: its panel gradient, main text, the soft glow behind it,
+    /// and the offset duplicate that fakes a hard extruded shadow.
+    private var lcdSection: some View {
+        GroupBox("LCD Status Display") {
+            VStack(alignment: .leading, spacing: 10) {
+                let stops = store.activeStyle.gradients.lcdStops
+                ForEach(Array(stops.indices), id: \.self) { i in
+                    ColorPicker(selection: colorBinding(\.gradients.lcdStops[i].color), supportsOpacity: true) {
+                        Text("Panel Gradient \(i + 1)")
+                            .font(.monaco(size: 12))
+                            .foregroundStyle(Color.terminalGreen)
+                    }
+                    .accessibilityLabel("LCD panel gradient \(i + 1)")
+                }
+                colorRow("Text", \.colors.lcdText)
+                colorRow("Text Shadow", \.colors.lcdTextShadow)
+                colorRow("Secondary Text (hard shadow)", \.colors.lcdTextSecondary)
             }
             .padding(.vertical, 4)
         }

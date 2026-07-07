@@ -34,6 +34,9 @@ nonisolated struct AppStyle: Codable, Equatable, Sendable {
             controlSurface: StyleColor(red: 0, green: 0, blue: 0),
             toggleTint: StyleColor(red: 0.37, green: 1.0, blue: 0.33),
             toggleThumb: StyleColor(red: 0.0, green: 0.8, blue: 0.0),
+            lcdText: StyleColor(red: 0, green: 0, blue: 0, opacity: 1.0),
+            lcdTextShadow: StyleColor(red: 0, green: 0, blue: 0, opacity: 0.45),
+            lcdTextSecondary: StyleColor(red: 0, green: 0, blue: 0, opacity: 0.3)
         ),
         gradients: GradientPalette(
             metalStops: [
@@ -42,6 +45,11 @@ nonisolated struct AppStyle: Codable, Equatable, Sendable {
                 GradientStop(color: StyleColor(red: 0.082, green: 0.096, blue: 0.084), location: 0.46),
                 GradientStop(color: StyleColor(red: 0.010, green: 0.017, blue: 0.014), location: 0.74),
                 GradientStop(color: StyleColor(red: 0.045, green: 0.060, blue: 0.048), location: 1.0),
+            ],
+            lcdStops: [
+                GradientStop(color: StyleColor(red: 0.48, green: 0.51, blue: 0.47), location: 0.0),
+                GradientStop(color: StyleColor(red: 0.64, green: 0.67, blue: 0.60), location: 0.5),
+                GradientStop(color: StyleColor(red: 0.39, green: 0.42, blue: 0.38), location: 1.0),
             ]
         ),
         sound: SoundPalette(
@@ -129,8 +137,14 @@ nonisolated struct ColorPalette: Codable, Equatable, Sendable {
     var toggleTint: StyleColor
     /// Tint of the thumb button for toggles.
     var toggleThumb: StyleColor
+    /// Main (foreground) text of the LCD status display.
+    var lcdText: StyleColor
+    /// Soft drop shadow of the LCD status display's main text.
+    var lcdTextShadow: StyleColor
+    /// Offset duplicate of the LCD text that fakes a hard, extruded shadow.
+    var lcdTextSecondary: StyleColor
 
-    init(swiftOrange: StyleColor, lcdGreen: StyleColor, terminalGreen: StyleColor, terminalDimGreen: StyleColor, terminalBlack: StyleColor, failureRed: StyleColor, buttonTop: StyleColor, buttonBottom: StyleColor, logoShadow: StyleColor, tabBar: StyleColor, tab: StyleColor, styleSwitcher: StyleColor, ledBackground: StyleColor, controlSurface: StyleColor, toggleTint: StyleColor, toggleThumb: StyleColor,) {
+    init(swiftOrange: StyleColor, lcdGreen: StyleColor, terminalGreen: StyleColor, terminalDimGreen: StyleColor, terminalBlack: StyleColor, failureRed: StyleColor, buttonTop: StyleColor, buttonBottom: StyleColor, logoShadow: StyleColor, tabBar: StyleColor, tab: StyleColor, styleSwitcher: StyleColor, ledBackground: StyleColor, controlSurface: StyleColor, toggleTint: StyleColor, toggleThumb: StyleColor, lcdText: StyleColor, lcdTextShadow: StyleColor, lcdTextSecondary: StyleColor) {
         self.swiftOrange = swiftOrange
         self.lcdGreen = lcdGreen
         self.terminalGreen = terminalGreen
@@ -147,6 +161,9 @@ nonisolated struct ColorPalette: Codable, Equatable, Sendable {
         self.controlSurface = controlSurface
         self.toggleTint = toggleTint
         self.toggleThumb = toggleThumb
+        self.lcdText = lcdText
+        self.lcdTextShadow = lcdTextShadow
+        self.lcdTextSecondary = lcdTextSecondary
     }
 
     // Tolerant decode: themes persisted before these three colors existed omit them — fall back to the
@@ -170,11 +187,30 @@ nonisolated struct ColorPalette: Codable, Equatable, Sendable {
         controlSurface = try c.decodeIfPresent(StyleColor.self, forKey: .controlSurface) ?? fallback.controlSurface
         toggleTint = try c.decodeIfPresent(StyleColor.self, forKey: .toggleTint) ?? fallback.toggleTint
         toggleThumb = try c.decodeIfPresent(StyleColor.self, forKey: .toggleThumb) ?? fallback.toggleThumb
+        lcdText = try c.decodeIfPresent(StyleColor.self, forKey: .lcdText) ?? fallback.lcdText
+        lcdTextShadow = try c.decodeIfPresent(StyleColor.self, forKey: .lcdTextShadow) ?? fallback.lcdTextShadow
+        lcdTextSecondary = try c.decodeIfPresent(StyleColor.self, forKey: .lcdTextSecondary) ?? fallback.lcdTextSecondary
     }
 }
 
 nonisolated struct GradientPalette: Codable, Equatable, Sendable {
+    /// Brushed-metal gradient of the top chrome bar.
     var metalStops: [GradientStop]
+    /// Panel gradient of the LCD status display.
+    var lcdStops: [GradientStop]
+
+    init(metalStops: [GradientStop], lcdStops: [GradientStop]) {
+        self.metalStops = metalStops
+        self.lcdStops = lcdStops
+    }
+
+    // Tolerant decode: themes persisted before `lcdStops` existed omit it — fall back to the dark
+    // default rather than discarding the whole saved theme.
+    init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        metalStops = try c.decode([GradientStop].self, forKey: .metalStops)
+        lcdStops = try c.decodeIfPresent([GradientStop].self, forKey: .lcdStops) ?? AppStyle.default.gradients.lcdStops
+    }
 }
 
 nonisolated struct GradientStop: Codable, Equatable, Sendable {
@@ -264,6 +300,9 @@ extension ColorPalette {
             controlSurface: .random(),
             toggleTint: .random(),
             toggleThumb: .random(),
+            lcdText: .random(),
+            lcdTextShadow: .random(),
+            lcdTextSecondary: .random()
         )
     }
 }
@@ -271,7 +310,10 @@ extension ColorPalette {
 extension GradientPalette {
     /// Randomize each metal stop's color while keeping the stop positions.
     nonisolated func randomized() -> GradientPalette {
-        GradientPalette(metalStops: metalStops.map { GradientStop(color: .random(), location: $0.location) })
+        GradientPalette(
+            metalStops: metalStops.map { GradientStop(color: .random(), location: $0.location) },
+            lcdStops: lcdStops.map { GradientStop(color: .random(), location: $0.location) }
+        )
     }
 }
 
@@ -296,7 +338,10 @@ extension AppStyle {
             ledBackground: StyleColor(red: 0.12, green: 0.12, blue: 0.11),
             controlSurface: StyleColor(red: 0.74, green: 0.74, blue: 0.70),
             toggleTint: StyleColor(red: 0.09, green: 0.42, blue: 0.13),
-            toggleThumb: StyleColor(red: 0.5, green: 0.5, blue: 0.5)
+            toggleThumb: StyleColor(red: 0.5, green: 0.5, blue: 0.5),
+            lcdText: StyleColor(red: 0, green: 0, blue: 0, opacity: 1.0),
+            lcdTextShadow: StyleColor(red: 0, green: 0, blue: 0, opacity: 0.45),
+            lcdTextSecondary: StyleColor(red: 0, green: 0, blue: 0, opacity: 0.3)
         ),
         gradients: GradientPalette(
             metalStops: [
@@ -305,6 +350,11 @@ extension AppStyle {
                 GradientStop(color: StyleColor(red: 0.95, green: 0.95, blue: 0.93), location: 0.46),
                 GradientStop(color: StyleColor(red: 0.80, green: 0.80, blue: 0.78), location: 0.74),
                 GradientStop(color: StyleColor(red: 0.89, green: 0.89, blue: 0.87), location: 1.0),
+            ],
+            lcdStops: [
+                GradientStop(color: StyleColor(red: 0.48, green: 0.51, blue: 0.47), location: 0.0),
+                GradientStop(color: StyleColor(red: 0.64, green: 0.67, blue: 0.60), location: 0.5),
+                GradientStop(color: StyleColor(red: 0.39, green: 0.42, blue: 0.38), location: 1.0),
             ]
         ),
         sound: AppStyle.default.sound

@@ -20,4 +20,7 @@ extension Color {
     static var controlSurface: Color { Color(SwiftBuilderStyle.current.colors.controlSurface) }
     static var toggleTint: Color { Color(SwiftBuilderStyle.current.colors.toggleTint) }
     static var toggleThumb: Color { Color(SwiftBuilderStyle.current.colors.toggleThumb) }
+    static var lcdText: Color { Color(SwiftBuilderStyle.current.colors.lcdText) }
+    static var lcdTextShadow: Color { Color(SwiftBuilderStyle.current.colors.lcdTextShadow) }
+    static var lcdTextSecondary: Color { Color(SwiftBuilderStyle.current.colors.lcdTextSecondary) }
 }

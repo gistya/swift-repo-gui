@@ -4,20 +4,16 @@ struct LcdModuleDisplay: View {
     let text: String
     let stage: BuildStage
 
+    private var panelStops: [Gradient.Stop] {
+        SwiftBuilderStyle.current.gradients.lcdStops.map {
+            .init(color: Color($0.color), location: $0.location)
+        }
+    }
+
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 7)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.48, green: 0.51, blue: 0.47),
-                            Color(red: 0.64, green: 0.67, blue: 0.60),
-                            Color(red: 0.39, green: 0.42, blue: 0.38)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+                .fill(LinearGradient(stops: panelStops, startPoint: .top, endPoint: .bottom))
                 .overlay {
                     RoundedRectangle(cornerRadius: 7)
                         .stroke(.black.opacity(0.78), lineWidth: 2)
@@ -28,7 +24,7 @@ struct LcdModuleDisplay: View {
                     .minimumScaleFactor(0.45)
                     .lineLimit(1)
                     .tracking(0)
-                    .foregroundStyle(.black.opacity(0.3))
+                    .foregroundStyle(Color.lcdTextSecondary)
                     .offset(x: 3.5, y: 3.5)
 
                 Text(text)
@@ -36,7 +32,8 @@ struct LcdModuleDisplay: View {
                     .minimumScaleFactor(0.45)
                     .lineLimit(1)
                     .tracking(0)
-                    .foregroundStyle(.black.opacity(1.0))
+                    .foregroundStyle(Color.lcdText)
+                    .shadow(color: Color.lcdTextShadow, radius: 1.5, x: 0, y: 1)
             }
             .padding(.horizontal, 18)
         }
