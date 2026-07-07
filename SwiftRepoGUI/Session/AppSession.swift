@@ -52,6 +52,7 @@ final class AppSession {
     let build: MachineStore<BuildOperationsMachine>
     let soundtrack: MachineStore<SoundtrackMachine>
     let toolchain: MachineStore<ToolchainMachine>
+    let appearance: MachineStore<AppearanceMachine>
 
     @ObservationIgnored private weak var modelContext: ModelContext?
     @ObservationIgnored private let settingsDefaults: UserDefaults
@@ -144,6 +145,16 @@ final class AppSession {
             systemId: "swiftbuilder.toolchain",
             inspect: inspect
         ))
+        appearance = mainStore.track(inspectedStore(
+            AppearanceMachine(),
+            id: "swiftbuilder.appearance",
+            systemId: "swiftbuilder.appearance",
+            inspect: inspect
+        ))
+        // Sync the machine to the appearance `AppStyleStore` self-restored from UserDefaults, so the
+        // statechart reflects the persisted choice from launch. From the machine's initial `.system`,
+        // the matching event advances it (a no-op when the restored choice is already `.system`).
+        appearance.send(Self.appearanceEvent(for: AppStyleStore.shared.preview))
 
         // Bridge build → soundtrack OFF the view tree. Doing this in ContentView's body (an
         // `onChange(of: SoundtrackBuildSnapshot(build.context))`) subscribed the whole view to the
@@ -216,6 +227,23 @@ final class AppSession {
 
     func attach(modelContext: ModelContext) {
         self.modelContext = modelContext
+    }
+
+    /// Change the app appearance. Drives the `AppearanceMachine` (the statechart source of truth) and
+    /// mirrors the choice into `AppStyleStore`, which re-themes the UI live and persists the selection.
+    func selectAppearance(_ preview: StylePreview) {
+        guard preview != AppStyleStore.shared.preview else { return }
+        appearance.send(Self.appearanceEvent(for: preview))
+        AppStyleStore.shared.preview = preview
+    }
+
+    /// The event that moves the appearance machine to the state matching `preview`.
+    static func appearanceEvent(for preview: StylePreview) -> AppearanceEvent {
+        switch preview {
+        case .system: .useSystem
+        case .dark: .useDark
+        case .light: .useLight
+        }
     }
 
     func clearLastError() {

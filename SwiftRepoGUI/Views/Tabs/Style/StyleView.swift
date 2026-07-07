@@ -5,6 +5,7 @@ import SwiftUI
 /// reads — so edits re-theme the app (including this tab) instantly. The "Follow System / Dark /
 /// Light" switcher chooses which appearance you're editing, so you can tune Light while on a Dark Mac.
 struct StyleView: View {
+    let session: AppSession
     @Bindable private var store = AppStyleStore.shared
 
     var body: some View {
@@ -59,11 +60,11 @@ struct StyleView: View {
                         }
                     }
                     .contentShape(Rectangle())
-                    .onTapGesture { store.preview = option }
+                    .onTapGesture { session.selectAppearance(option) }
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(option.title)
                     .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
-                    .accessibilityAction { store.preview = option }
+                    .accessibilityAction { session.selectAppearance(option) }
             }
         }
         .padding(4)

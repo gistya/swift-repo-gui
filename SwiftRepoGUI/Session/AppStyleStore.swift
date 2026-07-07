@@ -33,6 +33,7 @@ nonisolated final class AppStyleStore: @unchecked Sendable {
     private enum Keys {
         static let dark = "appStyle.dark"
         static let light = "appStyle.light"
+        static let preview = "appStyle.preview"
     }
 
     var darkStyle: AppStyle { didSet { persist(darkStyle, key: Keys.dark) } }
@@ -41,8 +42,10 @@ nonisolated final class AppStyleStore: @unchecked Sendable {
     /// Whether the OS is currently in Light appearance (set from the view layer's `colorScheme`).
     var systemIsLight: Bool = false
 
-    /// Which appearance the Style tab is previewing/editing; `.system` follows the OS.
-    var preview: StylePreview = .system
+    /// The chosen appearance (Follow System / Dark / Light). Restored on launch and re-persisted on
+    /// every change so the choice survives a restart. The `AppearanceMachine` in `AppSession` is the
+    /// statechart mirror of this; all mutations funnel through `AppSession.selectAppearance`.
+    var preview: StylePreview { didSet { defaults.set(preview.rawValue, forKey: Keys.preview) } }
 
     @ObservationIgnored private let defaults: UserDefaults
 
@@ -51,6 +54,7 @@ nonisolated final class AppStyleStore: @unchecked Sendable {
         // didSet doesn't fire for these initial assignments, so nothing persists until an edit.
         darkStyle = Self.load(key: Keys.dark, from: defaults) ?? .default
         lightStyle = Self.load(key: Keys.light, from: defaults) ?? .lightPreset
+        preview = (defaults.string(forKey: Keys.preview)).flatMap(StylePreview.init(rawValue:)) ?? .system
     }
 
     /// The appearance shown right now.
