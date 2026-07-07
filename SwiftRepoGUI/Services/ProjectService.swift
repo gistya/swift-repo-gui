@@ -35,14 +35,18 @@ nonisolated enum ProjectService {
         let candidates = try listRepositoryCandidates(in: root)
         // One non-blocking git read for the branch, shared by both resolvers (previously two spawns).
         let branch = await CheckoutSchemeResolver.currentBranch(in: swiftDirectory)
-        let schemeResolution = CheckoutSchemeResolver.resolve(
-            swiftDirectory: swiftDirectory,
-            currentBranch: branch,
-            overrideScheme: checkoutSchemeOverride.isEmpty ? nil : checkoutSchemeOverride
-        )
         let availableSchemes = CheckoutSchemeResolver.availableSchemes(
             swiftDirectory: swiftDirectory,
             currentBranch: branch
+        )
+        // Ignore a stale override that no longer names an available scheme (e.g. a branch the repo
+        // has since moved off of), so resolution falls back to Auto for the current branch instead
+        // of echoing the dead scheme name.
+        let effectiveOverride = availableSchemes.contains(checkoutSchemeOverride) ? checkoutSchemeOverride : ""
+        let schemeResolution = CheckoutSchemeResolver.resolve(
+            swiftDirectory: swiftDirectory,
+            currentBranch: branch,
+            overrideScheme: effectiveOverride.isEmpty ? nil : effectiveOverride
         )
 
         return ValidatedProjectSnapshot(

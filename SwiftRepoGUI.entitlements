@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Sandbox (also set via ENABLE_APP_SANDBOX; listed here so this file is self-contained). -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- Outgoing network: update-checkout / git fetch reach the network. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<!-- Files the user explicitly picks (Import/Export panels). -->
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<!-- A hosted AudioUnit may request audio input. -->
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+	<!-- Host third-party AudioUnits under the hardened runtime. -->
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+	<!-- Programmatic read/write of the swift project tree, build outputs, and preset .ini files.
+	     The app reaches these paths directly (not via a file picker), so user-selected files isn't
+	     enough. "/" grants the whole home directory subtree (this is a local developer tool, not an
+	     App Store app). Narrow this later to e.g. "dev/" via security-scoped bookmarks if desired. -->
+	<key>com.apple.security.temporary-exception.files.home-relative-path.read-write</key>
+	<array>
+		<string>/</string>
+	</array>
+</dict>
+</plist>

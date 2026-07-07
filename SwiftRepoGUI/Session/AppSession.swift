@@ -253,6 +253,31 @@ final class AppSession {
         project.send(.refresh)
     }
 
+    @ObservationIgnored private var lastActivationRefresh: Date = .distantPast
+
+    /// When the app regains focus, re-resolve the project ONLY if the swift repo's git branch
+    /// actually changed since we last validated (the branch is otherwise read only at validation
+    /// time). A cheap off-main `git rev-parse` probe gates the full `.refresh`, so a plain alt-tab
+    /// back to the app with nothing changed does NOT churn the machine / rebuild the UI. Skipped
+    /// mid-build and debounced. Also recovers a cold-launch read that lost its race (the probe reads
+    /// the real branch, sees it differs from the cached one, and refreshes).
+    func refreshProjectOnActivation() {
+        guard !build.matches(.running), let info = project.context.projectInfo else { return }
+        let now = Date()
+        guard now.timeIntervalSince(lastActivationRefresh) > 2 else { return }
+        lastActivationRefresh = now
+
+        let swiftDirectory = info.swiftDirectory
+        let displayedBranch = info.swiftBranch
+        Task { [weak self] in
+            let current = await CheckoutSchemeResolver.currentBranch(in: swiftDirectory)
+            // Only a real, readable branch change triggers a reload; nil (probe failed) or unchanged
+            // leaves the current state — and the UI — untouched.
+            guard let current, current != displayedBranch else { return }
+            await MainActor.run { self?.project.send(.refresh) }
+        }
+    }
+
     func setBuildSubdir(_ subdir: String) {
         project.send(.setBuildSubdir(subdir))
     }

@@ -298,6 +298,15 @@ struct ProjectMachine: StateMachine {
                     next.selectedBuildSubdir = snapshot.detectedBuildSubdirs.first ?? ""
                     UserDefaults.standard.set(next.selectedBuildSubdir, forKey: "selectedBuildSubdir")
                 }
+                // Drop a stale checkout-scheme override the same way we drop a stale build subdir:
+                // if the user previously pinned a scheme (often a branch name) that the current
+                // checkout no longer offers, revert to Auto. Otherwise the scheme menu can't match
+                // the selection to any option and falls back to its "—" placeholder.
+                let availableSchemes = next.projectInfo?.availableCheckoutSchemes ?? []
+                if !next.checkoutSchemeOverride.isEmpty, !availableSchemes.contains(next.checkoutSchemeOverride) {
+                    next.checkoutSchemeOverride = ""
+                    UserDefaults.standard.set("", forKey: "checkoutSchemeOverride")
+                }
             } else {
                 next.projectInfo = nil
                 next.validationMessage = "Project inspection did not return a validated snapshot."

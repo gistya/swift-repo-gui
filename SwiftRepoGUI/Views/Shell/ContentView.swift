@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import SwiftData
 import SwiftXStateInspectorUI
@@ -87,6 +88,11 @@ struct ContentView: View {
         }
         .onChange(of: session.settings.context) {
             session.persistLastUsedSettings()
+        }
+        // Re-resolve the project when the app regains focus so a git branch switched in the terminal
+        // is reflected in the checkout scheme (the branch is only read at validation time).
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            session.refreshProjectOnActivation()
         }
         // NOTE: the build → soundtrack bridge and the initial stage seed live in AppSession (an
         // off-view snapshot consumer), NOT here. Reading `session.build.context` in this body — e.g.
