@@ -139,9 +139,36 @@ jobs:
             -exportOptionsPlist ci/ExportOptions.plist \
             -exportPath "$RUNNER_TEMP/export"
           ls -la "$RUNNER_TEMP/export"
-          # Sanity: the app must be signed with Developer ID + hardened runtime.
-          codesign --verify --strict --verbose=2 "$RUNNER_TEMP/export/$APP_NAME.app"
-          codesign --display --verbose=4 "$RUNNER_TEMP/export/$APP_NAME.app" 2>&1 | grep -E "Authority|flags" || true
+
+      - name: Re-sign app with hardened runtime
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/export/$APP_NAME.app"
+          CERT="Developer ID Application"
+          # We archive UNSIGNED (forcing signing on the archive graph breaks SPM module resolution),
+          # and `exportArchive` re-signs with Developer ID but does NOT enable the hardened runtime —
+          # which notarization requires. So stamp it here on the final bundle.
+          # Sign embedded Mach-O inside-out first. This app's SPM deps link statically (no Frameworks
+          # dir), so these loops are usually no-ops — kept for robustness if that changes.
+          if [ -d "$APP/Contents/Frameworks" ]; then
+            find "$APP/Contents/Frameworks" -type f -name "*.dylib" -print0 \
+              | while IFS= read -r -d '' f; do codesign --force --options runtime --timestamp -s "$CERT" "$f"; done
+            find "$APP/Contents/Frameworks" -maxdepth 1 -type d -name "*.framework" -print0 \
+              | while IFS= read -r -d '' f; do codesign --force --options runtime --timestamp -s "$CERT" "$f"; done
+          fi
+          # The app: hardened runtime + entitlements + secure timestamp.
+          codesign --force --options runtime --timestamp \
+            --entitlements SwiftRepoGUI.entitlements \
+            -s "$CERT" "$APP"
+
+          # Fail fast (before the slow notarization round-trip) if hardened runtime didn't take.
+          codesign --display --verbose=4 "$APP" 2>&1 | grep -E "Authority|flags" || true
+          if ! codesign --display --verbose=2 "$APP" 2>&1 | grep -q "flags=.*runtime"; then
+            echo "::error::Hardened runtime is not set on the app after re-signing."
+            exit 1
+          fi
+          codesign --verify --strict --verbose=2 "$APP"
+          echo "Re-signed with hardened runtime ✓"
 
       - name: Build signed installer (.pkg)
         run: |
@@ -163,19 +190,35 @@ jobs:
           NOTARY_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           NOTARY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           KEYFILE="$RUNNER_TEMP/AuthKey.p8"
           printf '%s' "$NOTARY_KEY" > "$KEYFILE"
+          notary=(--key "$KEYFILE" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID")
 
-          # --wait blocks until Apple finishes; a non-"Accepted" status fails the job.
-          xcrun notarytool submit "$PKG" \
-            --key "$KEYFILE" \
-            --key-id "$NOTARY_KEY_ID" \
-            --issuer "$NOTARY_ISSUER_ID" \
-            --wait
+          # Submit and capture the result. `--wait`'s exit code is unreliable across notarytool
+          # versions, so we parse the real status instead of trusting it.
+          SUBMIT_JSON=$(xcrun notarytool submit "$PKG" "${notary[@]}" --wait --output-format json)
+          echo "$SUBMIT_JSON"
+          SUB_ID=$(echo "$SUBMIT_JSON" | /usr/bin/python3 -c "import sys,json;print(json.load(sys.stdin).get('id',''))" 2>/dev/null || true)
+          STATUS=$(echo "$SUBMIT_JSON" | /usr/bin/python3 -c "import sys,json;print(json.load(sys.stdin).get('status',''))" 2>/dev/null || true)
 
-          # Staple the ticket so the installer validates offline after download.
-          xcrun stapler staple "$PKG"
+          if [ "$STATUS" != "Accepted" ]; then
+            echo "::error::Notarization status: '${STATUS:-unknown}'. Apple's rejection log follows:"
+            [ -n "$SUB_ID" ] && xcrun notarytool log "$SUB_ID" "${notary[@]}" || echo "(no submission id to fetch a log)"
+            rm -f "$KEYFILE"
+            exit 1
+          fi
+
+          # Staple, retrying while the freshly-issued ticket propagates to Apple's stapler CDN
+          # (the "Record not found" / "Could not find base64 encoded ticket" transient).
+          set -e
+          for attempt in 1 2 3 4 5 6; do
+            if xcrun stapler staple "$PKG"; then break; fi
+            if [ "$attempt" = 6 ]; then echo "::error::Stapling still failing after retries."; rm -f "$KEYFILE"; exit 1; fi
+            echo "Staple attempt $attempt failed; ticket may still be propagating — retrying in 30s…"
+            sleep 30
+          done
+
           xcrun stapler validate "$PKG"
           # Gatekeeper's own verdict for an installer package.
           spctl --assess --type install --verbose=4 "$PKG" || true
