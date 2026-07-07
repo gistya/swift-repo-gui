@@ -334,7 +334,7 @@ struct SwiftRepoGUITests {
         #expect(AppSectionID.logs.next == .inspector)
         #expect(AppSectionID.inspector.next == .build)
         #expect(AppSectionID.build.previous == .inspector)
-        #expect(AppSectionID.history.previous == .settings)
+        #expect(AppSectionID.history.previous == .toolchain)
     }
 
     @Test func checkoutSchemeResolverUsesUnmatchedCurrentSwiftBranch() async throws {
