@@ -2,9 +2,6 @@
 <Workspace
    version = "1.0">
    <FileRef
-      location = "container:../swift-repo-machines">
-   </FileRef>
-   <FileRef
       location = "group:Assets">
    </FileRef>
    <FileRef
