@@ -2,84 +2,80 @@ import Foundation
 import SwiftData
 import SwiftRepoCore
 
+/// SwiftData record for a build/test/deploy operation.
+///
+/// The cross-platform value type is `BuildOperationRecordData` (in SwiftRepoCore); this `@Model`
+/// stores the **individual columns** and exposes `data` as a computed bridge to that struct — the
+/// same pattern the sibling models already use (`SavedBuildProfile.options`, `ToolchainRecipe.draft`,
+/// `CustomPreset.value`).
+///
+/// Why not persist `BuildOperationRecordData` as a single attribute:
+///  1. **Backward compatibility.** The existing store has one column per field (`ZCREATEDAT`,
+///     `ZKINDRAW`, …). Collapsing them into one `data` blob is not a lightweight migration, so the
+///     container fails to open and the app `fatalError`s on launch. Keeping the columns means the
+///     current store loads with no migration and no data loss.
+///  2. **Observation granularity.** SwiftData tracks each stored attribute separately, so a view
+///     reading only `commandLine`/`status` isn't invalidated when `progress` changes. A single blob
+///     attribute would invalidate every observer on any field change.
 @Model
 final class BuildOperationRecord {
     @Attribute(.unique) var id: UUID
-    var data: BuildOperationRecordData
-    
-    var createdAt: Date {
-        get { data.createdAt }
-        set { data.createdAt = newValue }
-    }
-    
-    var finishedAt: Date? {
-        get { data.finishedAt }
-        set { data.finishedAt = newValue }
-    }
-    
-    var kindRaw: String {
-        get { data.kindRaw }
-        set { data.kindRaw = newValue }
-    }
-    
-    var statusRaw: String {
-        get { data.statusRaw }
-        set { data.statusRaw = newValue }
-    }
-    
-    var projectPath: String {
-        get { data.projectPath }
-        set { data.projectPath = newValue }
-    }
-    
-    var buildSubdir: String {
-        get { data.buildSubdir }
-        set { data.buildSubdir = newValue }
-    }
-    
-    var targetRepository: String {
-        get { data.targetRepository }
-        set { data.targetRepository = newValue }
-    }
-    
-    var commandLine: String {
-        get { data.commandLine }
-        set { data.commandLine = newValue }
-    }
-    
-    var logFileName: String {
-        get { data.logFileName }
-        set { data.logFileName = newValue }
-    }
-    
-    var optionsJSON: Data {
-        get { data.optionsJSON }
-        set { data.optionsJSON = newValue }
-    }
-    
-    var exitCode: Int? {
-        get { data.exitCode }
-        set { data.exitCode = newValue }
-    }
-    
-    var progress: Double {
-        get { data.progress }
-        set { data.progress = newValue }
-    }
-    
-    var etaSeconds: Double? {
-        get { data.etaSeconds }
-        set { data.etaSeconds = newValue }
-    }
-    
-    var notes: String {
-        get { data.notes }
-        set { data.notes = newValue }
-    }
-    
-    var savedProfileName: String? {
-        get { data.savedProfileName }
-        set { data.savedProfileName = newValue }
+
+    var createdAt: Date
+    var finishedAt: Date?
+    var kindRaw: String
+    var statusRaw: String
+    var projectPath: String
+    var buildSubdir: String
+    var targetRepository: String
+    var commandLine: String
+    var logFileName: String
+    var optionsJSON: Data
+    var exitCode: Int?
+    var progress: Double
+    var etaSeconds: Double?
+    var notes: String
+    var savedProfileName: String?
+
+    /// Bridge to the cross-platform value type. Reads assemble it from the columns; writes fan back
+    /// out to the columns (so SwiftData still tracks each field individually).
+    var data: BuildOperationRecordData {
+        get {
+            BuildOperationRecordData(
+                createdAt: createdAt,
+                finishedAt: finishedAt,
+                kindRaw: kindRaw,
+                statusRaw: statusRaw,
+                projectPath: projectPath,
+                buildSubdir: buildSubdir,
+                targetRepository: targetRepository,
+                commandLine: commandLine,
+                logFileName: logFileName,
+                optionsJSON: optionsJSON,
+                exitCode: exitCode,
+                progress: progress,
+                etaSeconds: etaSeconds,
+                notes: notes,
+                savedProfileName: savedProfileName
+            )
+        }
+        set {
+            createdAt = newValue.createdAt
+            finishedAt = newValue.finishedAt
+            kindRaw = newValue.kindRaw
+            statusRaw = newValue.statusRaw
+            projectPath = newValue.projectPath
+            buildSubdir = newValue.buildSubdir
+            targetRepository = newValue.targetRepository
+            commandLine = newValue.commandLine
+            logFileName = newValue.logFileName
+            optionsJSON = newValue.optionsJSON
+            exitCode = newValue.exitCode
+            progress = newValue.progress
+            etaSeconds = newValue.etaSeconds
+            notes = newValue.notes
+            savedProfileName = newValue.savedProfileName
+        }
     }
 
     var kind: BuildOperationKind {
@@ -129,25 +125,20 @@ final class BuildOperationRecord {
         savedProfileName: String? = nil
     ) {
         self.id = id
-
-        self.data = BuildOperationRecordData(
-            createdAt: createdAt,
-            finishedAt: nil,
-            kindRaw: kind.rawValue,
-            statusRaw: status.rawValue,
-            projectPath: projectPath,
-            buildSubdir: buildSubdir,
-            targetRepository: targetRepository,
-            commandLine: commandLine,
-            logFileName: logFileName,
-            optionsJSON: (try? BuildOptionsCoding.encode(options)) ?? Data(),
-            progress: 0,
-            notes: notes,
-            savedProfileName: savedProfileName
-        )
+        self.createdAt = createdAt
+        self.finishedAt = nil
+        self.kindRaw = kind.rawValue
+        self.statusRaw = status.rawValue
+        self.projectPath = projectPath
+        self.buildSubdir = buildSubdir
+        self.targetRepository = targetRepository
+        self.commandLine = commandLine
+        self.logFileName = logFileName
+        self.optionsJSON = (try? BuildOptionsCoding.encode(options)) ?? Data()
+        self.exitCode = nil
+        self.progress = 0
+        self.etaSeconds = nil
+        self.notes = notes
+        self.savedProfileName = savedProfileName
     }
 }
-
-
-
-
