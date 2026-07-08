@@ -1,5 +1,6 @@
 import AppKit
 import Matrix
+import SwiftRepoCore
 import SwiftUI
 import SwiftData
 import SwiftXStateSwiftUI

@@ -1,5 +1,6 @@
 import Ox0badf00d
 import AppKit
+import SwiftRepoCore
 
 struct SoundtrackDeckConfiguration {
     let nowPlaying: SoundtrackNowPlaying

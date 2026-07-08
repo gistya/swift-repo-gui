@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import SwiftRepoCore
 
 @MainActor
 enum AppFolderActions {

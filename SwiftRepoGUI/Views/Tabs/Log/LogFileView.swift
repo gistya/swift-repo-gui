@@ -1,4 +1,5 @@
 import AppKit
+import SwiftRepoCore
 import SwiftUI
 
 /// Reads build logs from disk with throttled polling — keeps log text out of machine context.

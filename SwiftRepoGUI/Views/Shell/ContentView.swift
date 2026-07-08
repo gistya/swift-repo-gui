@@ -1,4 +1,5 @@
 import AppKit
+import SwiftRepoCore
 import SwiftUI
 import SwiftData
 import SwiftXStateInspectorUI

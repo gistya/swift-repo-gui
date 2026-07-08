@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Workspace
+   version = "1.0">
+   <FileRef
+      location = "container:../swift-repo-machines">
+   </FileRef>
+   <FileRef
+      location = "group:Assets">
+   </FileRef>
+   <FileRef
+      location = "group:ci">
+   </FileRef>
+   <FileRef
+      location = "group:default.profraw">
+   </FileRef>
+   <FileRef
+      location = "group:Licenses">
+   </FileRef>
+   <FileRef
+      location = "group:README.md">
+   </FileRef>
+   <FileRef
+      location = "group:SwiftRepoGUI.entitlements">
+   </FileRef>
+   <FileRef
+      location = "group:SwiftRepoGUI.xcodeproj">
+   </FileRef>
+</Workspace>

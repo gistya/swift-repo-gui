@@ -1,4 +1,5 @@
 import AppKit
+import SwiftRepoCore
 import SwiftUI
 import SwiftData
 import OSLog
@@ -28,12 +29,18 @@ struct SwiftRepoGUIApp: App {
         // Logs kept turning up empty). Our own file under the app's Application Support subdirectory
         // fixes that without relying on the App Sandbox, which can't run the Homebrew build tools.
         let modelConfiguration: ModelConfiguration
-        if let storeDirectory = try? AppPaths.applicationSupportDirectory() {
+        
+        do {
+            let storeDirectory = try AppPaths.applicationSupportDirectory()
+            
             modelConfiguration = ModelConfiguration(
                 schema: schema,
                 url: storeDirectory.appendingPathComponent("SwiftRepoGUI.store")
             )
-        } else {
+        } catch let error {
+            // TODO: use real logger
+            print("Error caught: \(error)")
+            
             modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         }
 

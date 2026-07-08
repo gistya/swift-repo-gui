@@ -1,4 +1,5 @@
 import Ox0badf00d
+import SwiftRepoCore
 import SwiftXState
 
 struct SoundtrackMachine: StateMachine {
@@ -9,7 +10,7 @@ struct SoundtrackMachine: StateMachine {
     let initialContext: SoundtrackContext
 
     init(context: SoundtrackContext = .initial(
-        style: SwiftBuilderStyle.current.sound,
+        style: MusicSettings.current,
         tracks: TrackerModuleLibrary.discover()
     )) {
         initialContext = context

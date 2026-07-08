@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftRepoCore
 
 struct LcdModuleDisplay: View {
     let text: String

@@ -1,9 +1,5 @@
 import Foundation
-
-nonisolated enum SoundtrackDefaults {
-    static let mutedKey = "SwiftBuilder.soundtrackMuted"
-    static let volumeKey = "SwiftBuilder.soundtrackVolume"
-}
+import SwiftRepoCore
 
 nonisolated struct SoundtrackContext: Sendable, Equatable {
     static let insertSlotCount = 2

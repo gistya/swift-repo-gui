@@ -1,4 +1,5 @@
 import SwiftData
+import SwiftRepoCore
 import SwiftUI
 
 struct DetachedSectionWindow: View {

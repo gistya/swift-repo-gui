@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import SwiftRepoCore
 
 /// A user-defined preset/mixin building block that joins the built-in catalog as a composition unit.
 @Model

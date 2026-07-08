@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import Ox0badf00d
 import SwiftData
+import SwiftRepoCore
 import SwiftXState
 import SwiftXStateInspectorUI
 import SwiftXStateSwiftUI
@@ -115,7 +116,7 @@ final class AppSession {
             id: "swiftbuilder.settings",
             systemId: "swiftbuilder.settings",
         ))
-        let soundStyle = SwiftBuilderStyle.current.sound
+        let soundStyle = MusicSettings.current
         let soundtrackContext = SoundtrackContext.initial(
             style: soundStyle,
             tracks: TrackerModuleLibrary.discover(),

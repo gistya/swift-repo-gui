@@ -1,4 +1,5 @@
 import AppKit
+import SwiftRepoCore
 import SwiftUI
 
 /// Live editor for the app theme. Everything here writes into `AppStyleStore`, which the whole UI

@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftRepoCore
 
 /// Context-rich "what it does / why you'd reach for it / how it differs" help for the app's
 /// action buttons — the context a man page never gives. Generated from a reviewed content pass.

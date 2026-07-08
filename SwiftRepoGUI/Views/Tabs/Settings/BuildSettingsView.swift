@@ -1,3 +1,4 @@
+import SwiftRepoCore
 import SwiftUI
 import SwiftData
 import SwiftXStateSwiftUI

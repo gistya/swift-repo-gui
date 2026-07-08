@@ -1,17 +1,18 @@
 import Foundation
 import SwiftData
+import SwiftRepoCore
 
 /// A saved, runnable toolchain composition (identity + flags + layered presets/mixins + overrides).
 @Model
 final class ToolchainRecipe {
     @Attribute(.unique) var id: UUID
-    var name: String
-    var createdAt: Date
-    var updatedAt: Date
+    public var name: String
+    public var createdAt: Date
+    public var updatedAt: Date
     /// The full `ToolchainRecipeDraft`, JSON-encoded.
-    var draftJSON: Data
+    public var draftJSON: Data
 
-    var draft: ToolchainRecipeDraft {
+    public var draft: ToolchainRecipeDraft {
         get {
             var value = (try? JSONDecoder().decode(ToolchainRecipeDraft.self, from: draftJSON)) ?? ToolchainRecipeDraft()
             value.recipeID = id
@@ -24,7 +25,7 @@ final class ToolchainRecipe {
         }
     }
 
-    init(draft: ToolchainRecipeDraft) {
+    public init(draft: ToolchainRecipeDraft) {
         self.id = draft.recipeID ?? UUID()
         self.name = draft.name
         self.createdAt = .now

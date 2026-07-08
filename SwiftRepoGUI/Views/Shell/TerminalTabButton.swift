@@ -1,3 +1,4 @@
+import SwiftRepoCore
 import SwiftUI
 
 struct TerminalTabButton: View {

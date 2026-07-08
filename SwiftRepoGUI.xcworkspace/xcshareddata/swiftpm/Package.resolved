@@ -1,5 +1,5 @@
 {
-  "originHash" : "46d5e6cca5bf63370d6ca4c1352bb47d6cff174b7ea376deaa6edda409c56311",
+  "originHash" : "34ff2d835276f1a38fa0591fca132af844541b9e8b0ffae8bc7ed41322f664b6",
   "pins" : [
     {
       "identity" : "matrix-swift",
@@ -32,8 +32,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/gistya/SwiftXState/",
       "state" : {
-        "branch" : "2.0.0-alpha-4",
-        "revision" : "09303133702673c842bc07144362313d9d5d5071"
+        "revision" : "09303133702673c842bc07144362313d9d5d5071",
+        "version" : "2.0.0-alpha-4"
       }
     }
   ],
