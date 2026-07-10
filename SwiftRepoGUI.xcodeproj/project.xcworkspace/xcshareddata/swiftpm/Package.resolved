@@ -1,12 +1,13 @@
 {
-  "originHash" : "46d5e6cca5bf63370d6ca4c1352bb47d6cff174b7ea376deaa6edda409c56311",
+  "originHash" : "37a9d7ea30c957d177d3270f0ecd230a53650549154ca536cb2c673b4efe69d0",
   "pins" : [
     {
       "identity" : "matrix-swift",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/gistya/matrix-swift",
+      "location" : "https://github.com/mana-am/matrix-swift",
       "state" : {
-        "revision" : "874797bb39aa4c0b6e94b5e71d2e70fae8f72258"
+        "revision" : "ab2a0d8edfef395ccf0fce4dc7594310eba6ea30",
+        "version" : "0.1.1"
       }
     },
     {
@@ -14,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/gistya/Ox0badf00d",
       "state" : {
-        "revision" : "e630d964e51e19dc53dda94fe89822caa342f669",
-        "version" : "0.9.3"
+        "revision" : "227de8114b01f30a2f742249fe0a8de6e82cd7c0",
+        "version" : "0.9.5"
       }
     },
     {
@@ -28,12 +29,21 @@
       }
     },
     {
+      "identity" : "swift-repo-core",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/gistya/swift-repo-core",
+      "state" : {
+        "revision" : "98750c52165da0456d8689ac82b1fac7e0541cbe",
+        "version" : "1.0.3"
+      }
+    },
+    {
       "identity" : "swiftxstate",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/gistya/SwiftXState/",
+      "location" : "https://github.com/gistya/SwiftXState",
       "state" : {
-        "branch" : "2.0.0-alpha-4",
-        "revision" : "09303133702673c842bc07144362313d9d5d5071"
+        "revision" : "afa4e973da22398659ba883aacf7aedfbcccea33",
+        "version" : "2.0.0-alpha-5"
       }
     }
   ],

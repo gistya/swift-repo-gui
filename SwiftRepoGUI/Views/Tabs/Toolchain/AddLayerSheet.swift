@@ -42,18 +42,33 @@ struct AddLayerSheet: View {
                 LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                     if !filteredCustomNames.isEmpty {
                         Section {
-                            ForEach(filteredCustomNames, id: \.self) { row($0, tag: "custom") }
+                            ForEach(filteredCustomNames, id: \.self) { item in
+                                HStack { [item] in
+                                    Spacer(minLength: 20)
+                                    row(item, tag: "custom")
+                                }
+                            }
                         } header: {
                             sectionHeader("Your custom")
                         }
                     }
                     Section {
-                        ForEach(mixins) { row($0.name, tag: "mixin") }
+                        ForEach(mixins) { item in
+                            HStack { [item] in
+                                Spacer(minLength: 20)
+                                row(item.name, tag: "mixin")
+                            }
+                        }
                     } header: {
                         sectionHeader("Mixins (\(mixins.count))")
                     }
                     Section {
-                        ForEach(composed) { row($0.name, tag: nil) }
+                        ForEach(composed) { item in
+                            HStack { [item] in
+                                Spacer(minLength: 20)
+                                row(item.name, tag: nil)
+                            }
+                        }
                     } header: {
                         sectionHeader("Composed presets (\(composed.count))")
                     }
@@ -76,7 +91,10 @@ struct AddLayerSheet: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .background(Color(white: 0.86)) // ← header background: set this to whatever color you want
+            .background(Color.controlSurface)
+            .border(Color.terminalDimGreen)
+            .shadow(radius: 6)
+            .padding(3)
             .accessibilityAddTraits(.isHeader)
     }
 

@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		73461B363001A8FC00A428BC /* Ox0badf00dObjC in Frameworks */ = {isa = PBXBuildFile; productRef = 73461B353001A8FC00A428BC /* Ox0badf00dObjC */; };
+		73461B383001A91500A428BC /* Ox0badf00dAVFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 73461B373001A91500A428BC /* Ox0badf00dAVFoundation */; };
 		7362027C2FF2FB5400B6B024 /* SwiftXState in Frameworks */ = {isa = PBXBuildFile; productRef = 73A100012FF3000100B6B024 /* SwiftXState */; };
 		7362027D2FF2FB5400B6B024 /* SwiftXStateSwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = 73A100032FF3000100B6B024 /* SwiftXStateSwiftUI */; };
 		7362027E2FF2FB5400B6B024 /* SwiftXStateInspectorUI in Frameworks */ = {isa = PBXBuildFile; productRef = 73A100042FF3000100B6B024 /* SwiftXStateInspectorUI */; };
@@ -68,11 +70,13 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				73461B363001A8FC00A428BC /* Ox0badf00dObjC in Frameworks */,
 				73AE0DBE2FFEC35A00FAABE4 /* Matrix in Frameworks */,
 				73BADF0001BADF0000B6B024 /* Ox0badf00d in Frameworks */,
 				73AE0CB92FFEBA8E00FAABE4 /* SwiftRepoCore in Frameworks */,
 				738CC9D52FF9CD68007A0286 /* SwiftXState in Frameworks */,
 				738CC96D2FF94E8D007A0286 /* Ox0badf00d in Frameworks */,
+				73461B383001A91500A428BC /* Ox0badf00dAVFoundation in Frameworks */,
 				738CC9D72FF9CD68007A0286 /* SwiftXStateInspectorUI in Frameworks */,
 				7362027E2FF2FB5400B6B024 /* SwiftXStateInspectorUI in Frameworks */,
 				738CC9D22FF9CCD5007A0286 /* Ox0badf00d in Frameworks */,
@@ -162,6 +166,8 @@
 				73AE0CB82FFEBA8E00FAABE4 /* SwiftRepoCore */,
 				73AE0DBA2FFEC28700FAABE4 /* SwiftRepoCore */,
 				73AE0DBD2FFEC35A00FAABE4 /* Matrix */,
+				73461B353001A8FC00A428BC /* Ox0badf00dObjC */,
+				73461B373001A91500A428BC /* Ox0badf00dAVFoundation */,
 			);
 			productName = SwiftRepoGUI;
 			productReference = 7362018C2FF2E6E600B6B024 /* SwiftRepoGUI.app */;
@@ -534,7 +540,7 @@
 					"@executable_path/../Frameworks",
 				);
 				LLVM_LTO = YES;
-				MARKETING_VERSION = 0.7.10;
+				MARKETING_VERSION = 0.7.11;
 				PRODUCT_BUNDLE_IDENTIFIER = com.physicalsoftware.SwiftRepoGUI;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -584,7 +590,7 @@
 					"@executable_path/../Frameworks",
 				);
 				LLVM_LTO = YES;
-				MARKETING_VERSION = 0.7.10;
+				MARKETING_VERSION = 0.7.11;
 				PRODUCT_BUNDLE_IDENTIFIER = com.physicalsoftware.SwiftRepoGUI;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -733,7 +739,7 @@
 			repositoryURL = "https://github.com/gistya/Ox0badf00d";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 0.9.3;
+				minimumVersion = 0.9.5;
 			};
 		};
 		738CC9D32FF9CD68007A0286 /* XCRemoteSwiftPackageReference "SwiftXState" */ = {
@@ -741,7 +747,7 @@
 			repositoryURL = "https://github.com/gistya/SwiftXState";
 			requirement = {
 				kind = exactVersion;
-				version = "2.0.0-alpha-4";
+				version = "2.0.0-alpha.6";
 			};
 		};
 		73AE0DB92FFEC28700FAABE4 /* XCRemoteSwiftPackageReference "swift-repo-core" */ = {
@@ -749,7 +755,7 @@
 			repositoryURL = "https://github.com/gistya/swift-repo-core";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 1.0.1;
+				minimumVersion = 1.0.4;
 			};
 		};
 		73AE0DBC2FFEC35A00FAABE4 /* XCRemoteSwiftPackageReference "matrix-swift" */ = {
@@ -763,6 +769,16 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		73461B353001A8FC00A428BC /* Ox0badf00dObjC */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 738CC9D02FF9CCD5007A0286 /* XCRemoteSwiftPackageReference "Ox0badf00d" */;
+			productName = Ox0badf00dObjC;
+		};
+		73461B373001A91500A428BC /* Ox0badf00dAVFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 738CC9D02FF9CCD5007A0286 /* XCRemoteSwiftPackageReference "Ox0badf00d" */;
+			productName = Ox0badf00dAVFoundation;
+		};
 		738CC96C2FF94E8D007A0286 /* Ox0badf00d */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = Ox0badf00d;

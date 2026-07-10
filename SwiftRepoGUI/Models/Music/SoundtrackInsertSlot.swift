@@ -1,5 +1,5 @@
 import Foundation
-import Ox0badf00d
+import Ox0badf00dAVFoundation
 
 /// One user-assignable AudioUnit insert slot in the soundtrack signal chain. Pure context data (no
 /// engine objects), so it lives in the machine's context and persists across launches. The chosen

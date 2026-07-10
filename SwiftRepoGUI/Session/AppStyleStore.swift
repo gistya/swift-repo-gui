@@ -55,6 +55,11 @@ nonisolated final class AppStyleStore: @unchecked Sendable {
         darkStyle = Self.load(key: Keys.dark, from: defaults) ?? .default
         lightStyle = Self.load(key: Keys.light, from: defaults) ?? .lightPreset
         preview = (defaults.string(forKey: Keys.preview)).flatMap(StylePreview.init(rawValue:)) ?? .system
+        // Seed the OS light/dark from the global appearance so a "Follow System" launch renders the
+        // right scheme on the very first frame (no dark flash before ContentView's colorScheme onChange
+        // fires). `AppleInterfaceStyle` is "Dark" in Dark mode and absent in Light mode — and reflects
+        // the current side of Auto. The onChange then keeps it live when the OS toggles at runtime.
+        systemIsLight = UserDefaults.standard.string(forKey: "AppleInterfaceStyle") != "Dark"
     }
 
     /// The appearance shown right now.

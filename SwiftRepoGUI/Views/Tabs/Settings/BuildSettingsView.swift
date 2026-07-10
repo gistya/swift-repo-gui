@@ -234,7 +234,7 @@ struct BuildSettingsView: View {
         var offColor: Color = .gray
         var thumbColor: Color = .white
 
-        func makeBody(configuration: Configuration) -> some View {
+        func makeBody(configuration: ToggleStyle.Configuration) -> some View {
             Button {
                 withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
                     configuration.isOn.toggle()

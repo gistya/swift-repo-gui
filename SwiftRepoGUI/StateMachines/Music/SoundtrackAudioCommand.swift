@@ -1,5 +1,5 @@
 import Foundation
-import Ox0badf00d
+import Ox0badf00dAVFoundation
 
 /// An imperative audio instruction the machine hands to ``SoundtrackEffectDriver``, which forwards it
 /// to the `TrackerAudioEngine`. Enqueued into context (``SoundtrackContext/enqueue(_:)``) so the

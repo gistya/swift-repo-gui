@@ -73,3 +73,18 @@ struct CustomPresetEditor: View {
                 .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.terminalGreen.opacity(0.3), lineWidth: 1)))
     }
 }
+
+#Preview("New") {
+    CustomPresetEditor(existing: nil, onSave: { _ in })
+}
+
+#Preview("Edit") {
+    CustomPresetEditor(
+        existing: CustomPresetValue(
+            name: "mixin_my_asserts",
+            mixins: ["buildbot_incremental", "asan"],
+            optionLines: ["assertions", "swift-enable-backtracing=1", "extra-cmake-options=-DFOO=BAR"]
+        ),
+        onSave: { _ in }
+    )
+}

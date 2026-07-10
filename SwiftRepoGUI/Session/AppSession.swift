@@ -1,6 +1,6 @@
 import Foundation
 import Observation
-import Ox0badf00d
+import Ox0badf00dAVFoundation
 import SwiftData
 import SwiftRepoCore
 import SwiftXState
@@ -204,16 +204,15 @@ final class AppSession {
         }
     }
 
-    private static func audioConfig(for style: SoundPalette) -> AudioSessionConfig {
+    private static func audioConfig(for soundSettings: SoundPalette) -> AudioSessionConfig {
         AudioSessionConfig(
-            sampleRate: style.sampleRate,
-            maximumFramesToRender: 4_096,
-            renderChunkFrames: style.streamRenderChunkFrames,
-            scheduleAheadBuffers: 3,
+            sampleRate: soundSettings.sampleRate,
+            bufferSize: soundSettings.bufferSize,
+            scheduleAheadBuffers: soundSettings.scheduleAheadBuffers,
             insertSlotCount: SoundtrackContext.insertSlotCount,
             enableMasterLimiter: false,
-            maxTrackDuration: style.maxRenderedTrackDuration,
-            tailDuration: style.trackEndTailDuration,
+            maxTrackDuration: soundSettings.maxRenderedTrackDuration,
+            tailDuration: soundSettings.trackEndTailDuration,
             gain: 0.2,
             spatialization: .psychoacoustic3D(.spacious)
         )
