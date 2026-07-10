@@ -67,7 +67,7 @@ nonisolated struct AppStyle: Codable, Equatable, Sendable {
         ),
         colors: ColorPalette(
             swiftOrange: StyleColor(red: 0.983, green: 0.607, blue: 0.0),
-            lcdGreen: StyleColor(red: 1.0, green: 1.0, blue: 1.0),
+            lcdGreen: StyleColor(red: 0.0, green: 0.0, blue: 0.0),
             terminalGreen: StyleColor(red: 0.0, green: 0.0, blue: 0.0),
             terminalDimGreen: StyleColor(red: 0.795, green: 0.795, blue: 0.795),
             terminalBlack: StyleColor(red: 1.0, green: 1.0, blue: 1.0),
@@ -79,7 +79,7 @@ nonisolated struct AppStyle: Codable, Equatable, Sendable {
             tab: StyleColor(red: 1.0, green: 1.0, blue: 1.0),
             styleSwitcher: StyleColor(red: 1.0, green: 1.0, blue: 1.0),
             ledBackground: StyleColor(red: 0.552, green: 0.552, blue: 0.552),
-            controlSurface: StyleColor(red: 0.437, green: 0.437, blue: 0.437),
+            controlSurface: StyleColor(red: 0.797, green: 0.408, blue: 0.000),
             toggleTint: StyleColor(red: 0.0, green: 0.0, blue: 0.0),
             toggleThumb: StyleColor(red: 1.0, green: 1.0, blue: 1.0),
             lcdText: StyleColor(red: 0.0, green: 0.0, blue: 0.0, opacity: 1.0),
