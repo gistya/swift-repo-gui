@@ -51,7 +51,7 @@ struct ToolchainView: View {
         .onAppear { session.loadToolchainCatalog() }
         .onChange(of: session.project.context.projectInfo?.swiftDirectory) { session.loadToolchainCatalog() }
         .sheet(isPresented: $showAddLayer) {
-            AddLayerSheet(catalog: store.context.catalog, customPresets: customPresets.map(\.value)) { name in
+            AddLayerSheet(catalog: store.context.catalog, homePresets: store.context.homePresets, customPresets: customPresets.map(\.value)) { name in
                 mutate { $0.selectedMixins.append(name) }
             }
         }

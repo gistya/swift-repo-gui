@@ -3,6 +3,8 @@ import SwiftUI
 
 struct AddLayerSheet: View {
     let catalog: [ParsedPreset]
+    /// Presets auto-loaded from `~/*.ini` overlay files, shown at the top of "Your custom".
+    let homePresets: [ParsedPreset]
     let customPresets: [CustomPresetValue]
     let onAdd: (String) -> Void
     @Environment(\.dismiss) private var dismiss
@@ -12,9 +14,22 @@ struct AddLayerSheet: View {
     private var composed: [ParsedPreset] { filtered(catalog.filter { !$0.isMixin }) }
     private var mixins: [ParsedPreset] { filtered(catalog.filter { $0.isMixin }) }
 
-    private var filteredCustomNames: [String] {
+    /// One row of the "Your custom" section — a home-dir `~/*.ini` overlay (tag "ini") or a saved
+    /// SwiftData custom preset (tag "custom").
+    private struct CustomEntry: Identifiable {
+        let name: String
+        let tag: String
+        var id: String { "\(tag):\(name)" }
+    }
+
+    /// Home-directory overlays first (at the top, tagged "ini"), then the saved custom presets — both
+    /// narrowed by the search field.
+    private var customEntries: [CustomEntry] {
         let q = search.trimmingCharacters(in: .whitespaces).lowercased()
-        return q.isEmpty ? customNames : customNames.filter { $0.lowercased().contains(q) }
+        func matches(_ name: String) -> Bool { q.isEmpty || name.lowercased().contains(q) }
+        let home = homePresets.map(\.name).sorted().filter(matches).map { CustomEntry(name: $0, tag: "ini") }
+        let custom = customNames.filter(matches).map { CustomEntry(name: $0, tag: "custom") }
+        return home + custom
     }
 
     private func filtered(_ list: [ParsedPreset]) -> [ParsedPreset] {
@@ -40,12 +55,12 @@ struct AddLayerSheet: View {
             // headers are ordinary views, so their background is fully under our control.
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                    if !filteredCustomNames.isEmpty {
+                    if !customEntries.isEmpty {
                         Section {
-                            ForEach(filteredCustomNames, id: \.self) { item in
-                                HStack { [item] in
+                            ForEach(customEntries) { entry in
+                                HStack { [entry] in
                                     Spacer(minLength: 20)
-                                    row(item, tag: "custom")
+                                    row(entry.name, tag: entry.tag)
                                 }
                             }
                         } header: {
@@ -118,8 +133,10 @@ struct AddLayerSheet: View {
 }
 
 #Preview {
-    AddLayerSheet(catalog: [.init(name: "Preset", mixins: ["mixin", "mixin"],
-                     options: [.init(name: "asdf", value: "asdf")])],
-     customPresets: [.init(name: "asdf")],
-     onAdd: {_ in })
+    AddLayerSheet(
+        catalog: [.init(name: "Preset", mixins: ["mixin", "mixin"], options: [.init(name: "asdf", value: "asdf")])],
+        homePresets: [.init(name: "local_buildbot_osx_package,no_test", mixins: ["buildbot_osx_package"], options: [])],
+        customPresets: [.init(name: "asdf")],
+        onAdd: {_ in }
+    )
 }
