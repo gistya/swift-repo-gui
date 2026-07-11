@@ -82,6 +82,8 @@
 "Swift Build" = "Swift Build";
 "Swift Project" = "Swift Project";
 "Choose…" = "Choose…";
+"Choose a location" = "Choose a location";
+"Choose where to write the file" = "Choose where to write the file";
 "Choose Swift project" = "Choose Swift project";
 "Opens a folder picker to set the Swift project root directory." = "Opens a folder picker to set the Swift project root directory.";
 "Help about Choose Swift project" = "Help about Choose Swift project";
@@ -383,3 +385,10 @@
 "Toggle Background" = "Toggle Background";
 "Toggle Button" = "Toggle Button";
 "Top Bar Gradient" = "Top Bar Gradient";
+
+/* Update & Clean Tree action (Build + Toolchain tabs) */
+"Update & Clean Tree" = "Update & Clean Tree";
+"Sync repos + wipe active build dir" = "Sync repos + wipe active build dir";
+"Update & Clean" = "Update & Clean";
+"Update & Clean?" = "Update & Clean?";
+"Match timestamp" = "Match timestamp";

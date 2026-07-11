@@ -33,8 +33,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/gistya/swift-repo-core",
       "state" : {
-        "revision" : "bad612e5b52eeee9c7d317a808765edb57196acc",
-        "version" : "1.0.4"
+        "revision" : "b3c144cd96f0ab144b82735b778bc16d9d8ac1bf",
+        "version" : "1.0.5"
       }
     },
     {

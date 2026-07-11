@@ -82,6 +82,8 @@
 "Swift Build" = "בניית Swift";
 "Swift Project" = "פרויקט Swift";
 "Choose…" = "בחר…";
+"Choose a location" = "בחר מיקום";
+"Choose where to write the file" = "בחר היכן לכתוב את הקובץ";
 "Choose Swift project" = "בחר פרויקט Swift";
 "Opens a folder picker to set the Swift project root directory." = "פותח בורר תיקיות להגדרת תיקיית השורש של פרויקט Swift.";
 "Help about Choose Swift project" = "עזרה על בחירת פרויקט Swift";
@@ -383,3 +385,10 @@
 "Toggle Background" = "רקע המתג";
 "Toggle Button" = "כפתור מתג";
 "Top Bar Gradient" = "מעבר צבע סרגל עליון";
+
+/* Update & Clean Tree action (Build + Toolchain tabs) */
+"Update & Clean Tree" = "עדכון וניקוי העץ";
+"Sync repos + wipe active build dir" = "סנכרון מאגרים + מחיקת תיקיית הבנייה הפעילה";
+"Update & Clean" = "עדכון וניקוי";
+"Update & Clean?" = "עדכון וניקוי?";
+"Match timestamp" = "התאמת חותמת זמן";

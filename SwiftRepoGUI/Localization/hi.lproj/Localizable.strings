@@ -82,6 +82,8 @@
 "Swift Build" = "Swift Build";
 "Swift Project" = "Swift प्रोजेक्ट";
 "Choose…" = "चुनें…";
+"Choose a location" = "एक स्थान चुनें";
+"Choose where to write the file" = "फ़ाइल कहाँ लिखनी है चुनें";
 "Choose Swift project" = "Swift प्रोजेक्ट चुनें";
 "Opens a folder picker to set the Swift project root directory." = "Swift प्रोजेक्ट रूट डायरेक्टरी सेट करने के लिए फ़ोल्डर पिकर खोलता है।";
 "Help about Choose Swift project" = "'Swift प्रोजेक्ट चुनें' के बारे में सहायता";
@@ -383,3 +385,10 @@
 "Toggle Background" = "टॉगल पृष्ठभूमि";
 "Toggle Button" = "टॉगल बटन";
 "Top Bar Gradient" = "शीर्ष बार ग्रेडिएंट";
+
+/* Update & Clean Tree action (Build + Toolchain tabs) */
+"Update & Clean Tree" = "अपडेट और ट्री साफ़ करें";
+"Sync repos + wipe active build dir" = "रेपो सिंक + सक्रिय बिल्ड डायरेक्टरी मिटाएँ";
+"Update & Clean" = "अपडेट और साफ़ करें";
+"Update & Clean?" = "अपडेट और साफ़ करें?";
+"Match timestamp" = "टाइमस्टैम्प मिलाएँ";

@@ -13,6 +13,9 @@ struct DashboardView: View {
 
     @Environment(\.modelContext) private var modelContext
     @State private var pendingAction: PendingBuildAction?
+    /// Opt-in update-checkout `--match-timestamp` (off by default). Persisted, and read back in
+    /// `AppSession.makeRequest` via the same key so the flag reaches the command.
+    @AppStorage(AppSession.matchTimestampDefaultsKey) private var matchTimestamp = false
 
     /// A build action awaiting an "are you sure?" confirmation — the destructive ones (clean rebuilds,
     /// update-checkout, which can discard local branch state).
@@ -129,22 +132,16 @@ struct DashboardView: View {
                                     .accessibilityValue(project.context.selectedBuildSubdir)
                                     .accessibilityHint("Choose which detected build directory to use.")
                                 }
-                                checkoutSchemeSection(info: info)
-                                    .frame(alignment: .init(horizontal: .trailing, vertical: .top))
                             }
+                            checkoutSchemeSection(info: info)
                         }
                         Spacer()
                         repositorySection
                     }
 
-                    Text("Branch `\(info.swiftBranch)` → scheme `\(info.checkoutScheme)` for update-checkout.")
+                    Text(updateCheckoutSummary(info: info))
                         .font(.monaco(size: 11))
                         .foregroundStyle(Color.terminalGreen.opacity(0.75))
-
-                    Text(info.schemeResolutionSource.explanation)
-                        .font(.monaco(size: 11))
-                        .foregroundStyle(Color.terminalGreen.opacity(0.75))
-
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -160,15 +157,38 @@ struct DashboardView: View {
                     .foregroundStyle(Color.terminalGreen.opacity(0.8))
                 TerminalMenu(
                     selection: project.context.checkoutSchemeOverride,
-                    options: [TerminalMenuOption("", "Auto (\(info.checkoutScheme))")]
+                    options: [TerminalMenuOption("", "Auto (skip swift)")]
                         + info.availableCheckoutSchemes.map { TerminalMenuOption($0, $0) },
                     onSelect: { project.send(.setCheckoutSchemeOverride($0)) },
                     width: 260
                 )
                 .accessibilityLabel("Checkout scheme")
-                .accessibilityHint("Override the update-checkout scheme, or use the auto-resolved one.")
+                .accessibilityHint("Auto keeps your swift branch and skips it; pick a scheme to pin the sibling repos to a known branch scheme.")
             }
+            Toggle(isOn: $matchTimestamp) {
+                Text("Match timestamp")
+                    .font(.monaco(size: 11))
+                    .foregroundStyle(Color.terminalGreen.opacity(0.8))
+            }
+            .toggleStyle(.checkbox)
+            .help("Pin the sibling repos to each one's commit at your swift branch's HEAD date (update-checkout --match-timestamp), instead of their latest. Off by default.")
+            .accessibilityLabel("Match timestamp")
+            .accessibilityHint("When on, update-checkout pins the sibling repos to your swift branch's commit date instead of their latest.")
         }
+    }
+
+    /// Plain-language description of what the update-checkout buttons will do given the current scheme
+    /// selection and the match-timestamp toggle. Deliberately never claims the branch couldn't be read —
+    /// it always leaves the swift repo alone.
+    private func updateCheckoutSummary(info: SwiftProjectInfo) -> String {
+        let override = project.context.checkoutSchemeOverride.trimmingCharacters(in: .whitespaces)
+        let branch = info.swiftBranch.isEmpty ? "its current branch" : info.swiftBranch
+        var flags = ["--skip-repository swift"]
+        if !override.isEmpty { flags.append("--scheme \(override)") }
+        if matchTimestamp { flags.append("--match-timestamp") }
+        let timing = matchTimestamp ? "at your swift branch's commit date" : "to their latest"
+        let flagList = flags.joined(separator: " ")
+        return "update-checkout leaves the swift repo on \(branch) and updates the other repos \(timing) (\(flagList))."
     }
 
     private var quickActions: some View {
@@ -189,15 +209,20 @@ struct DashboardView: View {
                              confirmMessage: "This runs `ninja clean` on the selected dependency and rebuilds it from scratch.",
                              action: { Task { try? await session.startFreshDependency() } })
                 // Checkout management — repo-agnostic, but mutates git state, so confirm.
-                actionButton(title: "Update Dependencies", subtitle: "update-checkout --scheme … --match-timestamp", symbol: "arrow.down.circle", help: "action.updateDependencies", kind: .updateDependencies,
+                actionButton(title: "Update Dependencies", subtitle: "Sync sibling repos, keep swift branch", symbol: "arrow.down.circle", help: "action.updateDependencies", kind: .updateDependencies,
                              requiresPrimaryRepo: false,
                              destructive: true,
-                             confirmMessage: "This runs update-checkout, syncing every repo to the scheme's revisions. Local branch state that has diverged may be reset.")
-                actionButton(title: "Update & Rebuild Changed", subtitle: "Sync deps, ninja changed repos", symbol: "arrow.triangle.merge", help: "action.updateAndRebuild",
+                             confirmMessage: "This runs update-checkout to sync the sibling repos. Your swift branch is left untouched (--skip-repository swift).")
+                actionButton(title: "Update & Rebuild Changed", subtitle: "Sync siblings, ninja changed repos", symbol: "arrow.triangle.merge", help: "action.updateAndRebuild",
                              requiresPrimaryRepo: false,
                              destructive: true,
-                             confirmMessage: "This syncs all dependencies (update-checkout) and rebuilds the changed repos. Local branch state that has diverged may be reset.",
+                             confirmMessage: "This syncs the sibling repos (update-checkout, keeping your swift branch), then rebuilds the repos that changed.",
                              action: { Task { await session.runUpdateThenRebuild() } })
+                actionButton(title: "Update & Clean Tree", subtitle: "Sync repos + wipe active build dir", symbol: "trash.slash.circle", help: "action.updateAndClean",
+                             requiresPrimaryRepo: false,
+                             destructive: true,
+                             confirmMessage: "This runs update-checkout to sync the sibling repos (your swift branch is left untouched), then DELETES the build sub-directory build/\(session.effectiveBuildSubdir). No build is started.",
+                             action: { Task { await session.updateAndCleanBuildTree(subdir: session.effectiveBuildSubdir) } })
             }
         }
     }
@@ -224,6 +249,7 @@ struct DashboardView: View {
         let dependencySelected = settings.context.selectedRepository != "swift"
         let blockedByRepo = requiresPrimaryRepo && dependencySelected
         let isDisabled = !project.context.isValid || project.matches(.loading) || build.matches(.running) || blockedByRepo
+        let opacity = isDisabled ? 0.3 : 1.0
 
         return Button {
             if destructive {
@@ -258,6 +284,7 @@ struct DashboardView: View {
         }
         .buttonStyle(RetroActionButtonStyle())
         .disabled(isDisabled)
+        .opacity(opacity)
         .help(blockedByRepo
             ? LocalizedStringKey("This is a swift-level build — select the swift repository to run it.")
             : LocalizedStringKey(subtitle))

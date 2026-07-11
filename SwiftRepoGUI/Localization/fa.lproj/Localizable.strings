@@ -82,6 +82,8 @@
 "Swift Build" = "ساخت Swift";
 "Swift Project" = "پروژه Swift";
 "Choose…" = "انتخاب…";
+"Choose a location" = "یک مکان انتخاب کنید";
+"Choose where to write the file" = "انتخاب کنید فایل کجا نوشته شود";
 "Choose Swift project" = "انتخاب پروژه Swift";
 "Opens a folder picker to set the Swift project root directory." = "یک انتخابگر پوشه برای تعیین پوشه ریشه پروژه Swift باز می‌کند.";
 "Help about Choose Swift project" = "راهنمای انتخاب پروژه Swift";
@@ -383,3 +385,10 @@
 "Toggle Background" = "پس‌زمینه ضامن";
 "Toggle Button" = "دکمه ضامن";
 "Top Bar Gradient" = "گرادیان نوار بالا";
+
+/* Update & Clean Tree action (Build + Toolchain tabs) */
+"Update & Clean Tree" = "به‌روزرسانی و پاک‌سازی درخت";
+"Sync repos + wipe active build dir" = "همگام‌سازی مخازن + پاک کردن پوشهٔ ساخت فعال";
+"Update & Clean" = "به‌روزرسانی و پاک‌سازی";
+"Update & Clean?" = "به‌روزرسانی و پاک‌سازی؟";
+"Match timestamp" = "تطبیق مهر زمانی";

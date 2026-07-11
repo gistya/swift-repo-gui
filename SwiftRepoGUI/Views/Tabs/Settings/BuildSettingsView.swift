@@ -1,3 +1,4 @@
+import AppKit
 import SwiftRepoCore
 import SwiftUI
 import SwiftData
@@ -126,6 +127,13 @@ struct BuildSettingsView: View {
             .accessibilityHint("Adjusts the number of parallel lit test jobs.")
         case .products:
             boolRow("installablePackage")
+            if settings.context.options.installablePackage {
+                pathRow(
+                    "installablePackagePath",
+                    kind: .saveFile(defaultName: "swift-installable-package.tar.gz"),
+                    prompt: "Exports/swift-installable-package.tar.gz"
+                )
+            }
             boolRow("foundation")
             boolRow("libDispatch")
             boolRow("xctest")
@@ -159,13 +167,13 @@ struct BuildSettingsView: View {
             boolRow("buildSwiftStaticStdlib")
             boolRow("buildSwiftStaticSDKOverlay")
         case .paths:
-            textRow("installPrefix", prompt: "/usr")
-            textRow("installDestdir")
-            textRow("installSymroot")
+            pathRow("installPrefix", kind: .directory, prompt: "/usr")
+            pathRow("installDestdir", kind: .directory)
+            pathRow("installSymroot", kind: .directory)
             textRow("darwinXCRunToolchain")
-            textRow("cmake")
-            textRow("hostCC")
-            textRow("hostCXX")
+            pathRow("cmake", kind: .file)
+            pathRow("hostCC", kind: .file)
+            pathRow("hostCXX", kind: .file)
             textRow("llvmTargetsToBuild", prompt: "AArch64;X86")
             textRow("buildArgs")
             textRow("litArgs")
@@ -356,6 +364,88 @@ struct BuildSettingsView: View {
         )
     }
 
+    private func stringValue(for id: String) -> String {
+        settings.context.options[keyPath: stringKeyPath(for: id)]
+    }
+
+    /// What kind of open/save panel a path row should present.
+    private enum PathPickerKind {
+        /// Pick an existing directory (install destinations, prefixes).
+        case directory
+        /// Pick an existing file (cmake / compiler executables).
+        case file
+        /// Choose a destination file to write (the installable-package tarball).
+        case saveFile(defaultName: String)
+    }
+
+    /// A path option rendered like `textRow` but with a "Choose…" button that opens a native
+    /// open/save panel. The text field stays editable, so a path can still be typed or pasted, and
+    /// the trailing clear button resets it to the default (empty).
+    @ViewBuilder
+    private func pathRow(_ id: String, kind: PathPickerKind, prompt: String = "") -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                labeledRow(id)
+                Spacer()
+                Button("Choose…") { choosePath(for: id, kind: kind) }
+                    .accessibilityLabel("Choose \(displayTitle(for: id))")
+                    .accessibilityHint("Opens a file dialog to set this path.")
+            }
+            HStack(spacing: 6) {
+                TextField(prompt, text: stringBinding(for: id))
+                    .accessibilityLabel(displayTitle(for: id))
+                if !stringValue(for: id).isEmpty {
+                    Button {
+                        settings.send(.setStringOption(key: id, value: ""))
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(Color.terminalGreen.opacity(0.6))
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Clear")
+                    .accessibilityLabel("Clear \(displayTitle(for: id))")
+                }
+            }
+        }
+    }
+
+    /// Present the native panel for `kind` and store the chosen path via `.setStringOption`.
+    private func choosePath(for id: String, kind: PathPickerKind) {
+        let current = stringValue(for: id).trimmingCharacters(in: .whitespaces)
+        let existing = current.isEmpty ? nil : URL(fileURLWithPath: (current as NSString).expandingTildeInPath)
+
+        switch kind {
+        case .directory, .file:
+            let panel = NSOpenPanel()
+            if case .directory = kind {
+                panel.canChooseDirectories = true
+                panel.canChooseFiles = false
+            } else {
+                panel.canChooseDirectories = false
+                panel.canChooseFiles = true
+            }
+            panel.allowsMultipleSelection = false
+            panel.message = NSLocalizedString("Choose a location", comment: "Prompt shown in the open panel for a build-settings path")
+            if let existing { panel.directoryURL = existing }
+            if panel.runModal() == .OK, let url = panel.url {
+                settings.send(.setStringOption(key: id, value: url.path))
+            }
+        case .saveFile(let defaultName):
+            let panel = NSSavePanel()
+            panel.canCreateDirectories = true
+            panel.message = NSLocalizedString("Choose where to write the file", comment: "Prompt shown in the save panel for a build-settings output path")
+            if let existing {
+                panel.directoryURL = existing.deletingLastPathComponent()
+                panel.nameFieldStringValue = existing.lastPathComponent
+            } else {
+                panel.nameFieldStringValue = defaultName
+            }
+            if panel.runModal() == .OK, let url = panel.url {
+                settings.send(.setStringOption(key: id, value: url.path))
+            }
+        }
+    }
+
     private func stringKeyPath(for id: String) -> WritableKeyPath<BuildOptions, String> {
         switch id {
         case "preset": return \.preset
@@ -366,6 +456,7 @@ struct BuildSettingsView: View {
         case "hostTarget": return \.hostTarget
         case "stdlibDeploymentTargets": return \.stdlibDeploymentTargets
         case "buildStdlibDeploymentTargets": return \.buildStdlibDeploymentTargets
+        case "installablePackagePath": return \.installablePackagePath
         case "installPrefix": return \.installPrefix
         case "installDestdir": return \.installDestdir
         case "installSymroot": return \.installSymroot

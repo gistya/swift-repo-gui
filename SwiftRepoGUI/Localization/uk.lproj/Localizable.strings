@@ -82,6 +82,8 @@
 "Swift Build" = "Swift Build";
 "Swift Project" = "Проєкт Swift";
 "Choose…" = "Вибрати…";
+"Choose a location" = "Виберіть розташування";
+"Choose where to write the file" = "Виберіть, куди записати файл";
 "Choose Swift project" = "Вибрати проєкт Swift";
 "Opens a folder picker to set the Swift project root directory." = "Відкриває вибір папки, щоб задати кореневий каталог проєкту Swift.";
 "Help about Choose Swift project" = "Довідка про «Вибрати проєкт Swift»";
@@ -383,3 +385,10 @@
 "Toggle Background" = "Тло перемикача";
 "Toggle Button" = "Кнопка-перемикач";
 "Top Bar Gradient" = "Градієнт верхньої панелі";
+
+/* Update & Clean Tree action (Build + Toolchain tabs) */
+"Update & Clean Tree" = "Оновити й очистити дерево";
+"Sync repos + wipe active build dir" = "Синхронізувати репозиторії + видалити активний каталог збірки";
+"Update & Clean" = "Оновити й очистити";
+"Update & Clean?" = "Оновити й очистити?";
+"Match timestamp" = "Зіставити позначку часу";

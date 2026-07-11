@@ -81,6 +81,8 @@
 "Swift Build" = "Swift Build";
 "Swift Project" = "Progetto Swift";
 "Choose…" = "Scegli…";
+"Choose a location" = "Scegli una posizione";
+"Choose where to write the file" = "Scegli dove salvare il file";
 "Choose Swift project" = "Scegli progetto Swift";
 "Opens a folder picker to set the Swift project root directory." = "Apre un selettore di cartelle per impostare la directory radice del progetto Swift.";
 "Help about Choose Swift project" = "Aiuto su Scegli progetto Swift";
@@ -382,3 +384,10 @@
 "Toggle Background" = "Sfondo dell'interruttore";
 "Toggle Button" = "Pulsante interruttore";
 "Top Bar Gradient" = "Gradiente della barra superiore";
+
+/* Update & Clean Tree action (Build + Toolchain tabs) */
+"Update & Clean Tree" = "Aggiorna e pulisci albero";
+"Sync repos + wipe active build dir" = "Sincronizza repo + cancella dir di build attiva";
+"Update & Clean" = "Aggiorna e pulisci";
+"Update & Clean?" = "Aggiornare e pulire?";
+"Match timestamp" = "Abbina timestamp";

@@ -13,6 +13,7 @@ struct ToolchainView: View {
     @State private var showAddLayer = false
     @State private var editingCustom: CustomPreset?
     @State private var showNewCustom = false
+    @State private var showUpdateCleanConfirm = false
 
     private var store: MachineStore<ToolchainMachine> { session.toolchain }
     private var draft: ToolchainRecipeDraft { store.context.draft }
@@ -286,6 +287,23 @@ struct ToolchainView: View {
             ActionHelpButton("action.basePresetFile")
                 .accessibilityLabel("Help about Base Preset File")
             Spacer()
+            Button {
+                showUpdateCleanConfirm = true
+            } label: {
+                Label("Update & Clean", systemImage: "trash.slash.circle").font(.monaco(size: 13, weight: .bold))
+            }
+            .buttonStyle(RetroMetalButtonStyle())
+            .disabled(isBuilding || !session.project.context.isValid)
+            .accessibilityLabel("Update and clean toolchain build tree")
+            .accessibilityHint("Runs update-checkout on the sibling repos (your swift branch is left untouched), then deletes build/\(AppSession.toolchainBuildSubdir). No build is started.")
+            .confirmationDialog("Update & Clean?", isPresented: $showUpdateCleanConfirm, titleVisibility: .visible) {
+                Button("Update & Clean", role: .destructive) {
+                    Task { await session.updateAndCleanBuildTree(subdir: AppSession.toolchainBuildSubdir) }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This runs update-checkout to sync the sibling repos (your swift branch is left untouched), then DELETES build/\(AppSession.toolchainBuildSubdir). No build is started.")
+            }
             Button {
                 let current = draft
                 Task { await session.buildToolchain(current) }

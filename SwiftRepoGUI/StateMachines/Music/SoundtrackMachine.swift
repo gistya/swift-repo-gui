@@ -111,6 +111,9 @@ struct SoundtrackMachine: StateMachine {
         transitions.append(Transition(on: .nextTrack, to: .loading)
             .when(canSelectTrack)
             .action { args, _ in queueOffsetTrack(1, context: args.context, startImmediately: true) })
+        transitions.append(Transition(on: .buildSnapshotChanged, to: .stopped)
+            .when(buildJustStopped)
+            .action { args, _ in stopForBuildStopped(args.context) })
         transitions.append(Transition(on: .buildSnapshotChanged, to: .loading)
             .action { args, _ in applyBuildContext(args.event, to: args.context) })
         transitions.append(Transition(on: .playbackStopped, to: .stopped)
@@ -133,6 +136,9 @@ struct SoundtrackMachine: StateMachine {
         transitions.append(Transition(on: .playTestCue, to: .loading)
             .when(canSelectTrack)
             .action { args, _ in queueRandomTrack(for: .test, context: args.context, startImmediately: true) })
+        transitions.append(Transition(on: .buildSnapshotChanged, to: .stopped)
+            .when(buildJustStopped)
+            .action { args, _ in stopForBuildStopped(args.context) })
         transitions.append(Transition(on: .buildSnapshotChanged, to: .loading)
             .when(buildChangeNeedsTrack)
             .action { args, _ in applyBuildContextAndQueueTrack(args.event, to: args.context) })
@@ -164,6 +170,9 @@ struct SoundtrackMachine: StateMachine {
         transitions.append(Transition(on: .nextTrack, to: .loading)
             .when(canSelectTrack)
             .action { args, _ in queueOffsetTrack(1, context: args.context, startImmediately: false) })
+        transitions.append(Transition(on: .buildSnapshotChanged, to: .stopped)
+            .when(buildJustStopped)
+            .action { args, _ in stopForBuildStopped(args.context) })
         transitions.append(Transition(on: .buildSnapshotChanged, to: .paused)
             .action { args, _ in applyBuildContext(args.event, to: args.context) })
         transitions.append(Transition(on: .playbackPaused, to: .paused)
@@ -263,6 +272,11 @@ private extension SoundtrackMachine {
     static func buildChangeNeedsTrack(_ context: SoundtrackContext, _ event: SoundtrackEvent?) -> Bool {
         buildPurpose(for: event, previous: context) != nil
     }
+    
+    static func buildJustStopped(_ context: SoundtrackContext, _ event: SoundtrackEvent?) -> Bool {
+        guard case let .buildSnapshotChanged(snapshot)? = event else { return false }
+        return context.wasBuildRunning && !snapshot.isRunning
+    }
 
     static func preparedStartedCurrentGeneration(_ context: SoundtrackContext, _ event: SoundtrackEvent?) -> Bool {
         guard case let .playbackPrepared(_, generation, started)? = event else { return false }
@@ -299,6 +313,17 @@ private extension SoundtrackMachine {
         ctx.lastError = nil
         ctx.generation += 1
         ctx.enqueue(.stop(generation: ctx.generation))
+        return ctx
+    }
+    
+    static func stopForBuildStopped(_ context: SoundtrackContext) -> SoundtrackContext {
+        var ctx = context
+        ctx.playbackPhase = .stopped
+        ctx.currentTrack = nil
+        ctx.moduleTitle = nil
+        ctx.pendingAudioRequest = nil
+        ctx.wasBuildRunning = false
+        ctx.enqueue(.stop(generation: ctx.generation))   // driver → engine.stop()
         return ctx
     }
 

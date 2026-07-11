@@ -82,6 +82,8 @@
 "Swift Build" = "Swift Build";
 "Swift Project" = "Swift Projesi";
 "Choose…" = "Seç…";
+"Choose a location" = "Bir konum seçin";
+"Choose where to write the file" = "Dosyanın yazılacağı yeri seçin";
 "Choose Swift project" = "Swift projesi seç";
 "Opens a folder picker to set the Swift project root directory." = "Swift proje kök dizinini ayarlamak için bir klasör seçici açar.";
 "Help about Choose Swift project" = "\"Swift projesi seç\" hakkında yardım";
@@ -383,3 +385,10 @@
 "Toggle Background" = "Anahtar Arka Planı";
 "Toggle Button" = "Anahtar Düğmesi";
 "Top Bar Gradient" = "Üst Çubuk Gradyanı";
+
+/* Update & Clean Tree action (Build + Toolchain tabs) */
+"Update & Clean Tree" = "Güncelle ve Ağacı Temizle";
+"Sync repos + wipe active build dir" = "Depoları eşitle + etkin derleme dizinini sil";
+"Update & Clean" = "Güncelle ve Temizle";
+"Update & Clean?" = "Güncellensin ve Temizlensin mi?";
+"Match timestamp" = "Zaman damgasını eşleştir";

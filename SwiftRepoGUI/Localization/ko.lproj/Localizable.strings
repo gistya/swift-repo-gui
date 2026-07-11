@@ -82,6 +82,8 @@
 "Swift Build" = "Swift Build";
 "Swift Project" = "Swift 프로젝트";
 "Choose…" = "선택…";
+"Choose a location" = "위치 선택";
+"Choose where to write the file" = "파일을 저장할 위치 선택";
 "Choose Swift project" = "Swift 프로젝트 선택";
 "Opens a folder picker to set the Swift project root directory." = "폴더 선택기를 열어 Swift 프로젝트 루트 디렉터리를 설정합니다.";
 "Help about Choose Swift project" = "'Swift 프로젝트 선택' 도움말";
@@ -383,3 +385,10 @@
 "Toggle Background" = "토글 배경";
 "Toggle Button" = "토글 버튼";
 "Top Bar Gradient" = "상단 막대 그라디언트";
+
+/* Update & Clean Tree action (Build + Toolchain tabs) */
+"Update & Clean Tree" = "업데이트 및 트리 정리";
+"Sync repos + wipe active build dir" = "저장소 동기화 + 활성 빌드 디렉터리 삭제";
+"Update & Clean" = "업데이트 및 정리";
+"Update & Clean?" = "업데이트 및 정리할까요?";
+"Match timestamp" = "타임스탬프 맞추기";

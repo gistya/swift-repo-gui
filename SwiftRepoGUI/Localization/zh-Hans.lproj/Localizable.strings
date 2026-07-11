@@ -82,6 +82,8 @@
 "Swift Build" = "Swift Build";
 "Swift Project" = "Swift 项目";
 "Choose…" = "选择…";
+"Choose a location" = "选择一个位置";
+"Choose where to write the file" = "选择文件写入位置";
 "Choose Swift project" = "选择 Swift 项目";
 "Opens a folder picker to set the Swift project root directory." = "打开文件夹选择器以设置 Swift 项目根目录。";
 "Help about Choose Swift project" = "关于“选择 Swift 项目”的帮助";
@@ -383,3 +385,10 @@
 "Toggle Background" = "开关背景";
 "Toggle Button" = "开关按钮";
 "Top Bar Gradient" = "顶栏渐变";
+
+/* Update & Clean Tree action (Build + Toolchain tabs) */
+"Update & Clean Tree" = "更新并清理构建树";
+"Sync repos + wipe active build dir" = "同步仓库 + 清除当前构建目录";
+"Update & Clean" = "更新并清理";
+"Update & Clean?" = "更新并清理？";
+"Match timestamp" = "匹配时间戳";

@@ -82,6 +82,8 @@
 "Swift Build" = "Swift Build";
 "Swift Project" = "Proyek Swift";
 "Choose…" = "Pilih…";
+"Choose a location" = "Pilih lokasi";
+"Choose where to write the file" = "Pilih tempat menulis berkas";
 "Choose Swift project" = "Pilih proyek Swift";
 "Opens a folder picker to set the Swift project root directory." = "Membuka pemilih folder untuk menetapkan direktori root proyek Swift.";
 "Help about Choose Swift project" = "Bantuan tentang Pilih proyek Swift";
@@ -383,3 +385,10 @@
 "Toggle Background" = "Latar Belakang Sakelar";
 "Toggle Button" = "Tombol Sakelar";
 "Top Bar Gradient" = "Gradien Bilah Atas";
+
+/* Update & Clean Tree action (Build + Toolchain tabs) */
+"Update & Clean Tree" = "Perbarui & Bersihkan Pohon";
+"Sync repos + wipe active build dir" = "Sinkronkan repo + hapus dir build aktif";
+"Update & Clean" = "Perbarui & Bersihkan";
+"Update & Clean?" = "Perbarui & Bersihkan?";
+"Match timestamp" = "Cocokkan stempel waktu";

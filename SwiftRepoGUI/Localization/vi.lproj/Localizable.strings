@@ -82,6 +82,8 @@
 "Swift Build" = "Swift Build";
 "Swift Project" = "Dự án Swift";
 "Choose…" = "Chọn…";
+"Choose a location" = "Chọn một vị trí";
+"Choose where to write the file" = "Chọn nơi ghi tệp";
 "Choose Swift project" = "Chọn dự án Swift";
 "Opens a folder picker to set the Swift project root directory." = "Mở bộ chọn thư mục để đặt thư mục gốc dự án Swift.";
 "Help about Choose Swift project" = "Trợ giúp về Chọn dự án Swift";
@@ -383,3 +385,10 @@
 "Toggle Background" = "Nền nút bật/tắt";
 "Toggle Button" = "Nút bật/tắt";
 "Top Bar Gradient" = "Gradient thanh trên cùng";
+
+/* Update & Clean Tree action (Build + Toolchain tabs) */
+"Update & Clean Tree" = "Cập nhật & Dọn cây";
+"Sync repos + wipe active build dir" = "Đồng bộ kho + xóa thư mục build hiện hành";
+"Update & Clean" = "Cập nhật & Dọn";
+"Update & Clean?" = "Cập nhật & Dọn?";
+"Match timestamp" = "Khớp dấu thời gian";

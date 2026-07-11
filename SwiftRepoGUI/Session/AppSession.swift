@@ -429,6 +429,56 @@ final class AppSession {
         build.send(.cancel)
     }
 
+    /// Update every repository (`update-checkout`) and then delete the given build sub-directory,
+    /// leaving a clean tree for the next build. Does NOT start a build. Both the Build tab and the
+    /// Toolchain tab surface this, each passing the sub-directory its own flow uses (they can be on
+    /// different bot modes — e.g. an incremental dev subdir vs. `buildbot_osx` for toolchain packaging).
+    func updateAndCleanBuildTree(subdir: String) async {
+        do {
+            guard project.context.projectInfo != nil else {
+                throw SessionWaitError.projectInvalid(
+                    message: ProjectInspectFailure.projectNotLoaded.errorDescription ?? "Project is not loaded."
+                )
+            }
+            // Reuses the existing update-checkout pipeline (which also refreshes the project afterward).
+            try await startBuild(kind: .updateDependencies, notes: "Update all repositories, then clean the build tree")
+            try await cleanBuildSubdirectory(named: subdir)
+        } catch {
+            report(error)
+        }
+    }
+
+    /// Delete `<buildRoot>/<name>` off-main, after proving it is a direct child of the project's build
+    /// root so a bad value can never escape it. Refreshes the project so the detected sub-dirs update.
+    private func cleanBuildSubdirectory(named subdir: String) async throws {
+        guard let info = project.context.projectInfo else { return }
+        // Collapse to a single path component: this can never contain a separator or `..` after this,
+        // so the delete is confined to the build root.
+        let name = (subdir.trimmingCharacters(in: .whitespaces) as NSString).lastPathComponent
+        guard !name.isEmpty, name != ".", name != ".." else {
+            build.send(.setStatusMessage("No build sub-directory to clean."))
+            return
+        }
+        let target = info.buildRoot.appendingPathComponent(name, isDirectory: true)
+        guard target.deletingLastPathComponent().standardizedFileURL.path
+            == info.buildRoot.standardizedFileURL.path else {
+            build.send(.setStatusMessage("Refusing to clean a path outside the build root."))
+            return
+        }
+        let path = target.path
+        guard FileManager.default.fileExists(atPath: path) else {
+            build.send(.setStatusMessage("build/\(name) was already clean."))
+            return
+        }
+        build.send(.setStatusMessage("Cleaning build/\(name)…"))
+        // Off-main: a multi-GB build tree can take a while to remove; never block the UI or the audio.
+        try await Task.detached(priority: .utility) {
+            try FileManager.default.removeItem(atPath: path)
+        }.value
+        build.send(.setStatusMessage("Cleaned build/\(name)."))
+        project.send(.refresh)
+    }
+
     // MARK: - Toolchain
 
     /// (Re)parse the swift checkout's `build-presets.ini` into the toolchain catalog. Safe to call
@@ -550,11 +600,21 @@ final class AppSession {
 
     // MARK: - Internals
 
-    private var effectiveBuildSubdir: String {
+    /// The build sub-directory the regular build flow writes into (the user's selection, else the
+    /// first detected one). Exposed so the "Update & Clean Tree" button on the Build tab can target it.
+    var effectiveBuildSubdir: String {
         let selected = project.context.selectedBuildSubdir
         if !selected.isEmpty { return selected }
         return project.context.projectInfo?.detectedBuildSubdirs.first ?? ""
     }
+
+    /// The build sub-directory the macOS toolchain-packaging flow always uses: `build-toolchain`
+    /// composes the `<prefix>buildbot_osx_package` preset, whose `build-subdir` is `buildbot_osx`.
+    static let toolchainBuildSubdir = "buildbot_osx"
+
+    /// UserDefaults key for the opt-in update-checkout `--match-timestamp` toggle (off by default). The
+    /// Build tab's checkbox writes it via `@AppStorage`; `makeRequest` reads it into the build request.
+    static let matchTimestampDefaultsKey = "updateCheckoutMatchTimestamp"
 
     private func makeRequest(
         kind: BuildOperationKind,
@@ -576,7 +636,8 @@ final class AppSession {
             options: options ?? settings.context.options,
             targetRepository: targetRepository ?? settings.context.selectedRepository,
             mode: mode,
-            logFilePath: try AppPaths.logFileURL(for: operationID).path
+            logFilePath: try AppPaths.logFileURL(for: operationID).path,
+            matchTimestamp: UserDefaults.standard.bool(forKey: Self.matchTimestampDefaultsKey)
         )
     }
 

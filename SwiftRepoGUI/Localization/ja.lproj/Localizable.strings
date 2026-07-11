@@ -82,6 +82,8 @@
 "Swift Build" = "Swift Build";
 "Swift Project" = "Swift プロジェクト";
 "Choose…" = "選択…";
+"Choose a location" = "場所を選択";
+"Choose where to write the file" = "ファイルの書き込み先を選択";
 "Choose Swift project" = "Swift プロジェクトを選択";
 "Opens a folder picker to set the Swift project root directory." = "フォルダピッカーを開いて Swift プロジェクトのルートディレクトリを設定します。";
 "Help about Choose Swift project" = "「Swift プロジェクトを選択」のヘルプ";
@@ -383,3 +385,10 @@
 "Toggle Background" = "トグル背景";
 "Toggle Button" = "トグルボタン";
 "Top Bar Gradient" = "トップバーグラデーション";
+
+/* Update & Clean Tree action (Build + Toolchain tabs) */
+"Update & Clean Tree" = "更新してツリーをクリーン";
+"Sync repos + wipe active build dir" = "リポジトリを同期＋有効なビルドディレクトリを削除";
+"Update & Clean" = "更新してクリーン";
+"Update & Clean?" = "更新してクリーンしますか？";
+"Match timestamp" = "タイムスタンプに合わせる";
