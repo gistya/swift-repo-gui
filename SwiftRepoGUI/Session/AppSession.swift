@@ -63,6 +63,10 @@ final class AppSession {
     @ObservationIgnored private var toolchainWarmupTask: Task<Void, Never>?
     @ObservationIgnored private var buildSoundtrackBridge: Task<Void, Never>?
     @ObservationIgnored private(set) var lastErrorMessage: String?
+    @ObservationIgnored private var ciXcodeTask: Task<Void, Never>?
+    /// Result of comparing the locally selected Xcode against the ci.swift.org build fleet. `nil` until
+    /// the first check completes (or if it couldn't be determined). Observed by the Build tab banner.
+    private(set) var ciXcodeStatus: CIXcodeStatus?
 
     /// Installed AudioUnit effects the user can drop into a soundtrack insert slot. Populated lazily
     /// by `ensureAudioEffectsLoaded()` the first time the effects rack is opened — never at launch.
@@ -427,6 +431,24 @@ final class AppSession {
 
     func cancelBuild() {
         build.send(.cancel)
+    }
+
+    /// Check (once, in the background) what Xcode the ci.swift.org nodes run and compare it to the
+    /// locally selected Xcode. Safe to call repeatedly — it only runs the first time. Any failure
+    /// leaves `ciXcodeStatus` nil and the banner hidden.
+    func checkCIXcode() {
+        guard ciXcodeTask == nil else { return }
+        ciXcodeTask = Task { [weak self] in
+            let status = await CIXcodeChecker.check()
+            self?.ciXcodeStatus = status
+        }
+    }
+
+    /// Re-run the ci.swift.org Xcode check (e.g. after switching Xcode with `xcode-select`).
+    func recheckCIXcode() {
+        ciXcodeTask?.cancel()
+        ciXcodeTask = nil
+        checkCIXcode()
     }
 
     /// Update every repository (`update-checkout`) and then delete the given build sub-directory,

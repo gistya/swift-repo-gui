@@ -31,6 +31,7 @@ struct DashboardView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 projectHeader
+                ciXcodeBanner
                 quickActions
                 BuildProgressPanel(build: build)
             }
@@ -41,6 +42,7 @@ struct DashboardView: View {
         .navigationTitle("Swift Build")
         .onAppear {
             session.attach(modelContext: modelContext)
+            session.checkCIXcode()
         }
         .alert("Error", isPresented: Binding(
             get: { session.lastErrorMessage != nil },
@@ -189,6 +191,54 @@ struct DashboardView: View {
         let timing = matchTimestamp ? "at your swift branch's commit date" : "to their latest"
         let flagList = flags.joined(separator: " ")
         return "update-checkout leaves the swift repo on \(branch) and updates the other repos \(timing) (\(flagList))."
+    }
+
+    /// Warns when the locally selected Xcode differs from what the ci.swift.org nodes run (and quietly
+    /// confirms when it matches). Hidden until the background check completes / if it couldn't run.
+    @ViewBuilder
+    private var ciXcodeBanner: some View {
+        if let status = session.ciXcodeStatus {
+            let accent = status.matches ? Color.terminalGreen : Color.swiftOrange
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: status.matches ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                    .foregroundStyle(accent)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(status.matches ? "Xcode \(status.localVersion) matches CI" : "Local Xcode differs from CI")
+                        .font(.monaco(size: 12, weight: .bold))
+                        .foregroundStyle(accent)
+                    Text(ciXcodeDetail(status))
+                        .font(.monaco(size: 11))
+                        .foregroundStyle(Color.terminalGreen.opacity(0.8))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                Button("Recheck") { session.recheckCIXcode() }
+                    .font(.monaco(size: 11))
+                    .accessibilityHint("Re-checks ci.swift.org and your selected Xcode.")
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 6).fill(accent.opacity(0.12)))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(accent.opacity(0.45)))
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(status.matches
+                ? "Local Xcode \(status.localVersion) matches CI"
+                : "Warning: local Xcode \(status.localVersion) differs from CI \(status.primaryCIVersion)")
+        }
+    }
+
+    private func ciXcodeDetail(_ status: CIXcodeStatus) -> String {
+        let localFull = status.localBuild.map { "\(status.localVersion) (\($0))" } ?? status.localVersion
+        let precision = status.comparedAtMajorOnly ? ", major-version only from CI labels" : ""
+        if status.matches {
+            return "Local Xcode \(localFull); ci.swift.org \(status.arch) nodes run \(status.primaryCIVersion)\(precision)."
+        }
+        var detail = "Local Xcode \(localFull); ci.swift.org \(status.arch) nodes run \(status.primaryCIVersion)\(precision). A different Xcode than CI can produce build results that differ from CI."
+        if status.ciVersions.count > 1 {
+            detail += " (CI \(status.arch) fleet: \(status.ciVersions.joined(separator: ", ")).)"
+        }
+        return detail
     }
 
     private var quickActions: some View {
