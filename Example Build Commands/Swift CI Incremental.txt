@@ -1,0 +1,58 @@
+ /Users/ec2-user/jenkins/workspace/oss-swift-incremental-RA-macos/swift/utils/build-script 
+ --preset=buildbot_incremental,tools=RA,stdlib=RA 
+ install_destdir=/Users/ec2-user/jenkins/workspace/oss-swift-incremental-RA-macos/install 
+ installable_package=/Users/ec2-user/jenkins/workspace/oss-swift-incremental-RA-macos/oss-swift-incremental-RA-macos-b8004.tar.gz 
+ --cmake-c-launcher /usr/local/bin/sccache 
+ --cmake-cxx-launcher /usr/local/bin/sccache
+ 
+ Expands to: 
+
+/Users/ec2-user/jenkins/workspace/oss-swift-incremental-RA-macos/swift/utils/build-script 
+--test 
+--validation-test 
+'--lit-args=-v --time-tests' 
+--compiler-vendor=apple 
+--reconfigure 
+--verbose-build 
+--build-ninja 
+--skip-test-cmark 
+--build-embedded-stdlib-cross-compiling 
+--ios --tvos --watchos 
+'--swift-install-components=autolink-driver;back-deployment;compiler;clang-resource-dir-symlink;libexec;stdlib;sdk-overlay;static-mirror-lib;toolchain-tools;license;sourcekit-xpc-service;sourcekit-inproc;swift-remote-mirror;swift-remote-mirror-headers' 
+'--llvm-install-components=llvm-ar;llvm-nm;llvm-ranlib;llvm-cov;llvm-profdata;llvm-objdump;llvm-objcopy;llvm-symbolizer;IndexStore;clang;clang-resource-headers;builtins;runtimes;clangd;libclang;dsymutil;LTO;clang-features-file;lld' 
+--build-subdir=buildbot_incremental 
+--release 
+--assertions 
+--enable-array-cow-checks 
+--build-swift-stdlib-unittest-extra 
+--libcxx 
+--llbuild 
+--swiftpm 
+--swift-driver 
+--indexstore-db 
+--sourcekit-lsp 
+--swiftsyntax 
+--swiftformat 
+--swift-testing 
+--swift-testing-macros 
+--skstresstester 
+--playgroundsupport 
+--skip-test-playgroundsupport 
+--skip-test-ios 
+--skip-test-tvos 
+--skip-test-os 
+--skip-test-xros 
+--install-llvm 
+--install-static-linux-config 
+--install-swift 
+--install-llbuild 
+--install-swiftpm 
+--install-swift-driver 
+--install-swiftsyntax 
+--install-swiftformat 
+--install-swift-testing 
+--install-swift-testing-macros 
+--cmake-c-launcher 
+/usr/local/bin/sccache 
+--cmake-cxx-launcher 
+/usr/local/bin/sccache

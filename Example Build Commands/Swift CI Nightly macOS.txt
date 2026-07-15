@@ -1,0 +1,216 @@
+/Users/ec2-user/jenkins/workspace/oss-swift-package-macos/swift/utils/build-script 
+--preset=buildbot_osx_package 
+install_destdir=/Users/ec2-user/jenkins/workspace/oss-swift-package-macos/swift-nightly-install 
+installable_package=/Users/ec2-user/jenkins/workspace/oss-swift-package-macos/swift-DEVELOPMENT-SNAPSHOT-2026-07-11-a-osx.tar.gz 
+install_toolchain_dir=/Applications/Xcode.app/Contents/Developer/Toolchains/swift-DEVELOPMENT-SNAPSHOT-2026-07-11-a.xctoolchain 
+install_symroot=/Users/ec2-user/jenkins/workspace/oss-swift-package-macos/swift-nightly-symroot 
+symbols_package=/Users/ec2-user/jenkins/workspace/oss-swift-package-macos/swift-DEVELOPMENT-SNAPSHOT-2026-07-11-a-osx-symbols.tar.gz 
+darwin_toolchain_bundle_identifier=org.swift.65202607111a 
+'darwin_toolchain_display_name=Swift Development Snapshot 2026-07-11 (a)' 
+darwin_toolchain_xctoolchain_name=swift-DEVELOPMENT-SNAPSHOT-2026-07-11-a 
+darwin_toolchain_version=6.5.20260711101 
+darwin_toolchain_alias=swift 
+'darwin_toolchain_display_name_short=Swift Development Snapshot' 
+--cmake-c-launcher /usr/local/bin/sccache 
+--cmake-cxx-launcher /usr/local/bin/sccache
+
+Expands to:
+
+/Users/ec2-user/jenkins/workspace/oss-swift-package-macos/swift/utils/build-script 
+'--swift-install-components=
+     autolink-driver;
+     back-deployment;
+     compiler;
+     clang-resource-dir-symlink;
+     libexec;
+     stdlib;
+     sdk-overlay;
+     static-mirror-lib;
+     toolchain-tools;
+     license;
+     sourcekit-xpc-service;
+     sourcekit-inproc;
+     swift-remote-mirror;
+     swift-remote-mirror-headers' 
+'--llvm-install-components=
+     llvm-ar;
+     llvm-nm;
+     llvm-ranlib;
+     llvm-cov;
+     llvm-profdata;
+     llvm-objdump;
+     llvm-objcopy;
+     llvm-symbolizer;
+     IndexStore;
+     clang;
+     clang-resource-headers;
+     builtins;
+     runtimes;
+     clangd;
+     libclang;
+     dsymutil;
+     LTO;
+     clang-features-file;
+     lld' 
+--ios 
+--tvos 
+--watchos 
+--xros 
+--lldb 
+--llbuild 
+--swiftpm 
+--swift-driver 
+--swiftsyntax 
+--swift-testing 
+--swift-testing-macros 
+--swiftformat 
+--playgroundsupport 
+--indexstore-db 
+--sourcekit-lsp 
+--swiftdocc 
+--wasmkit 
+--release-debuginfo 
+--compiler-vendor=apple 
+--infer-cross-compile-hosts-on-darwin 
+--lldb-use-system-debugserver 
+--lldb-build-type=Release 
+--build-ninja 
+--build-swift-stdlib-unittest-extra 
+--build-embedded-stdlib-cross-compiling 
+--skip-build-benchmarks 
+'--extra-cmake-options==
+  -G Ninja 
+  -DCMAKE_C_COMPILER_LAUNCHER:PATH=/usr/local/bin/sccache 
+  -DCMAKE_CXX_COMPILER_LAUNCHER:PATH=/usr/local/bin/sccache 
+  -DCMAKE_C_COMPILER:PATH=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang 
+  -DCMAKE_CXX_COMPILER:PATH=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang++ 
+  -DCMAKE_Swift_COMPILER:PATH=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc 
+  -DCMAKE_LIBTOOL:PATH=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/libtool 
+  -DCMAKE_AR:PATH=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ar 
+  -DCMAKE_RANLIB:PATH=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib 
+  -DLLVM_VERSION_MAJOR:STRING=21
+  -DLLVM_VERSION_MINOR:STRING=0
+  -DLLVM_VERSION_PATCH:STRING=0
+  -DCLANG_VERSION_MAJOR:STRING=21
+  -DCLANG_VERSION_MINOR:STRING=0
+  -DCLANG_VERSION_PATCH:STRING=0
+  -DCMAKE_MAKE_PROGRAM=/usr/local/bin/ninja' 
+'--build-args=-j12 -v' 
+--dsymutil-jobs 1
+--build-swift-libexec true
+--swift-enable-backtracing true
+--build-swift-clang-overlays true
+--build-swift-remote-mirror true
+--swift-source-dirname swift 
+'--swift-cmake-options=
+  -DSWIFT_VENDOR=Apple
+  -DSWIFT_VENDOR_UTI=com.apple.compilers.llvm.swift
+  -DSWIFT_VERSION=6.5
+  -DSWIFT_COMPILER_VERSION=
+  -DCMAKE_EXPORT_COMPILE_COMMANDS=TRUE
+  -DSWIFT_FORCE_OPTIMIZED_TYPECHECKER:BOOL=FALSE
+  -DSWIFT_STDLIB_ENABLE_STDLIBCORE_EXCLUSIVITY_CHECKING:BOOL=FALSE
+  -DSWIFT_ENABLE_EXPERIMENTAL_DIFFERENTIABLE_PROGRAMMING:BOOL=TRUE
+  -DSWIFT_ENABLE_EXPERIMENTAL_CONCURRENCY:BOOL=TRUE
+  -DSWIFT_ENABLE_EXPERIMENTAL_CXX_INTEROP:BOOL=TRUE
+  -DSWIFT_ENABLE_EXPERIMENTAL_DISTRIBUTED:BOOL=TRUE
+  -DSWIFT_ENABLE_BACKTRACING:BOOL=TRUE
+  -DSWIFT_ENABLE_EXPERIMENTAL_OBSERVATION:BOOL=TRUE
+  -DSWIFT_ENABLE_SYNCHRONIZATION:BOOL=TRUE
+  -DSWIFT_ENABLE_VOLATILE:BOOL=TRUE
+  -DSWIFT_ENABLE_RUNTIME_MODULE:BOOL=TRUE
+  -DSWIFT_STDLIB_STATIC_PRINT=FALSE
+  -DSWIFT_FREESTANDING_IS_DARWIN:BOOL=FALSE
+  -DSWIFT_STDLIB_BUILD_PRIVATE:BOOL=TRUE
+  -DSWIFT_STDLIB_ENABLE_UNICODE_DATA=TRUE
+  -DSWIFT_SHOULD_BUILD_EMBEDDED_STDLIB=TRUE
+  -DSWIFT_SHOULD_BUILD_EMBEDDED_STDLIB_CROSS_COMPILING=TRUE
+  -DSWIFT_STDLIB_BUILD_SYMBOL_GRAPHS:BOOL=FALSE
+  -DSWIFT_PEDANTIC_DIAGNOSTICS:BOOL=TRUE
+  -DSWIFT_TOOLS_LD64_LTO_CODEGEN_ONLY_FOR_SUPPORTING_TARGETS:BOOL=FALSE
+  -DSWIFT_ENABLE_EXPERIMENTAL_PARSER_VALIDATION:BOOL=TRUE
+  -USWIFT_DEBUGINFO_NON_LTO_ARGS
+  -DSWIFT_ENABLE_NEW_RUNTIME_BUILD:BOOL=FALSE
+  -DSWIFT_DARWIN_TEST_DEPLOYMENT_VERSION_OSX:STRING=13.0
+  -DSWIFT_DARWIN_TEST_DEPLOYMENT_VERSION_IOS:STRING=16.0
+  -DSWIFT_DARWIN_TEST_DEPLOYMENT_VERSION_TVOS:STRING=16.0
+  -DSWIFT_DARWIN_TEST_DEPLOYMENT_VERSION_WATCHOS:STRING=6.0
+  -DSWIFT_DARWIN_TEST_DEPLOYMENT_VERSION_XROS:STRING=1.0' 
+--build-stdlib-deployment-targets all
+--ninja-bin=/usr/local/bin/ninja
+--verbose-build
+--install-destdir /Users/ec2-user/jenkins/workspace/oss-swift-incremental-RA-macos/build/buildbot_incremental/toolchain-macosx-x86_64
+--skip-build-foundation
+--skip-build-xctest
+--skip-build-lldb
+--skip-build-libdispatch
+--skip-build-libxml2
+--skip-build-zlib
+--skip-build-curl
+--build-swift-dynamic-stdlib
+--build-swift-stdlib-unittest-extra
+--skip-build-android
+--validation-test
+--skip-test-benchmarks
+--android-deploy-device-path /data/local/tmp
+--toolchain-prefix /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain
+--host-lipo /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/lipo
+--host-libtool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/libtool 
+'--extra-cmake-options=
+  -USWIFT_DARWIN_SUPPORTED_ARCHS
+  -DSWIFT_PATH_TO_SWIFT_SYNTAX_SOURCE:PATH=/Users/ec2-user/jenkins/workspace/oss-swift-incremental-RA-macos/swift-syntax
+  -DSWIFT_BUILD_SWIFT_SYNTAX:BOOL=TRUE
+  -DSWIFTSYNTAX_ENABLE_ASSERTIONS:BOOL=TRUE
+  -DSWIFT_EARLY_SWIFT_DRIVER_BUILD=
+     /Users/ec2-user/jenkins/workspace/oss-swift-incremental-RA-macos/build/buildbot_incremental/earlyswiftdriver-macosx-x86_64/release/bin 
+    '"'"'
+  -DCMAKE_IGNORE_PATH=
+    /usr/lib;
+    /usr/local/lib;
+    /lib
+    '"'"'
+  -DPKG_CONFIG_EXECUTABLE=/usr/bin/false' 
+--llvm-enable-index-store=1 
+'--swift-install-components=
+     autolink-driver;
+     back-deployment;
+     compiler;
+     clang-resource-dir-symlink;
+     libexec;
+     stdlib;
+     sdk-overlay;
+     static-mirror-lib;
+     toolchain-tools;
+     license;
+     sourcekit-xpc-service;
+     sourcekit-inproc;
+     swift-remote-mirror;
+     swift-remote-mirror-headers' 
+--enable-array-cow-checks 
+--install-llbuild 
+--install-swift 
+--reconfigure 
+'--llvm-lit-args=-v --time-tests' 
+'--llvm-install-components=
+     llvm-ar;
+     llvm-nm;
+     llvm-ranlib;
+     llvm-cov;
+     llvm-profdata;
+     llvm-objdump;
+     llvm-objcopy;
+     llvm-symbolizer;
+     IndexStore;
+     clang;
+     clang-resource-headers;
+     builtins;
+     runtimes;
+     clangd;
+     libclang;
+     dsymutil;
+     LTO;
+     clang-features-file;
+     lld' 
+--musl-path=/usr/local/musl 
+'--linux-static-archs=x86_64;aarch64' 
+--only-execute macosx-x86_64-libcxx-build
