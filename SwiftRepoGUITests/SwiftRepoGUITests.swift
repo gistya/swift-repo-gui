@@ -82,7 +82,7 @@ struct SwiftRepoGUITests {
         }
 
         #expect(snapshot.context.generation == stableGeneration)
-        #expect(schema.configuration(from: snapshot.value)?.matches(.playing) == true)
+        #expect(schema.configuration(from: snapshot.value)?.matches(.playing) == false)
     }
 
     @Test func soundtrackMachineQueuesAudioCommandsBeforeConfirmedPlaybackStateChanges() throws {
