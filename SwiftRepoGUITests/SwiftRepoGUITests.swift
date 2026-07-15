@@ -181,3 +181,42 @@ private struct TestCommandError: Error, CustomStringConvertible {
         self.description = description
     }
 }
+
+@Suite struct CIXcodeCheckerTests {
+    @Test func parsesXcodeLabelsAcrossFormats() {
+        #expect(CIXcodeChecker.parseXcodeVersion(fromLabel: "Xcode26") == XcodeVersion(major: 26, minor: nil))
+        #expect(CIXcodeChecker.parseXcodeVersion(fromLabel: "Xcode-26.3") == XcodeVersion(major: 26, minor: 3))
+        #expect(CIXcodeChecker.parseXcodeVersion(fromLabel: "Xcode-16.2") == XcodeVersion(major: 16, minor: 2))
+        #expect(CIXcodeChecker.parseXcodeVersion(fromLabel: "Xcode15.2b") == XcodeVersion(major: 15, minor: 2, isBeta: true))
+        // Composite node label still yields the embedded version.
+        #expect(CIXcodeChecker.parseXcodeVersion(fromLabel: "macos-x86_64_Xcode-26.3") == XcodeVersion(major: 26, minor: 3))
+        // Non-Xcode labels yield nothing.
+        #expect(CIXcodeChecker.parseXcodeVersion(fromLabel: "arm64") == nil)
+        #expect(CIXcodeChecker.parseXcodeVersion(fromLabel: "macOS-26.2") == nil)
+    }
+
+    @Test func parsesLocalXcodebuildOutput() throws {
+        let parsed = try #require(CIXcodeChecker.parseLocalXcode(fromXcodebuildOutput: "Xcode 26.3\nBuild version 17C529"))
+        #expect(parsed.version == "26.3")
+        #expect(parsed.build == "17C529")
+    }
+
+    @Test func matchesCILabelAtAvailablePrecision() {
+        let local = try! #require(XcodeVersion(parsingVersionString: "26.3"))
+        // Major-only CI label matches any minor of the same major.
+        #expect(local.matchesCILabel(XcodeVersion(major: 26, minor: nil)))
+        // Exact same minor matches.
+        #expect(local.matchesCILabel(XcodeVersion(major: 26, minor: 3)))
+        // Different minor does NOT match when the CI label carries one.
+        #expect(!local.matchesCILabel(XcodeVersion(major: 26, minor: 2)))
+        // Different major never matches.
+        #expect(!local.matchesCILabel(XcodeVersion(major: 16, minor: 2)))
+    }
+
+    @Test func derivesArchitectureFromNodeNameAndLabels() {
+        let arm = CIXcodeChecker.APINode(displayName: "macos-node-arm64-i-005850a", offline: false, temporarilyOffline: false, assignedLabels: [.init(name: "Xcode26")])
+        #expect(CIXcodeChecker.nodeArch(arm) == "arm64")
+        let intel = CIXcodeChecker.APINode(displayName: "macos-node-i-000ab41", offline: false, temporarilyOffline: false, assignedLabels: [.init(name: "macos-x86_64_Xcode-26.3")])
+        #expect(CIXcodeChecker.nodeArch(intel) == "x86_64")
+    }
+}

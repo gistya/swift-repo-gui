@@ -2,6 +2,15 @@
   "originHash" : "37a9d7ea30c957d177d3270f0ecd230a53650549154ca536cb2c673b4efe69d0",
   "pins" : [
     {
+      "identity" : "friday-the-thirteenth",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/gistya/friday-the-thirteenth",
+      "state" : {
+        "revision" : "8c74b2aae86b44a854deda408bf1b059dcfad157",
+        "version" : "1.1.0"
+      }
+    },
+    {
       "identity" : "matrix-swift",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/mana-am/matrix-swift",
@@ -33,8 +42,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/gistya/swift-repo-core",
       "state" : {
-        "revision" : "8a37b94d08367e002a2f7e54243801d8040c50ce",
-        "version" : "1.0.6"
+        "branch" : "main",
+        "revision" : "0399fc547492d0dfa63bde4bb79886a0b47df422"
       }
     },
     {
@@ -42,8 +51,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/gistya/SwiftXState",
       "state" : {
-        "revision" : "4a3be23f28e5fac4a415f8c1b2fd9ba8608a2575",
-        "version" : "2.0.0-alpha.6"
+        "revision" : "b5268a3540e8da85ebf1155143417140b09b4af2",
+        "version" : "2.0.0-alpha.7"
       }
     }
   ],

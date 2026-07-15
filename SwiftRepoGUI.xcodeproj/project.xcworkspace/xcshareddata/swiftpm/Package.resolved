@@ -1,5 +1,5 @@
 {
-  "originHash" : "37a9d7ea30c957d177d3270f0ecd230a53650549154ca536cb2c673b4efe69d0",
+  "originHash" : "9030a94588e1a6bb05dfd33a0ff8f14b079a01b7b50dfd1015848c9b7e804fd0",
   "pins" : [
     {
       "identity" : "matrix-swift",
@@ -33,8 +33,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/gistya/swift-repo-core",
       "state" : {
-        "revision" : "98750c52165da0456d8689ac82b1fac7e0541cbe",
-        "version" : "1.0.3"
+        "revision" : "8a37b94d08367e002a2f7e54243801d8040c50ce",
+        "version" : "1.0.6"
       }
     },
     {
