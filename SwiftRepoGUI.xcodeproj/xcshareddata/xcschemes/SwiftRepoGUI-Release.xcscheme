@@ -16,8 +16,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "7362018B2FF2E6E600B6B024"
-               BuildableName = "SwiftRepoGUI.app"
-               BlueprintName = "SwiftRepoGUI"
+               BuildableName = "SwiftBuild.app"
+               BlueprintName = "SwiftBuild"
                ReferencedContainer = "container:SwiftRepoGUI.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -75,8 +75,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "7362018B2FF2E6E600B6B024"
-            BuildableName = "SwiftRepoGUI.app"
-            BlueprintName = "SwiftRepoGUI"
+            BuildableName = "SwiftBuild.app"
+            BlueprintName = "SwiftBuild"
             ReferencedContainer = "container:SwiftRepoGUI.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -92,8 +92,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "7362018B2FF2E6E600B6B024"
-            BuildableName = "SwiftRepoGUI.app"
-            BlueprintName = "SwiftRepoGUI"
+            BuildableName = "SwiftBuild.app"
+            BlueprintName = "SwiftBuild"
             ReferencedContainer = "container:SwiftRepoGUI.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

@@ -42,7 +42,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		7362018C2FF2E6E600B6B024 /* SwiftRepoGUI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SwiftRepoGUI.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		7362018C2FF2E6E600B6B024 /* SwiftBuild.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SwiftBuild.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7362019B2FF2E6E700B6B024 /* SwiftRepoGUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SwiftRepoGUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		736201A52FF2E6E700B6B024 /* SwiftRepoGUIUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SwiftRepoGUIUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -119,7 +119,7 @@
 		7362018D2FF2E6E600B6B024 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				7362018C2FF2E6E600B6B024 /* SwiftRepoGUI.app */,
+				7362018C2FF2E6E600B6B024 /* SwiftBuild.app */,
 				7362019B2FF2E6E700B6B024 /* SwiftRepoGUITests.xctest */,
 				736201A52FF2E6E700B6B024 /* SwiftRepoGUIUITests.xctest */,
 			);
@@ -136,9 +136,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		7362018B2FF2E6E600B6B024 /* SwiftRepoGUI */ = {
+		7362018B2FF2E6E600B6B024 /* SwiftBuild */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 736201AF2FF2E6E700B6B024 /* Build configuration list for PBXNativeTarget "SwiftRepoGUI" */;
+			buildConfigurationList = 736201AF2FF2E6E700B6B024 /* Build configuration list for PBXNativeTarget "SwiftBuild" */;
 			buildPhases = (
 				736201882FF2E6E600B6B024 /* Sources */,
 				736201892FF2E6E600B6B024 /* Frameworks */,
@@ -151,7 +151,7 @@
 			fileSystemSynchronizedGroups = (
 				7362018E2FF2E6E600B6B024 /* SwiftRepoGUI */,
 			);
-			name = SwiftRepoGUI;
+			name = SwiftBuild;
 			packageProductDependencies = (
 				73BADF0002BADF0000B6B024 /* Ox0badf00d */,
 				73A100012FF3000100B6B024 /* SwiftXState */,
@@ -170,7 +170,7 @@
 				73461B373001A91500A428BC /* Ox0badf00dAVFoundation */,
 			);
 			productName = SwiftRepoGUI;
-			productReference = 7362018C2FF2E6E600B6B024 /* SwiftRepoGUI.app */;
+			productReference = 7362018C2FF2E6E600B6B024 /* SwiftBuild.app */;
 			productType = "com.apple.product-type.application";
 		};
 		7362019A2FF2E6E700B6B024 /* SwiftRepoGUITests */ = {
@@ -282,7 +282,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				7362018B2FF2E6E600B6B024 /* SwiftRepoGUI */,
+				7362018B2FF2E6E600B6B024 /* SwiftBuild */,
 				7362019A2FF2E6E700B6B024 /* SwiftRepoGUITests */,
 				736201A42FF2E6E700B6B024 /* SwiftRepoGUIUITests */,
 			);
@@ -340,12 +340,12 @@
 /* Begin PBXTargetDependency section */
 		7362019D2FF2E6E700B6B024 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 7362018B2FF2E6E600B6B024 /* SwiftRepoGUI */;
+			target = 7362018B2FF2E6E600B6B024 /* SwiftBuild */;
 			targetProxy = 7362019C2FF2E6E700B6B024 /* PBXContainerItemProxy */;
 		};
 		736201A72FF2E6E700B6B024 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 7362018B2FF2E6E600B6B024 /* SwiftRepoGUI */;
+			target = 7362018B2FF2E6E600B6B024 /* SwiftBuild */;
 			targetProxy = 736201A62FF2E6E700B6B024 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -706,7 +706,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		736201AF2FF2E6E700B6B024 /* Build configuration list for PBXNativeTarget "SwiftRepoGUI" */ = {
+		736201AF2FF2E6E700B6B024 /* Build configuration list for PBXNativeTarget "SwiftBuild" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				736201B02FF2E6E700B6B024 /* Debug */,
