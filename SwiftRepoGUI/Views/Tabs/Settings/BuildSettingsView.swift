@@ -11,8 +11,19 @@ struct BuildSettingsView: View {
     @State private var profileName = ""
     @State private var showSaveSheet = false
 
+    /// The Xcode / Swift toolchain the spawned build commands use. Persisted, and read back by
+    /// `BuildProcessRunner` via the same keys so the choice reaches the child process.
+    @AppStorage(ToolchainSelection.developerDirDefaultsKey) private var developerDir = ""
+    @AppStorage(ToolchainSelection.toolchainIdentifierDefaultsKey) private var toolchainIdentifier = ""
+    @AppStorage(PythonSelection.defaultsKey) private var pythonBinDirectory = ""
+    @State private var installedXcodes: [InstalledXcode] = []
+    @State private var installedToolchains: [InstalledToolchain] = []
+    @State private var installedPythons: [InstalledPython] = []
+
     var body: some View {
         Form {
+            buildEnvironmentSection
+
             if !profiles.isEmpty {
                 Section("Saved Profiles") {
                     ForEach(profiles) { profile in
@@ -62,8 +73,88 @@ struct BuildSettingsView: View {
         .background(TerminalBackground())
         .terminalText()
         .navigationTitle("Build Settings")
+        .onAppear {
+            installedXcodes = InstalledDeveloperTools.xcodes()
+            installedToolchains = InstalledDeveloperTools.toolchains()
+        }
+        .task {
+            // Unlike the Xcode/toolchain scans this runs each candidate interpreter to ask its
+            // version, so it stays off the main actor.
+            installedPythons = await Task.detached(priority: .utility) {
+                InstalledPythons.discover()
+            }.value
+        }
         .sheet(isPresented: $showSaveSheet) { saveProfileSheet }
         .background(TerminalBackground())
+    }
+
+    /// Picks the Xcode / Swift toolchain the build commands run under. These are applied as
+    /// `DEVELOPER_DIR` / `TOOLCHAINS` on the spawned process only — `xcode-select` and your shell are
+    /// left alone, so a long build here can use one Xcode while you work in another.
+    private var buildEnvironmentSection: some View {
+        Section("Build Environment") {
+            HStack {
+                Text("Xcode")
+                Spacer()
+                TerminalMenu(
+                    selection: developerDir,
+                    options: [TerminalMenuOption("", "System default (xcode-select)")]
+                        + installedXcodes.map { TerminalMenuOption($0.appPath, $0.display) },
+                    onSelect: { developerDir = $0 },
+                    width: 320
+                )
+                .accessibilityLabel("Xcode for builds")
+                .accessibilityHint("Chooses the Xcode used to run build commands, without changing xcode-select.")
+            }
+            HStack {
+                Text("Swift toolchain")
+                Spacer()
+                TerminalMenu(
+                    selection: toolchainIdentifier,
+                    options: [TerminalMenuOption("", "Default (the Xcode's own)")]
+                        + installedToolchains.map { TerminalMenuOption($0.identifier, $0.display) },
+                    onSelect: { toolchainIdentifier = $0 },
+                    width: 320
+                )
+                .accessibilityLabel("Swift toolchain for builds")
+                .accessibilityHint("Chooses the Swift toolchain passed as TOOLCHAINS to build commands.")
+            }
+            HStack {
+                Text("Python")
+                Spacer()
+                TerminalMenu(
+                    selection: pythonBinDirectory,
+                    options: [TerminalMenuOption("", automaticPythonLabel)]
+                        + installedPythons.map { TerminalMenuOption($0.binDirectory, $0.display) },
+                    onSelect: { pythonBinDirectory = $0 },
+                    width: 320
+                )
+                .accessibilityLabel("Python interpreter for builds")
+                .accessibilityHint("Chooses the python3 that build-script and update-checkout run under.")
+            }
+            Text(ToolchainSelection(developerDir: developerDir, toolchainIdentifier: toolchainIdentifier).summary)
+                .font(.monaco(size: 11))
+                .foregroundStyle(Color.terminalGreen.opacity(0.75))
+                .textSelection(.enabled)
+            Text("Python: \(PythonSelection(binDirectory: pythonBinDirectory).summary(installed: installedPythons))")
+                .font(.monaco(size: 11))
+                .foregroundStyle(Color.terminalGreen.opacity(0.75))
+                .textSelection(.enabled)
+            Text("build-script and update-checkout start with `#!/usr/bin/env python3`, so the interpreter is whatever comes first on PATH. Choosing one here puts it in front for the build process only, so installing another Python won't quietly change which one your builds use.")
+                .font(.monaco(size: 10))
+                .foregroundStyle(Color.terminalGreen.opacity(0.6))
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Applied to the build process only — your shell and xcode-select stay untouched, so you can keep working in another Xcode while this builds. Each build log records the toolchain it used.")
+                .font(.monaco(size: 10))
+                .foregroundStyle(Color.terminalGreen.opacity(0.6))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// Names the version automatic mode targets, so the menu says what it will actually do rather
+    /// than the uninformative "Automatic".
+    private var automaticPythonLabel: String {
+        "Automatic (newest \(PythonSelection.preferredMajor).\(PythonSelection.preferredMinor).x)"
     }
 
     @ViewBuilder

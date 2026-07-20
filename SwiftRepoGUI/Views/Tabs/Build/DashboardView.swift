@@ -192,11 +192,33 @@ struct DashboardView: View {
         return "update-checkout leaves the swift repo on \(branch) and updates the other repos \(timing) (\(flagList))."
     }
 
-    /// Warns when the locally selected Xcode differs from what the ci.swift.org nodes run (and quietly
-    /// confirms when it matches). Hidden until the background check completes / if it couldn't run.
+    /// Warns when the Xcode this app builds with differs from what the ci.swift.org nodes run (and
+    /// quietly confirms when it matches). Silent while the first check is in flight; a FAILED check
+    /// still renders, because the Recheck button is the only way to recover from a network blip.
     @ViewBuilder
     private var ciXcodeBanner: some View {
-        if let status = session.ciXcodeStatus {
+        switch session.ciXcodeCheck {
+        case .idle, .checking:
+            EmptyView()
+        case .failed:
+            HStack(spacing: 10) {
+                Image(systemName: "wifi.exclamationmark")
+                    .foregroundStyle(Color.terminalGreen.opacity(0.7))
+                    .accessibilityHidden(true)
+                Text("Couldn't reach ci.swift.org to compare your Xcode against CI.")
+                    .font(.monaco(size: 11))
+                    .foregroundStyle(Color.terminalGreen.opacity(0.8))
+                Spacer()
+                Button("Recheck") { session.recheckCIXcode() }
+                    .font(.monaco(size: 11))
+                    .accessibilityHint("Retries the ci.swift.org Xcode comparison.")
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 6).fill(Color.terminalGreen.opacity(0.06)))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.terminalGreen.opacity(0.25)))
+            .accessibilityElement(children: .combine)
+        case .loaded(let status):
             let accent = status.matches ? Color.terminalGreen : Color.swiftOrange
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: status.matches ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
@@ -212,6 +234,7 @@ struct DashboardView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
+                ciFleetPicker
                 Button("Recheck") { session.recheckCIXcode() }
                     .font(.monaco(size: 11))
                     .accessibilityHint("Re-checks ci.swift.org and your selected Xcode.")
@@ -227,15 +250,34 @@ struct DashboardView: View {
         }
     }
 
+    /// Chooses which ci.swift.org machine pool to compare against. The pools run different Xcodes,
+    /// so this is a real question with no default-correct answer — it starts on this machine's own
+    /// architecture and re-runs the check on change.
+    private var ciFleetPicker: some View {
+        TerminalMenu(
+            selection: session.ciFleet,
+            options: CIFleet.allCases.map { TerminalMenuOption($0, $0.display) },
+            onSelect: { session.ciFleet = $0 },
+            width: 170
+        )
+        .accessibilityLabel("CI fleet to compare against")
+    }
+
     private func ciXcodeDetail(_ status: CIXcodeStatus) -> String {
         let localFull = status.localBuild.map { "\(status.localVersion) (\($0))" } ?? status.localVersion
-        let precision = status.comparedAtMajorOnly ? ", major-version only from CI labels" : ""
-        if status.matches {
-            return "Local Xcode \(localFull); ci.swift.org \(status.arch) nodes run \(status.primaryCIVersion)\(precision)."
+        let precision = status.comparedAtMajorOnly ? ", major version only from CI labels" : ""
+        var detail = "Local Xcode \(localFull); ci.swift.org \(status.fleet.display) nodes run \(status.primaryCIVersion)\(precision)."
+        if !status.matches {
+            detail += " Building with a different Xcode than CI can produce results that differ from CI."
         }
-        var detail = "Local Xcode \(localFull); ci.swift.org \(status.arch) nodes run \(status.primaryCIVersion)\(precision). A different Xcode than CI can produce build results that differ from CI."
         if status.ciVersions.count > 1 {
-            detail += " (CI \(status.arch) fleet: \(status.ciVersions.joined(separator: ", ")).)"
+            detail += " (That fleet: \(status.ciVersions.joined(separator: ", ")).)"
+        }
+        // The published blurb is the project's stated recommendation and the fleets don't always
+        // agree with it — surface the difference rather than letting it look like a wrong reading.
+        if let published = status.publishedVersion, status.publishedDiffersFromFleet {
+            let host = status.publishedHostOS.map { " on macOS \($0)" } ?? ""
+            detail += " Note: the ci.swift.org dashboard states Xcode \(published)\(host)."
         }
         return detail
     }

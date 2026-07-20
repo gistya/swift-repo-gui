@@ -6,10 +6,12 @@ nonisolated public enum BuildProcessRunner {
         job: BuildJob,
         swiftSourceRoot: String?,
         swiftBuildRoot: String?,
+        toolchain: ToolchainSelection = .current(),
+        python: PythonSelection = .current(),
         onProgress: @escaping @Sendable (BuildProgressSnapshot) -> Void
     ) async throws -> BuildProcessResult {
         try prepareLogFile(at: job.logFilePath)
-        try appendLaunchHeader(for: job)
+        try appendLaunchHeader(for: job, toolchain: toolchain, python: python)
         let baseStage = BuildStage.baseStage(for: job.kind)
         onProgress(BuildProgressSnapshot(
             completedSteps: 0,
@@ -25,7 +27,7 @@ nonisolated public enum BuildProcessRunner {
         process.arguments = job.arguments
         process.currentDirectoryURL = URL(fileURLWithPath: job.workingDirectory, isDirectory: true)
 
-        var environment = processEnvironment()
+        var environment = processEnvironment(toolchain: toolchain, python: python)
         if let swiftSourceRoot { environment["SWIFT_SOURCE_ROOT"] = swiftSourceRoot }
         if let swiftBuildRoot { environment["SWIFT_BUILD_ROOT"] = swiftBuildRoot }
         process.environment = environment
@@ -97,7 +99,10 @@ nonisolated public enum BuildProcessRunner {
         }
     }
 
-    private static func processEnvironment() -> [String: String] {
+    private static func processEnvironment(
+        toolchain: ToolchainSelection = .current(),
+        python: PythonSelection = .current()
+    ) -> [String: String] {
         var environment = ProcessInfo.processInfo.environment
         let existingPath = environment["PATH"]?
             .split(separator: ":")
@@ -121,6 +126,13 @@ nonisolated public enum BuildProcessRunner {
         // loop — can sit unflushed for minutes and the log looks frozen after just the launch header.
         // Force line-by-line streaming so progress and failures reach the log as they happen.
         environment["PYTHONUNBUFFERED"] = "1"
+        // Pin the Xcode / Swift toolchain for THIS process only, so the build never depends on the
+        // shell that launched the app — and picking one here doesn't disturb the rest of the machine.
+        toolchain.apply(to: &environment)
+        // MUST come after the toolchain: an Xcode's `Contents/Developer/usr/bin` also contains a
+        // `python3` (3.9.6 as of Xcode 26), so if the toolchain were front-loaded last it would win
+        // the `#!/usr/bin/env python3` lookup and the chosen interpreter would be ignored.
+        python.apply(to: &environment)
         return environment
     }
 
@@ -135,11 +147,17 @@ nonisolated public enum BuildProcessRunner {
         }
     }
 
-    private static func appendLaunchHeader(for job: BuildJob) throws {
+    private static func appendLaunchHeader(
+        for job: BuildJob,
+        toolchain: ToolchainSelection,
+        python: PythonSelection
+    ) throws {
         let writer = try BuildLogWriter(path: job.logFilePath)
         do {
             try writer.append("""
             Working directory: \(job.workingDirectory)
+            Toolchain: \(toolchain.summary)
+            Python: \(python.summary(installed: InstalledPythons.discover()))
             Command: \(job.displayCommand)
 
             """)

@@ -1,6 +1,15 @@
 {
-  "originHash" : "9030a94588e1a6bb05dfd33a0ff8f14b079a01b7b50dfd1015848c9b7e804fd0",
+  "originHash" : "7d6572bf994c5387ea955c634f2dfc80df72dcd4a4203915ba319ca0287a6eec",
   "pins" : [
+    {
+      "identity" : "friday-the-thirteenth",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/gistya/friday-the-thirteenth",
+      "state" : {
+        "revision" : "be87de47919c3e6591e3f681812a411f30f870da",
+        "version" : "2.0.0"
+      }
+    },
     {
       "identity" : "matrix-swift",
       "kind" : "remoteSourceControl",
@@ -29,21 +38,12 @@
       }
     },
     {
-      "identity" : "swift-repo-core",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/gistya/swift-repo-core",
-      "state" : {
-        "revision" : "8a37b94d08367e002a2f7e54243801d8040c50ce",
-        "version" : "1.0.6"
-      }
-    },
-    {
       "identity" : "swiftxstate",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/gistya/SwiftXState",
       "state" : {
-        "revision" : "4a3be23f28e5fac4a415f8c1b2fd9ba8608a2575",
-        "version" : "2.0.0-alpha.6"
+        "revision" : "c9a446e05f2002cf3def4cb3be6b75b128167455",
+        "version" : "2.0.0-alpha.9"
       }
     }
   ],

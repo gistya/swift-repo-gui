@@ -63,9 +63,14 @@ final class AppSession {
     @ObservationIgnored private var buildSoundtrackBridge: Task<Void, Never>?
     @ObservationIgnored private(set) var lastErrorMessage: String?
     @ObservationIgnored private var ciXcodeTask: Task<Void, Never>?
-    /// Result of comparing the locally selected Xcode against the ci.swift.org build fleet. `nil` until
-    /// the first check completes (or if it couldn't be determined). Observed by the Build tab banner.
-    private(set) var ciXcodeStatus: CIXcodeStatus?
+    /// The inputs the current `ciXcodeCheck` result describes, so changing the Xcode in Build
+    /// Settings — or the CI fleet in the banner — invalidates it instead of leaving a verdict about
+    /// the previous selection on screen.
+    @ObservationIgnored private var checkedCIInputs: CIXcodeCheckInputs?
+    /// Comparison of the Xcode this app builds with against the ci.swift.org build fleet. Modelled as
+    /// one value rather than separate status/loading/failed flags so the banner can't render a
+    /// contradictory combination. Observed by the Build tab banner.
+    private(set) var ciXcodeCheck: CIXcodeCheckState = .idle
 
     /// Installed AudioUnit effects the user can drop into a soundtrack insert slot. Populated lazily
     /// by `ensureAudioEffectsLoaded()` the first time the effects rack is opened — never at launch.
@@ -432,22 +437,54 @@ final class AppSession {
         build.send(.cancel)
     }
 
-    /// Check (once, in the background) what Xcode the ci.swift.org nodes run and compare it to the
-    /// locally selected Xcode. Safe to call repeatedly — it only runs the first time. Any failure
-    /// leaves `ciXcodeStatus` nil and the banner hidden.
+    /// Check what Xcode the ci.swift.org nodes run and compare it to the Xcode/toolchain THIS APP
+    /// will build with (the in-app selection, not `xcode-select`).
+    ///
+    /// Safe to call from `onAppear`: it re-runs only when the in-app toolchain selection has changed
+    /// since the last check, so returning to the tab is free but switching Xcode in Build Settings
+    /// refreshes the banner instead of leaving a stale verdict on screen.
     func checkCIXcode() {
-        guard ciXcodeTask == nil else { return }
-        ciXcodeTask = Task { [weak self] in
-            let status = await CIXcodeChecker.check()
-            self?.ciXcodeStatus = status
+        let inputs = currentCIInputs
+        guard ciXcodeCheck.shouldAutoCheck(checked: checkedCIInputs, current: inputs) else { return }
+        startCIXcodeCheck(inputs)
+    }
+
+    /// Re-run the ci.swift.org Xcode check on demand (the banner's Recheck button) — the recovery
+    /// path after a network failure, and after changing Xcode outside the app with `xcode-select`.
+    func recheckCIXcode() {
+        startCIXcodeCheck(currentCIInputs)
+    }
+
+    /// Which ci.swift.org machine pool the banner compares against. The two pools run different
+    /// Xcodes, so this is the user's choice; it defaults to this machine's own architecture.
+    var ciFleet: CIFleet {
+        get { CIFleet.current(settingsDefaults) }
+        set {
+            guard newValue != ciFleet else { return }
+            settingsDefaults.set(newValue.rawValue, forKey: CIFleet.defaultsKey)
+            startCIXcodeCheck(currentCIInputs)
         }
     }
 
-    /// Re-run the ci.swift.org Xcode check (e.g. after switching Xcode with `xcode-select`).
-    func recheckCIXcode() {
+    private var currentCIInputs: CIXcodeCheckInputs {
+        CIXcodeCheckInputs(
+            toolchain: ToolchainSelection.current(settingsDefaults),
+            fleet: CIFleet.current(settingsDefaults)
+        )
+    }
+
+    private func startCIXcodeCheck(_ inputs: CIXcodeCheckInputs) {
         ciXcodeTask?.cancel()
-        ciXcodeTask = nil
-        checkCIXcode()
+        checkedCIInputs = inputs
+        ciXcodeCheck = .checking
+        ciXcodeTask = Task { [weak self] in
+            let status = await CIXcodeChecker.check(toolchain: inputs.toolchain, fleet: inputs.fleet)
+            // A cancelled task has already been superseded by a newer one — it must not publish its
+            // (nil) result over the fresher check's, nor clear the newer task's handle.
+            guard let self, !Task.isCancelled else { return }
+            self.ciXcodeTask = nil
+            self.ciXcodeCheck = status.map(CIXcodeCheckState.loaded) ?? .failed
+        }
     }
 
     /// Update every repository (`update-checkout`) and then delete the given build sub-directory,

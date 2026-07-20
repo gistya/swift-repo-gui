@@ -1,10 +1,10 @@
 import Testing
 import Foundation
 import SwiftXState
+@testable import SwiftBuild
 
-@testable
 @Suite(.serialized)
-struct SwiftRepoGUITests {
+struct SwiftRepoCoreTests {
 
     @Test func progressParserExtractsNinjaCounters() async throws {
         let progress = ProgressParser.parse(
@@ -241,11 +241,16 @@ struct SwiftRepoGUITests {
 
         let resolution = await CheckoutSchemeResolver.resolve(swiftDirectory: swiftDirectory)
 
-        #expect(resolution.scheme == "feature/current-branch")
+        // A personal/fork branch is NOT a scheme. Passing its name as `--scheme` is what made
+        // update-checkout fail with "'NoneType' object is not iterable", so we fall back to the
+        // config's default scheme and only report the branch for display.
+        #expect(resolution.scheme == "main")
         #expect(resolution.branch == "feature/current-branch")
-        #expect(resolution.source == .branchFallback)
+        #expect(resolution.source == .defaultScheme)
+        // The picker offers only real schemes — never the branch name, which would fail the same way.
         let schemes = await CheckoutSchemeResolver.availableSchemes(swiftDirectory: swiftDirectory)
-        #expect(schemes.contains("feature/current-branch"))
+        #expect(schemes.contains("main"))
+        #expect(!schemes.contains("feature/current-branch"))
     }
 
     @Test func checkoutSchemeResolverUsesBranchPointingAtDetachedHead() async throws {
