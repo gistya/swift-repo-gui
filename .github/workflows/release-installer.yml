@@ -28,7 +28,7 @@ env:
   PROJECT: SwiftRepoGUI.xcodeproj
   SCHEME: SwiftRepoGUI-Release
   CONFIGURATION: Release
-  APP_NAME: SwiftRepoGUI
+  APP_NAME: SwiftBuild
   PRODUCT_BUNDLE_ID: com.physicalsoftware.SwiftRepoGUI
   TEAM_ID: Y453UXCT86
 
