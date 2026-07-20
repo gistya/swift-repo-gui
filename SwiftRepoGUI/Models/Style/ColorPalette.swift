@@ -1,5 +1,3 @@
-import SwiftRepoCore
-
 nonisolated struct ColorPalette: Codable, Equatable, Sendable {
     var swiftOrange: StyleColor
     var lcdGreen: StyleColor

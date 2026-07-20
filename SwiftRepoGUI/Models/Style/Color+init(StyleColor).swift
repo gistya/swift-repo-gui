@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftRepoCore
 
 extension Color {
     init(_ styleColor: StyleColor) {

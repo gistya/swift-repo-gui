@@ -1,6 +1,5 @@
 import Foundation
 import SwiftData
-import SwiftRepoCore
 
 @Model
 final class SavedBuildProfile {

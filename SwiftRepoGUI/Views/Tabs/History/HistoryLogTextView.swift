@@ -1,6 +1,5 @@
 import AppKit
 import Matrix
-import SwiftRepoCore
 import SwiftUI
 
 /// Loads completed build logs once, off the main actor, and keeps full text out of State snapshots.

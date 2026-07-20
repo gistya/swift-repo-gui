@@ -1,6 +1,5 @@
 import Foundation
 import SwiftData
-import SwiftRepoCore
 
 /// SwiftData record for a build/test/deploy operation.
 ///

@@ -1,13 +1,13 @@
 import SwiftUI
 
 struct RetroActionButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
+    func makeBody(configuration: ButtonStyleConfiguration) -> some View {
         // A ButtonStyle can't hold @State, so the hover-reactive chrome lives in a nested view.
         HoverBody(configuration: configuration)
     }
 
     private struct HoverBody: View {
-        let configuration: Configuration
+        let configuration: ButtonStyleConfiguration
         @Environment(\.isEnabled) private var isEnabled
         @State private var hovering = false
 

@@ -1,4 +1,3 @@
-import SwiftRepoCore
 import SwiftUI
 
 struct BrushedMetalBackground: View {

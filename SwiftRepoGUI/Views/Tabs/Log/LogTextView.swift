@@ -1,5 +1,4 @@
 import AppKit
-import SwiftRepoCore
 import SwiftUI
 
 /// Shared `NSTextView`-backed log renderer.

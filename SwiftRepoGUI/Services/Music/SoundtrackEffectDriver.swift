@@ -1,6 +1,5 @@
 import Foundation
 import Ox0badf00dAVFoundation
-import SwiftRepoCore
 import SwiftXStateSwiftUI
 #if canImport(AppKit)
 import AppKit

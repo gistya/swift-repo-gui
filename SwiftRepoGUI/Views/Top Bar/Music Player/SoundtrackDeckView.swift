@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftRepoCore
 
 struct SoundtrackDeckView: View {
     let deck: SoundtrackDeckConfiguration

@@ -1,5 +1,5 @@
 {
-  "originHash" : "a2c4715f8a09f2c64f0f7a70e0aeafb292cbb0620513aeeba76b5cc574e9f736",
+  "originHash" : "a7658825e2082a4481f347e1eaf26c9476e2fb1454381c5d755e8228d62c7f9d",
   "pins" : [
     {
       "identity" : "friday-the-thirteenth",
@@ -35,15 +35,6 @@
       "state" : {
         "revision" : "46115c8285305135cb288a1bf05b9f69297bc619",
         "version" : "1.1.2"
-      }
-    },
-    {
-      "identity" : "swift-repo-core",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/gistya/swift-repo-core",
-      "state" : {
-        "revision" : "5ed4f77af09651346a7e706395c2f7df46a8cc82",
-        "version" : "1.0.7"
       }
     },
     {

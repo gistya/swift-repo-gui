@@ -1,5 +1,4 @@
 import Foundation
-import SwiftRepoCore
 
 nonisolated struct ExportedBuildOperation: Codable, Sendable {
     var id: UUID

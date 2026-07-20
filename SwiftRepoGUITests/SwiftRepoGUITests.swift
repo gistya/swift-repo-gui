@@ -1,7 +1,6 @@
 import Testing
 import Foundation
 import Ox0badf00dAVFoundation
-import SwiftRepoCore
 import SwiftXState
 import SwiftXStateSwiftUI
 @testable import SwiftRepoGUI

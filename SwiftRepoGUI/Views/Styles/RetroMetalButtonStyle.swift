@@ -1,12 +1,12 @@
 import SwiftUI
 
 struct RetroMetalButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
+    func makeBody(configuration: ButtonStyleConfiguration) -> some View {
         HoverBody(configuration: configuration)
     }
 
     private struct HoverBody: View {
-        let configuration: Configuration
+        let configuration: ButtonStyleConfiguration
         @Environment(\.isEnabled) private var isEnabled
         @State private var hovering = false
 

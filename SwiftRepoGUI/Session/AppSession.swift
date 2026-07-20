@@ -2,7 +2,6 @@ import Foundation
 import Observation
 import Ox0badf00dAVFoundation
 import SwiftData
-import SwiftRepoCore
 import SwiftXState
 import SwiftXStateInspectorUI
 import SwiftXStateSwiftUI

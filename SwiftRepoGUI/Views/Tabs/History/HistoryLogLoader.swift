@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import SwiftRepoCore
 import SwiftUI
 
 @MainActor

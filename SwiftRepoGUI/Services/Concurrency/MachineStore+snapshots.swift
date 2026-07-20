@@ -1,6 +1,5 @@
 import Foundation
 import SwiftXState
-import SwiftRepoCore
 import SwiftXStateSwiftUI
 
 extension MachineStore {

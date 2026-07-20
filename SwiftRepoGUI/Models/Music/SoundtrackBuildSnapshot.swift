@@ -1,5 +1,4 @@
 import CompositionalInit
-import SwiftRepoCore
 
 nonisolated struct SoundtrackBuildSnapshot: Sendable, Equatable, Hashable, Blankable {
     var stage: BuildStage

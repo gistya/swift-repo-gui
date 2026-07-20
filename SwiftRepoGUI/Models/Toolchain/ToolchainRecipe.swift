@@ -1,6 +1,5 @@
 import Foundation
 import SwiftData
-import SwiftRepoCore
 
 /// A saved, runnable toolchain composition (identity + flags + layered presets/mixins + overrides).
 @Model

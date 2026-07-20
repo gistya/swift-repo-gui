@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftRepoCore
 
 extension StyleColor {
     /// Build a `StyleColor` from a SwiftUI `Color` (what `ColorPicker` produces), via sRGB.

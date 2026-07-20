@@ -1,6 +1,5 @@
 import AppKit
 import Foundation
-import SwiftRepoCore
 
 nonisolated struct AppStyle: Codable, Equatable, Sendable {
     var fonts: FontPalette

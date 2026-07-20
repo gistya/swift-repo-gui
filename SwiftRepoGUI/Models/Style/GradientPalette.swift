@@ -1,5 +1,3 @@
-import SwiftRepoCore
-
 nonisolated struct GradientPalette: Codable, Equatable, Sendable {
     /// Brushed-metal gradient of the top chrome bar.
     var metalStops: [GradientStop]
